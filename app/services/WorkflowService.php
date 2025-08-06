@@ -331,7 +331,8 @@ class WorkflowService {
      */
     public function autoExtendTimeOnActivity($customerId, $activityType, $userId) {
         try {
-            $this->db->beginTransaction();
+            // Don't use transactions for this function to avoid deadlocks
+            // This function will be called from within OrderService transaction
             
             // ตรวจสอบลูกค้า
             $customer = $this->db->fetchOne(
@@ -339,8 +340,14 @@ class WorkflowService {
                 [$customerId]
             );
             
-            if (!$customer || $customer['basket_type'] !== 'assigned') {
-                return ['success' => false, 'message' => 'ลูกค้าไม่พร้อมต่อเวลา'];
+            if (!$customer) {
+                return ['success' => false, 'message' => 'ไม่พบข้อมูลลูกค้า'];
+            }
+            
+            // สำหรับการสร้างคำสั่งซื้อ ให้ต่อเวลาได้ทุกประเภท basket_type
+            // สำหรับกิจกรรมอื่นๆ ต้องเป็น assigned เท่านั้น
+            if ($activityType !== 'order' && $customer['basket_type'] !== 'assigned') {
+                return ['success' => false, 'message' => 'ลูกค้าไม่พร้อมต่อเวลา (ต้องเป็น assigned สำหรับกิจกรรมนี้)'];
             }
             
             $extensionDays = 0;
@@ -372,9 +379,22 @@ class WorkflowService {
             // คำนวณวันที่ใหม่
             $newDate = date('Y-m-d H:i:s', strtotime("+{$extensionDays} days"));
             
+            // ดึงข้อมูลลูกค้าปัจจุบันเพื่อคำนวณ customer_time_expiry
+            $currentCustomer = $this->db->fetchOne(
+                "SELECT customer_time_expiry FROM customers WHERE customer_id = ?",
+                [$customerId]
+            );
+            
+            // คำนวณ customer_time_expiry ใหม่ - เริ่มใหม่จากวันนี้เสมอ (ไม่สแต็ก)
+            $newExpiry = date('Y-m-d H:i:s', strtotime("+{$extensionDays} days"));
+            
             // อัปเดตวันที่
             $this->db->update('customers', 
-                ['assigned_at' => $newDate], 
+                [
+                    'assigned_at' => $newDate,
+                    'customer_time_expiry' => $newExpiry,
+                    'customer_time_extension' => $extensionDays
+                ], 
                 'customer_id = ?', 
                 [$customerId]
             );
@@ -383,8 +403,6 @@ class WorkflowService {
             $this->logActivity($customerId, $userId, 'auto_extend', 
                 "ต่อเวลาอัตโนมัติ {$extensionDays} วัน: {$reason}");
             
-            $this->db->commit();
-            
             return [
                 'success' => true,
                 'message' => "ต่อเวลาอัตโนมัติสำเร็จ {$extensionDays} วัน",
@@ -392,7 +410,6 @@ class WorkflowService {
             ];
             
         } catch (Exception $e) {
-            $this->db->rollback();
             error_log("Error auto extending time: " . $e->getMessage());
             return [
                 'success' => false,
@@ -424,7 +441,7 @@ class WorkflowService {
     public function getCustomersForExtension() {
         try {
             $sql = "
-                SELECT c.customer_id, c.customer_name, c.phone, c.email,
+                SELECT c.customer_id, CONCAT(c.first_name, ' ', c.last_name) as customer_name, c.phone, c.email,
                        u.full_name as assigned_user_name,
                        c.assigned_at,
                        DATEDIFF(NOW(), c.assigned_at) as days_assigned
@@ -432,7 +449,7 @@ class WorkflowService {
                 LEFT JOIN users u ON c.assigned_to = u.user_id
                 WHERE c.basket_type = 'assigned'
                 AND c.assigned_to IS NOT NULL
-                ORDER BY c.customer_name ASC
+                ORDER BY c.first_name ASC, c.last_name ASC
             ";
             
             return $this->db->fetchAll($sql);

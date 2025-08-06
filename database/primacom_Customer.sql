@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Aug 05, 2025 at 11:40 AM
+-- Generation Time: Aug 05, 2025 at 01:23 PM
 -- Server version: 10.6.19-MariaDB
 -- PHP Version: 8.0.30
 
@@ -25,9 +25,119 @@ DELIMITER $$
 --
 -- Procedures
 --
+CREATE DEFINER=`primacom_bloguser`@`localhost` PROCEDURE `CheckCustomerTimeouts` ()   BEGIN
+    DECLARE done INT DEFAULT FALSE;
+    DECLARE v_customer_id INT;
+    DECLARE v_assigned_to INT;
+    
+    -- Cursor สำหรับลูกค้าที่เกินกำหนด
+    DECLARE customer_cursor CURSOR FOR
+        SELECT customer_id, assigned_to
+        FROM customers
+        WHERE assigned_to IS NOT NULL
+          AND customer_time_expiry IS NOT NULL
+          AND customer_time_expiry <= NOW()
+          AND basket_type = 'assigned';
+    
+    DECLARE CONTINUE HANDLER FOR NOT FOUND SET done = TRUE;
+    
+    OPEN customer_cursor;
+    
+    read_loop: LOOP
+        FETCH customer_cursor INTO v_customer_id, v_assigned_to;
+        IF done THEN
+            LEAVE read_loop;
+        END IF;
+        
+        -- ดึงลูกค้ากลับไปยัง waiting basket
+        CALL RecallCustomer(v_customer_id, v_assigned_to, 'timeout', 'เกินกำหนดเวลา', 'waiting');
+        
+    END LOOP;
+    
+    CLOSE customer_cursor;
+    
+END$$
+
+CREATE DEFINER=`primacom_bloguser`@`localhost` PROCEDURE `ExtendCustomerTime` (IN `p_customer_id` INT, IN `p_user_id` INT, IN `p_extension_type` ENUM('sale','appointment','manual'), IN `p_extension_days` INT, IN `p_reason` VARCHAR(200))   BEGIN
+    DECLARE v_previous_expiry TIMESTAMP;
+    DECLARE v_new_expiry TIMESTAMP;
+    DECLARE v_current_expiry TIMESTAMP;
+    
+    -- ดึงวันหมดอายุปัจจุบัน
+    SELECT customer_time_expiry INTO v_current_expiry
+    FROM customers 
+    WHERE customer_id = p_customer_id;
+    
+    -- กำหนดวันหมดอายุใหม่
+    IF v_current_expiry IS NULL OR v_current_expiry <= NOW() THEN
+        SET v_new_expiry = DATE_ADD(NOW(), INTERVAL p_extension_days DAY);
+    ELSE
+        SET v_new_expiry = DATE_ADD(v_current_expiry, INTERVAL p_extension_days DAY);
+    END IF;
+    
+    -- บันทึกการต่อเวลา
+    INSERT INTO customer_time_extensions (
+        customer_id, user_id, extension_type, extension_days,
+        previous_expiry, new_expiry, reason
+    ) VALUES (
+        p_customer_id, p_user_id, p_extension_type, p_extension_days,
+        v_current_expiry, v_new_expiry, p_reason
+    );
+    
+    -- อัปเดตข้อมูลลูกค้า
+    UPDATE customers 
+    SET customer_time_expiry = v_new_expiry,
+        customer_time_extension = customer_time_extension + p_extension_days,
+        updated_at = NOW()
+    WHERE customer_id = p_customer_id;
+    
+    -- ถ้าเป็นการต่อเวลาจากการขาย ให้เปลี่ยนเป็นลูกค้าเก่า
+    IF p_extension_type = 'sale' THEN
+        UPDATE customers 
+        SET customer_status = 'existing'
+        WHERE customer_id = p_customer_id;
+    END IF;
+    
+    -- ถ้าเป็นการต่อเวลาจากการนัดหมาย ให้เพิ่มจำนวนครั้ง
+    IF p_extension_type = 'appointment' THEN
+        UPDATE customers 
+        SET appointment_extension_count = appointment_extension_count + 1
+        WHERE customer_id = p_customer_id;
+    END IF;
+    
+END$$
+
 CREATE DEFINER=`primacom_bloguser`@`localhost` PROCEDURE `ExtendCustomerTimeFromAppointment` (IN `p_customer_id` INT, IN `p_appointment_id` INT, IN `p_user_id` INT, IN `p_extension_days` INT)   BEGIN
        -- ... procedure content ...
    END$$
+
+CREATE DEFINER=`primacom_bloguser`@`localhost` PROCEDURE `RecallCustomer` (IN `p_customer_id` INT, IN `p_user_id` INT, IN `p_recall_type` ENUM('timeout','manual','system'), IN `p_recall_reason` VARCHAR(200), IN `p_new_basket` ENUM('distribution','waiting','assigned'))   BEGIN
+    DECLARE v_previous_basket ENUM('distribution', 'waiting', 'assigned');
+    DECLARE v_assigned_to INT;
+    
+    -- ดึงข้อมูลปัจจุบัน
+    SELECT basket_type, assigned_to INTO v_previous_basket, v_assigned_to
+    FROM customers 
+    WHERE customer_id = p_customer_id;
+    
+    -- บันทึกการดึงกลับ
+    INSERT INTO customer_recalls (
+        customer_id, user_id, recall_type, recall_reason,
+        previous_basket, new_basket
+    ) VALUES (
+        p_customer_id, p_user_id, p_recall_type, p_recall_reason,
+        v_previous_basket, p_new_basket
+    );
+    
+    -- อัปเดตสถานะลูกค้า
+    UPDATE customers 
+    SET basket_type = p_new_basket,
+        assigned_to = CASE WHEN p_new_basket = 'assigned' THEN assigned_to ELSE NULL END,
+        customer_time_expiry = CASE WHEN p_new_basket = 'waiting' THEN DATE_ADD(NOW(), INTERVAL 30 DAY) ELSE NULL END,
+        updated_at = NOW()
+    WHERE customer_id = p_customer_id;
+    
+END$$
 
 CREATE DEFINER=`primacom_bloguser`@`localhost` PROCEDURE `ResetAppointmentExtensionOnSale` (IN `p_customer_id` INT, IN `p_user_id` INT, IN `p_order_id` INT)   BEGIN
        -- ... procedure content ...
@@ -361,26 +471,30 @@ CREATE TABLE `customers` (
   `last_appointment_date` timestamp NULL DEFAULT NULL COMMENT 'วันที่นัดหมายล่าสุด',
   `appointment_extension_expiry` timestamp NULL DEFAULT NULL COMMENT 'วันหมดอายุการต่อเวลาจากการนัดหมาย',
   `max_appointment_extensions` int(11) DEFAULT 3 COMMENT 'จำนวนครั้งสูงสุดที่สามารถต่อเวลาได้ (default: 3)',
-  `appointment_extension_days` int(11) DEFAULT 30 COMMENT 'จำนวนวันที่ต่อเวลาต่อการนัดหมาย 1 ครั้ง (default: 30 วัน)'
+  `appointment_extension_days` int(11) DEFAULT 30 COMMENT 'จำนวนวันที่ต่อเวลาต่อการนัดหมาย 1 ครั้ง (default: 30 วัน)',
+  `customer_status` enum('new','existing') DEFAULT 'new' COMMENT 'สถานะลูกค้า: new=ลูกค้าใหม่, existing=ลูกค้าเก่า',
+  `customer_time_extension` int(11) DEFAULT 0 COMMENT 'จำนวนวันที่ต่อเวลาแล้ว',
+  `customer_time_base` timestamp NULL DEFAULT NULL COMMENT 'วันเริ่มต้นการดูแลลูกค้า',
+  `customer_time_expiry` timestamp NULL DEFAULT NULL COMMENT 'วันหมดอายุการดูแลลูกค้า'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `customers`
 --
 
-INSERT INTO `customers` (`customer_id`, `customer_code`, `first_name`, `last_name`, `phone`, `email`, `address`, `district`, `province`, `postal_code`, `temperature_status`, `customer_grade`, `total_purchase_amount`, `assigned_to`, `basket_type`, `assigned_at`, `last_contact_at`, `next_followup_at`, `recall_at`, `source`, `notes`, `is_active`, `created_at`, `updated_at`, `total_purchase`, `appointment_count`, `appointment_extension_count`, `last_appointment_date`, `appointment_extension_expiry`, `max_appointment_extensions`, `appointment_extension_days`) VALUES
-(1, 'C001', 'สมชาย', 'ใจดี', '081-111-1111', 'somchai@email.com', '123 ถนนสุขุมวิท', 'คลองเตย', 'กรุงเทพฯ', NULL, 'hot', 'D', 0.00, 3, 'assigned', '2025-08-03 07:19:20', '2025-08-04 17:06:27', NULL, NULL, 'facebook', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 08:32:14', 4805.00, 1, 0, '2025-07-21 08:32:14', '2025-08-20 08:32:14', 3, 30),
-(2, 'C002', 'สมหญิง', 'รักดี', '081-222-2222', 'somying@email.com', '456 ถนนรัชดาภิเษก', 'ดินแดง', 'กรุงเทพฯ', NULL, 'warm', 'B', 0.00, 4, 'assigned', '2025-08-05 09:48:59', NULL, NULL, '2025-09-04 09:48:59', 'import', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 09:48:59', 0.00, 1, 0, '2025-07-21 08:32:14', '2025-08-20 08:32:14', 3, 30),
-(3, 'C003', 'สมศักดิ์', 'มั่งมี', '081-333-3333', 'somsak@email.com', '789 ถนนลาดพร้าว', 'วังทองหลาง', 'กรุงเทพฯ', NULL, 'cold', 'C', 0.00, NULL, 'waiting', NULL, NULL, NULL, NULL, 'manual', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 08:32:14', 450.00, 1, 0, '2025-07-21 08:32:14', '2025-08-20 08:32:14', 3, 30),
-(4, 'C004', 'สมปอง', 'ใจเย็น', '081-444-4444', 'sompong@email.com', '321 ถนนเพชรบุรี', 'ห้วยขวาง', 'กรุงเทพฯ', NULL, 'frozen', 'D', 0.00, NULL, 'distribution', NULL, NULL, NULL, NULL, 'facebook', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 08:32:14', 5400.00, 2, 1, '2025-07-26 08:32:14', '2025-08-25 08:32:14', 3, 30),
-(5, 'C005', 'สมใจ', 'รักงาน', '081-555-5555', 'somjai@email.com', '654 ถนนพระราม 9', 'ห้วยขวาง', 'กรุงเทพฯ', NULL, 'hot', 'A+', 0.00, 4, 'assigned', '2025-08-03 07:19:20', NULL, NULL, NULL, 'import', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 08:32:14', 0.00, 3, 2, '2025-07-31 08:32:14', '2025-08-30 08:32:14', 3, 30),
-(6, 'C006', 'สมชาย', 'รวยมาก', '081-111-1111', 'somchai.rich@example.com', '123 ถ.สุขุมวิท กรุงเทพฯ', NULL, NULL, NULL, 'hot', 'A+', 150000.00, 3, 'assigned', '2025-08-05 09:48:27', '2025-06-19 17:22:31', NULL, '2025-09-04 09:48:27', NULL, NULL, 1, '2025-06-04 17:22:31', '2025-08-05 09:52:54', 0.00, 0, 0, NULL, NULL, 3, 30),
-(7, 'C007', 'สมหญิง', 'ใจดี', '081-222-2222', 'somying.kind@example.com', '456 ถ.รัชดา กรุงเทพฯ', NULL, NULL, NULL, 'warm', 'A', 75000.00, 4, 'assigned', '2025-08-05 09:48:46', '2025-06-29 17:22:31', NULL, '2025-09-04 09:48:46', NULL, NULL, 1, '2025-06-14 17:22:31', '2025-08-05 09:52:58', 0.00, 0, 0, NULL, NULL, 3, 30),
-(8, 'C008', 'สมศักดิ์', 'มั่นคง', '081-333-3333', 'somsak.stable@example.com', '789 ถ.ลาดพร้าว กรุงเทพฯ', NULL, NULL, NULL, 'hot', 'B', 25000.00, NULL, 'distribution', NULL, '2025-07-29 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-06-24 17:22:31', '2025-08-05 09:53:01', 0.00, 0, 0, NULL, NULL, 3, 30),
-(9, 'C009', 'สมใจ', 'ประหยัด', '081-444-4444', 'somjai.save@example.com', '101 ถ.พระราม 4 กรุงเทพฯ', NULL, NULL, NULL, 'cold', 'C', 8000.00, NULL, 'distribution', NULL, '2025-06-04 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-05-25 17:22:31', '2025-08-05 09:53:04', 0.00, 0, 0, NULL, NULL, 3, 30),
-(10, 'C010', 'สมหมาย', 'รอดี', '081-555-5555', 'sommai.wait@example.com', '202 ถ.เพชรบุรี กรุงเทพฯ', NULL, NULL, NULL, 'frozen', 'D', 2000.00, NULL, 'distribution', NULL, '2025-04-25 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-05-05 17:22:31', '2025-08-05 09:53:06', 0.00, 0, 0, NULL, NULL, 3, 30),
-(11, 'C011', 'สมทรง', 'เศรษฐี', '081-666-6666', 'somsong.wealthy@example.com', '303 ถ.สีลม กรุงเทพฯ', NULL, NULL, NULL, 'warm', 'A+', 120000.00, 3, 'assigned', '2025-08-05 09:48:59', '2025-08-05 09:50:00', NULL, '2025-09-04 09:48:59', NULL, NULL, 1, '2025-07-04 17:22:31', '2025-08-05 10:07:42', 1150.00, 0, 0, NULL, NULL, 3, 30),
-(12, 'C012', 'สมพร', 'หายไป', '081-777-7777', 'somporn.lost@example.com', '404 ถ.บางนา กรุงเทพฯ', NULL, NULL, NULL, 'frozen', 'C', 15000.00, NULL, 'distribution', NULL, '2025-04-30 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-04-25 17:22:31', '2025-08-05 09:53:13', 0.00, 0, 0, NULL, NULL, 3, 30);
+INSERT INTO `customers` (`customer_id`, `customer_code`, `first_name`, `last_name`, `phone`, `email`, `address`, `district`, `province`, `postal_code`, `temperature_status`, `customer_grade`, `total_purchase_amount`, `assigned_to`, `basket_type`, `assigned_at`, `last_contact_at`, `next_followup_at`, `recall_at`, `source`, `notes`, `is_active`, `created_at`, `updated_at`, `total_purchase`, `appointment_count`, `appointment_extension_count`, `last_appointment_date`, `appointment_extension_expiry`, `max_appointment_extensions`, `appointment_extension_days`, `customer_status`, `customer_time_extension`, `customer_time_base`, `customer_time_expiry`) VALUES
+(1, 'C001', 'สมชาย', 'ใจดี', '081-111-1111', 'somchai@email.com', '123 ถนนสุขุมวิท', 'คลองเตย', 'กรุงเทพฯ', NULL, 'hot', 'D', 0.00, NULL, 'waiting', '2025-08-03 07:19:20', '2025-08-04 17:06:27', NULL, NULL, 'facebook', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 12:32:24', 4805.00, 1, 0, '2025-07-21 08:32:14', '2025-08-20 08:32:14', 3, 30, 'existing', 30, '2025-08-03 07:19:20', '2025-09-04 12:32:24'),
+(2, 'C002', 'สมหญิง', 'รักดี', '081-222-2222', 'somying@email.com', '456 ถนนรัชดาภิเษก', 'ดินแดง', 'กรุงเทพฯ', NULL, 'warm', 'B', 0.00, 4, 'assigned', '2025-08-05 09:48:59', NULL, NULL, '2025-09-04 09:48:59', 'import', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 12:23:50', 0.00, 1, 0, '2025-07-21 08:32:14', '2025-08-20 08:32:14', 3, 30, 'existing', 0, '2025-08-05 09:48:59', '2025-09-04 09:48:59'),
+(3, 'C003', 'สมศักดิ์', 'มั่งมี', '081-333-3333', 'somsak@email.com', '789 ถนนลาดพร้าว', 'วังทองหลาง', 'กรุงเทพฯ', NULL, 'cold', 'C', 0.00, NULL, 'waiting', NULL, NULL, NULL, NULL, 'manual', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 12:23:51', 450.00, 1, 0, '2025-07-21 08:32:14', '2025-08-20 08:32:14', 3, 30, 'existing', 0, '2025-08-03 07:19:20', '2025-09-02 07:19:20'),
+(4, 'C004', 'สมปอง', 'ใจเย็น', '081-444-4444', 'sompong@email.com', '321 ถนนเพชรบุรี', 'ห้วยขวาง', 'กรุงเทพฯ', NULL, 'frozen', 'D', 0.00, NULL, 'distribution', NULL, NULL, NULL, NULL, 'facebook', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 12:23:51', 5400.00, 2, 1, '2025-07-26 08:32:14', '2025-08-25 08:32:14', 3, 30, 'existing', 0, '2025-08-03 07:19:20', '2025-03-01 17:00:00'),
+(5, 'C005', 'สมใจ', 'รักงาน', '081-555-5555', 'somjai@email.com', '654 ถนนพระราม 9', 'ห้วยขวาง', 'กรุงเทพฯ', NULL, 'hot', 'A+', 0.00, NULL, 'waiting', '2025-08-03 07:19:20', NULL, NULL, NULL, 'import', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 12:32:36', 0.00, 3, 2, '2025-07-31 08:32:14', '2025-08-30 08:32:14', 3, 30, 'existing', 0, '2025-08-03 07:19:20', '2025-09-04 12:32:36'),
+(6, 'C006', 'สมชาย', 'รวยมาก', '081-111-1111', 'somchai.rich@example.com', '123 ถ.สุขุมวิท กรุงเทพฯ', NULL, NULL, NULL, 'hot', 'A+', 150000.00, 3, 'assigned', '2025-08-05 09:48:27', '2025-06-19 17:22:31', NULL, '2025-09-04 09:48:27', NULL, NULL, 1, '2025-06-04 17:22:31', '2025-08-05 12:23:50', 0.00, 0, 0, NULL, NULL, 3, 30, 'existing', 0, '2025-08-05 09:48:27', '2025-09-04 09:48:27'),
+(7, 'C007', 'สมหญิง', 'ใจดี', '081-222-2222', 'somying.kind@example.com', '456 ถ.รัชดา กรุงเทพฯ', NULL, NULL, NULL, 'warm', 'A', 75000.00, 4, 'assigned', '2025-08-05 09:48:46', '2025-06-29 17:22:31', NULL, '2025-09-04 09:48:46', NULL, NULL, 1, '2025-06-14 17:22:31', '2025-08-05 12:23:50', 0.00, 0, 0, NULL, NULL, 3, 30, 'existing', 0, '2025-08-05 09:48:46', '2025-09-04 09:48:46'),
+(8, 'C008', 'สมศักดิ์', 'มั่นคง', '081-333-3333', 'somsak.stable@example.com', '789 ถ.ลาดพร้าว กรุงเทพฯ', NULL, NULL, NULL, 'hot', 'B', 25000.00, NULL, 'distribution', NULL, '2025-07-29 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-06-24 17:22:31', '2025-08-05 12:23:51', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-06-24 17:22:31', '2025-07-24 17:22:31'),
+(9, 'C009', 'สมใจ', 'ประหยัด', '081-444-4444', 'somjai.save@example.com', '101 ถ.พระราม 4 กรุงเทพฯ', NULL, NULL, NULL, 'cold', 'C', 8000.00, NULL, 'distribution', NULL, '2025-06-04 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-05-25 17:22:31', '2025-08-05 12:23:51', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-05-25 17:22:31', '2025-06-24 17:22:31'),
+(10, 'C010', 'สมหมาย', 'รอดี', '081-555-5555', 'sommai.wait@example.com', '202 ถ.เพชรบุรี กรุงเทพฯ', NULL, NULL, NULL, 'frozen', 'D', 2000.00, NULL, 'distribution', NULL, '2025-04-25 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-05-05 17:22:31', '2025-08-05 12:23:51', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-05-05 17:22:31', '2025-06-04 17:22:31'),
+(11, 'C011', 'สมทรง', 'เศรษฐี', '081-666-6666', 'somsong.wealthy@example.com', '303 ถ.สีลม กรุงเทพฯ', NULL, NULL, NULL, 'warm', 'A+', 120000.00, 3, 'assigned', '2025-08-05 09:48:59', '2025-08-05 09:50:00', NULL, '2025-09-04 09:48:59', NULL, NULL, 1, '2025-07-04 17:22:31', '2025-08-05 12:23:50', 1150.00, 0, 0, NULL, NULL, 3, 30, 'existing', 0, '2025-08-05 09:48:59', '2025-09-04 09:48:59'),
+(12, 'C012', 'สมพร', 'หายไป', '081-777-7777', 'somporn.lost@example.com', '404 ถ.บางนา กรุงเทพฯ', NULL, NULL, NULL, 'frozen', 'C', 15000.00, NULL, 'distribution', NULL, '2025-04-30 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-04-25 17:22:31', '2025-08-05 12:23:51', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-04-25 17:22:31', '2025-05-25 17:22:31');
 
 -- --------------------------------------------------------
 
@@ -438,6 +552,213 @@ CREATE TABLE `customer_appointment_extensions` (
 -- --------------------------------------------------------
 
 --
+-- Stand-in structure for view `customer_do_list`
+-- (See below for the actual view)
+--
+CREATE TABLE `customer_do_list` (
+`customer_id` int(11)
+,`customer_code` varchar(50)
+,`first_name` varchar(50)
+,`last_name` varchar(50)
+,`phone` varchar(20)
+,`email` varchar(100)
+,`address` text
+,`district` varchar(50)
+,`province` varchar(50)
+,`postal_code` varchar(10)
+,`temperature_status` enum('hot','warm','cold','frozen')
+,`customer_grade` enum('A+','A','B','C','D')
+,`total_purchase_amount` decimal(12,2)
+,`assigned_to` int(11)
+,`basket_type` enum('distribution','waiting','assigned')
+,`assigned_at` timestamp
+,`last_contact_at` timestamp
+,`next_followup_at` timestamp
+,`recall_at` timestamp
+,`source` varchar(50)
+,`notes` text
+,`is_active` tinyint(1)
+,`created_at` timestamp
+,`updated_at` timestamp
+,`total_purchase` decimal(12,2)
+,`appointment_count` int(11)
+,`appointment_extension_count` int(11)
+,`last_appointment_date` timestamp
+,`appointment_extension_expiry` timestamp
+,`max_appointment_extensions` int(11)
+,`appointment_extension_days` int(11)
+,`customer_status` enum('new','existing')
+,`customer_time_extension` int(11)
+,`customer_time_base` timestamp
+,`customer_time_expiry` timestamp
+,`days_remaining` int(8)
+,`status_text` varchar(10)
+,`urgency_status` varchar(11)
+);
+
+-- --------------------------------------------------------
+
+--
+-- Stand-in structure for view `customer_existing_list`
+-- (See below for the actual view)
+--
+CREATE TABLE `customer_existing_list` (
+`customer_id` int(11)
+,`customer_code` varchar(50)
+,`first_name` varchar(50)
+,`last_name` varchar(50)
+,`phone` varchar(20)
+,`email` varchar(100)
+,`address` text
+,`district` varchar(50)
+,`province` varchar(50)
+,`postal_code` varchar(10)
+,`temperature_status` enum('hot','warm','cold','frozen')
+,`customer_grade` enum('A+','A','B','C','D')
+,`total_purchase_amount` decimal(12,2)
+,`assigned_to` int(11)
+,`basket_type` enum('distribution','waiting','assigned')
+,`assigned_at` timestamp
+,`last_contact_at` timestamp
+,`next_followup_at` timestamp
+,`recall_at` timestamp
+,`source` varchar(50)
+,`notes` text
+,`is_active` tinyint(1)
+,`created_at` timestamp
+,`updated_at` timestamp
+,`total_purchase` decimal(12,2)
+,`appointment_count` int(11)
+,`appointment_extension_count` int(11)
+,`last_appointment_date` timestamp
+,`appointment_extension_expiry` timestamp
+,`max_appointment_extensions` int(11)
+,`appointment_extension_days` int(11)
+,`customer_status` enum('new','existing')
+,`customer_time_extension` int(11)
+,`customer_time_base` timestamp
+,`customer_time_expiry` timestamp
+,`days_remaining` int(8)
+);
+
+-- --------------------------------------------------------
+
+--
+-- Stand-in structure for view `customer_followup_list`
+-- (See below for the actual view)
+--
+CREATE TABLE `customer_followup_list` (
+`customer_id` int(11)
+,`customer_code` varchar(50)
+,`first_name` varchar(50)
+,`last_name` varchar(50)
+,`phone` varchar(20)
+,`email` varchar(100)
+,`address` text
+,`district` varchar(50)
+,`province` varchar(50)
+,`postal_code` varchar(10)
+,`temperature_status` enum('hot','warm','cold','frozen')
+,`customer_grade` enum('A+','A','B','C','D')
+,`total_purchase_amount` decimal(12,2)
+,`assigned_to` int(11)
+,`basket_type` enum('distribution','waiting','assigned')
+,`assigned_at` timestamp
+,`last_contact_at` timestamp
+,`next_followup_at` timestamp
+,`recall_at` timestamp
+,`source` varchar(50)
+,`notes` text
+,`is_active` tinyint(1)
+,`created_at` timestamp
+,`updated_at` timestamp
+,`total_purchase` decimal(12,2)
+,`appointment_count` int(11)
+,`appointment_extension_count` int(11)
+,`last_appointment_date` timestamp
+,`appointment_extension_expiry` timestamp
+,`max_appointment_extensions` int(11)
+,`appointment_extension_days` int(11)
+,`customer_status` enum('new','existing')
+,`customer_time_extension` int(11)
+,`customer_time_base` timestamp
+,`customer_time_expiry` timestamp
+,`followup_days_remaining` int(8)
+);
+
+-- --------------------------------------------------------
+
+--
+-- Stand-in structure for view `customer_new_list`
+-- (See below for the actual view)
+--
+CREATE TABLE `customer_new_list` (
+`customer_id` int(11)
+,`customer_code` varchar(50)
+,`first_name` varchar(50)
+,`last_name` varchar(50)
+,`phone` varchar(20)
+,`email` varchar(100)
+,`address` text
+,`district` varchar(50)
+,`province` varchar(50)
+,`postal_code` varchar(10)
+,`temperature_status` enum('hot','warm','cold','frozen')
+,`customer_grade` enum('A+','A','B','C','D')
+,`total_purchase_amount` decimal(12,2)
+,`assigned_to` int(11)
+,`basket_type` enum('distribution','waiting','assigned')
+,`assigned_at` timestamp
+,`last_contact_at` timestamp
+,`next_followup_at` timestamp
+,`recall_at` timestamp
+,`source` varchar(50)
+,`notes` text
+,`is_active` tinyint(1)
+,`created_at` timestamp
+,`updated_at` timestamp
+,`total_purchase` decimal(12,2)
+,`appointment_count` int(11)
+,`appointment_extension_count` int(11)
+,`last_appointment_date` timestamp
+,`appointment_extension_expiry` timestamp
+,`max_appointment_extensions` int(11)
+,`appointment_extension_days` int(11)
+,`customer_status` enum('new','existing')
+,`customer_time_extension` int(11)
+,`customer_time_base` timestamp
+,`customer_time_expiry` timestamp
+,`days_remaining` int(8)
+);
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `customer_recalls`
+--
+
+CREATE TABLE `customer_recalls` (
+  `recall_id` int(11) NOT NULL,
+  `customer_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `recall_type` enum('timeout','manual','system') NOT NULL,
+  `recall_reason` varchar(200) DEFAULT NULL,
+  `previous_basket` enum('distribution','waiting','assigned') NOT NULL,
+  `new_basket` enum('distribution','waiting','assigned') NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `customer_recalls`
+--
+
+INSERT INTO `customer_recalls` (`recall_id`, `customer_id`, `user_id`, `recall_type`, `recall_reason`, `previous_basket`, `new_basket`, `created_at`) VALUES
+(1, 1, 3, 'timeout', 'เกินกำหนดเวลา', 'assigned', 'waiting', '2025-08-05 12:32:24'),
+(2, 5, 4, 'timeout', 'เกินกำหนดเวลา', 'assigned', 'waiting', '2025-08-05 12:32:36');
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `customer_recall_list`
 --
 
@@ -453,6 +774,34 @@ CREATE TABLE `customer_recall_list` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `customer_time_extensions`
+--
+
+CREATE TABLE `customer_time_extensions` (
+  `extension_id` int(11) NOT NULL,
+  `customer_id` int(11) NOT NULL,
+  `user_id` int(11) NOT NULL,
+  `extension_type` enum('sale','appointment','manual') NOT NULL,
+  `extension_days` int(11) NOT NULL,
+  `previous_expiry` timestamp NULL DEFAULT NULL,
+  `new_expiry` timestamp NOT NULL DEFAULT '0000-00-00 00:00:00',
+  `reason` varchar(200) DEFAULT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Dumping data for table `customer_time_extensions`
+--
+
+INSERT INTO `customer_time_extensions` (`extension_id`, `customer_id`, `user_id`, `extension_type`, `extension_days`, `previous_expiry`, `new_expiry`, `reason`, `created_at`) VALUES
+(1, 1, 3, 'sale', 90, '2025-01-30 17:00:00', '2025-04-30 17:00:00', 'ขายได้ครั้งแรก', '2025-08-05 12:23:51'),
+(2, 4, 3, 'appointment', 30, '2025-01-30 17:00:00', '2025-03-01 17:00:00', 'นัดหมายเสร็จสิ้น', '2025-08-05 12:23:51'),
+(3, 5, 4, 'sale', 90, '2025-01-30 17:00:00', '2025-04-30 17:00:00', 'ขายได้ครั้งแรก', '2025-08-05 12:23:51'),
+(4, 1, 3, 'manual', 30, '2025-04-30 17:00:00', '2025-09-04 12:32:10', 'ทดสอบต่อเวลาหลังหมดอายุ', '2025-08-05 12:32:10');
 
 -- --------------------------------------------------------
 
@@ -523,7 +872,7 @@ INSERT INTO `orders` (`order_id`, `order_number`, `customer_id`, `created_by`, `
 (34, 'ORD202508036ABD4D', 1, 3, '2025-08-03', 700.00, 0.00, 0.00, 700.00, 'cash', 'pending', '2025-08-03', '123 ถนนสุขุมวิท', 'pending', '121', 1, '2025-08-03 13:24:46', '2025-08-03 13:24:46'),
 (36, 'ORD202508032D6B8E', 1, 3, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'cash', 'pending', '2025-08-03', '123 ถนนสุขุมวิท', 'delivered', '555', 1, '2025-08-03 13:36:18', '2025-08-04 16:16:39'),
 (37, 'ORD20250805420131', 1, 3, '2025-08-05', 1500.00, 0.00, 0.00, 1500.00, 'cod', 'pending', '2025-08-05', '123 ถนนสุขุมวิท', 'delivered', '22', 1, '2025-08-05 08:07:49', '2025-08-05 08:08:19'),
-(39, 'ORD20250805A9F387', 11, 3, '2025-08-05', 450.00, 0.00, 0.00, 450.00, 'cod', 'pending', '2025-08-05', '303 ถ.สีลม กรุงเทพฯ', 'pending', 'กกกกกก', 1, '2025-08-05 10:07:42', '2025-08-05 10:07:42');
+(39, 'ORD20250805A9F387', 11, 3, '2025-08-05', 450.00, 0.00, 0.00, 450.00, 'cod', 'pending', '2025-08-05', '303 ถ.สีลม กรุงเทพฯ', 'delivered', 'กกกกกก', 1, '2025-08-05 10:07:42', '2025-08-05 11:43:40');
 
 -- --------------------------------------------------------
 
@@ -572,7 +921,8 @@ INSERT INTO `order_activities` (`activity_id`, `order_id`, `user_id`, `activity_
 (29, 36, 3, 'status_update', 'อัปเดต delivery_status เป็น: delivered', '2025-08-04 16:16:39'),
 (30, 37, 3, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250805420131', '2025-08-05 08:07:49'),
 (31, 37, 3, 'status_update', 'อัปเดต delivery_status เป็น: delivered', '2025-08-05 08:08:19'),
-(33, 39, 3, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250805A9F387', '2025-08-05 10:07:42');
+(33, 39, 3, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250805A9F387', '2025-08-05 10:07:42'),
+(34, 39, 3, 'status_update', 'อัปเดต delivery_status เป็น: delivered', '2025-08-05 11:43:40');
 
 -- --------------------------------------------------------
 
@@ -765,7 +1115,7 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`user_id`, `username`, `password_hash`, `full_name`, `email`, `phone`, `role_id`, `company_id`, `is_active`, `created_at`, `updated_at`, `last_login`) VALUES
-(1, 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ผู้ดูแลระบบ', 'admin@prima49.com', '081-234-5678', 1, 1, 1, '2025-08-03 07:19:20', '2025-08-05 09:47:45', '2025-08-05 09:47:45'),
+(1, 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ผู้ดูแลระบบ', 'admin@prima49.com', '081-234-5678', 1, 1, 1, '2025-08-03 07:19:20', '2025-08-05 13:21:07', '2025-08-05 13:21:07'),
 (2, 'supervisor', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'หัวหน้าทีมขาย', 'supervisor@prima49.com', '081-234-5679', 3, 1, 1, '2025-08-03 07:19:20', '2025-08-03 07:19:20', NULL),
 (3, 'telesales1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'พนักงานขาย 1', 'telesales1@prima49.com', '081-234-5680', 4, 1, 1, '2025-08-03 07:19:20', '2025-08-05 11:35:38', '2025-08-05 11:35:38'),
 (4, 'telesales2', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'พนักงานขาย 2', 'telesales2@prima49.com', '081-234-5681', 4, 1, 1, '2025-08-03 07:19:20', '2025-08-03 07:19:20', NULL);
@@ -778,6 +1128,42 @@ INSERT INTO `users` (`user_id`, `username`, `password_hash`, `full_name`, `email
 DROP TABLE IF EXISTS `customer_appointment_extensions`;
 
 CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_appointment_extensions`  AS SELECT `c`.`customer_id` AS `customer_id`, concat(`c`.`first_name`,' ',`c`.`last_name`) AS `customer_name`, `c`.`customer_grade` AS `customer_grade`, `c`.`temperature_status` AS `temperature_status`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`last_appointment_date` AS `last_appointment_date`, CASE WHEN `c`.`appointment_extension_expiry` is null THEN 'ไม่มีวันหมดอายุ' WHEN `c`.`appointment_extension_expiry` < current_timestamp() THEN 'หมดอายุแล้ว' ELSE 'ยังไม่หมดอายุ' END AS `expiry_status`, CASE WHEN `c`.`appointment_extension_count` >= `c`.`max_appointment_extensions` THEN 'ไม่สามารถต่อเวลาได้แล้ว' ELSE 'สามารถต่อเวลาได้' END AS `extension_status`, `u`.`username` AS `assigned_user` FROM (`customers` `c` left join `users` `u` on(`c`.`assigned_to` = `u`.`user_id`)) WHERE `c`.`is_active` = 1 ;
+
+-- --------------------------------------------------------
+
+--
+-- Structure for view `customer_do_list`
+--
+DROP TABLE IF EXISTS `customer_do_list`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_do_list`  AS SELECT `c`.`customer_id` AS `customer_id`, `c`.`customer_code` AS `customer_code`, `c`.`first_name` AS `first_name`, `c`.`last_name` AS `last_name`, `c`.`phone` AS `phone`, `c`.`email` AS `email`, `c`.`address` AS `address`, `c`.`district` AS `district`, `c`.`province` AS `province`, `c`.`postal_code` AS `postal_code`, `c`.`temperature_status` AS `temperature_status`, `c`.`customer_grade` AS `customer_grade`, `c`.`total_purchase_amount` AS `total_purchase_amount`, `c`.`assigned_to` AS `assigned_to`, `c`.`basket_type` AS `basket_type`, `c`.`assigned_at` AS `assigned_at`, `c`.`last_contact_at` AS `last_contact_at`, `c`.`next_followup_at` AS `next_followup_at`, `c`.`recall_at` AS `recall_at`, `c`.`source` AS `source`, `c`.`notes` AS `notes`, `c`.`is_active` AS `is_active`, `c`.`created_at` AS `created_at`, `c`.`updated_at` AS `updated_at`, `c`.`total_purchase` AS `total_purchase`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`last_appointment_date` AS `last_appointment_date`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`customer_status` AS `customer_status`, `c`.`customer_time_extension` AS `customer_time_extension`, `c`.`customer_time_base` AS `customer_time_base`, `c`.`customer_time_expiry` AS `customer_time_expiry`, to_days(`c`.`customer_time_expiry`) - to_days(current_timestamp()) AS `days_remaining`, CASE WHEN `c`.`customer_status` = 'new' THEN 'ลูกค้าใหม่' WHEN `c`.`customer_status` = 'existing' THEN 'ลูกค้าเก่า' END AS `status_text`, CASE WHEN `c`.`customer_time_expiry` <= current_timestamp() THEN 'เกินกำหนด' WHEN `c`.`customer_time_expiry` <= current_timestamp() + interval 7 day THEN 'ใกล้หมดเวลา' ELSE 'ปกติ' END AS `urgency_status` FROM `customers` AS `c` WHERE `c`.`assigned_to` is not null AND `c`.`basket_type` = 'assigned' AND `c`.`is_active` = 1 AND (`c`.`customer_time_expiry` <= current_timestamp() + interval 7 day OR `c`.`next_followup_at` <= current_timestamp()) ;
+
+-- --------------------------------------------------------
+
+--
+-- Structure for view `customer_existing_list`
+--
+DROP TABLE IF EXISTS `customer_existing_list`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_existing_list`  AS SELECT `c`.`customer_id` AS `customer_id`, `c`.`customer_code` AS `customer_code`, `c`.`first_name` AS `first_name`, `c`.`last_name` AS `last_name`, `c`.`phone` AS `phone`, `c`.`email` AS `email`, `c`.`address` AS `address`, `c`.`district` AS `district`, `c`.`province` AS `province`, `c`.`postal_code` AS `postal_code`, `c`.`temperature_status` AS `temperature_status`, `c`.`customer_grade` AS `customer_grade`, `c`.`total_purchase_amount` AS `total_purchase_amount`, `c`.`assigned_to` AS `assigned_to`, `c`.`basket_type` AS `basket_type`, `c`.`assigned_at` AS `assigned_at`, `c`.`last_contact_at` AS `last_contact_at`, `c`.`next_followup_at` AS `next_followup_at`, `c`.`recall_at` AS `recall_at`, `c`.`source` AS `source`, `c`.`notes` AS `notes`, `c`.`is_active` AS `is_active`, `c`.`created_at` AS `created_at`, `c`.`updated_at` AS `updated_at`, `c`.`total_purchase` AS `total_purchase`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`last_appointment_date` AS `last_appointment_date`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`customer_status` AS `customer_status`, `c`.`customer_time_extension` AS `customer_time_extension`, `c`.`customer_time_base` AS `customer_time_base`, `c`.`customer_time_expiry` AS `customer_time_expiry`, to_days(`c`.`customer_time_expiry`) - to_days(current_timestamp()) AS `days_remaining` FROM `customers` AS `c` WHERE `c`.`assigned_to` is not null AND `c`.`basket_type` = 'assigned' AND `c`.`customer_status` = 'existing' AND `c`.`is_active` = 1 ;
+
+-- --------------------------------------------------------
+
+--
+-- Structure for view `customer_followup_list`
+--
+DROP TABLE IF EXISTS `customer_followup_list`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_followup_list`  AS SELECT `c`.`customer_id` AS `customer_id`, `c`.`customer_code` AS `customer_code`, `c`.`first_name` AS `first_name`, `c`.`last_name` AS `last_name`, `c`.`phone` AS `phone`, `c`.`email` AS `email`, `c`.`address` AS `address`, `c`.`district` AS `district`, `c`.`province` AS `province`, `c`.`postal_code` AS `postal_code`, `c`.`temperature_status` AS `temperature_status`, `c`.`customer_grade` AS `customer_grade`, `c`.`total_purchase_amount` AS `total_purchase_amount`, `c`.`assigned_to` AS `assigned_to`, `c`.`basket_type` AS `basket_type`, `c`.`assigned_at` AS `assigned_at`, `c`.`last_contact_at` AS `last_contact_at`, `c`.`next_followup_at` AS `next_followup_at`, `c`.`recall_at` AS `recall_at`, `c`.`source` AS `source`, `c`.`notes` AS `notes`, `c`.`is_active` AS `is_active`, `c`.`created_at` AS `created_at`, `c`.`updated_at` AS `updated_at`, `c`.`total_purchase` AS `total_purchase`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`last_appointment_date` AS `last_appointment_date`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`customer_status` AS `customer_status`, `c`.`customer_time_extension` AS `customer_time_extension`, `c`.`customer_time_base` AS `customer_time_base`, `c`.`customer_time_expiry` AS `customer_time_expiry`, to_days(`c`.`next_followup_at`) - to_days(current_timestamp()) AS `followup_days_remaining` FROM `customers` AS `c` WHERE `c`.`assigned_to` is not null AND `c`.`basket_type` = 'assigned' AND `c`.`next_followup_at` is not null AND `c`.`next_followup_at` <= current_timestamp() AND `c`.`is_active` = 1 ;
+
+-- --------------------------------------------------------
+
+--
+-- Structure for view `customer_new_list`
+--
+DROP TABLE IF EXISTS `customer_new_list`;
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_new_list`  AS SELECT `c`.`customer_id` AS `customer_id`, `c`.`customer_code` AS `customer_code`, `c`.`first_name` AS `first_name`, `c`.`last_name` AS `last_name`, `c`.`phone` AS `phone`, `c`.`email` AS `email`, `c`.`address` AS `address`, `c`.`district` AS `district`, `c`.`province` AS `province`, `c`.`postal_code` AS `postal_code`, `c`.`temperature_status` AS `temperature_status`, `c`.`customer_grade` AS `customer_grade`, `c`.`total_purchase_amount` AS `total_purchase_amount`, `c`.`assigned_to` AS `assigned_to`, `c`.`basket_type` AS `basket_type`, `c`.`assigned_at` AS `assigned_at`, `c`.`last_contact_at` AS `last_contact_at`, `c`.`next_followup_at` AS `next_followup_at`, `c`.`recall_at` AS `recall_at`, `c`.`source` AS `source`, `c`.`notes` AS `notes`, `c`.`is_active` AS `is_active`, `c`.`created_at` AS `created_at`, `c`.`updated_at` AS `updated_at`, `c`.`total_purchase` AS `total_purchase`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`last_appointment_date` AS `last_appointment_date`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`customer_status` AS `customer_status`, `c`.`customer_time_extension` AS `customer_time_extension`, `c`.`customer_time_base` AS `customer_time_base`, `c`.`customer_time_expiry` AS `customer_time_expiry`, to_days(`c`.`customer_time_expiry`) - to_days(current_timestamp()) AS `days_remaining` FROM `customers` AS `c` WHERE `c`.`assigned_to` is not null AND `c`.`basket_type` = 'assigned' AND `c`.`customer_status` = 'new' AND `c`.`is_active` = 1 ;
 
 --
 -- Indexes for dumped tables
@@ -888,7 +1274,10 @@ ALTER TABLE `customers`
   ADD KEY `idx_created_at` (`created_at`),
   ADD KEY `idx_customers_phone` (`phone`),
   ADD KEY `idx_customers_email` (`email`),
-  ADD KEY `idx_customers_total_purchase` (`total_purchase`);
+  ADD KEY `idx_customers_total_purchase` (`total_purchase`),
+  ADD KEY `idx_customer_status` (`customer_status`),
+  ADD KEY `idx_customer_time_expiry` (`customer_time_expiry`),
+  ADD KEY `idx_customer_time_base` (`customer_time_base`);
 
 --
 -- Indexes for table `customer_activities`
@@ -901,6 +1290,18 @@ ALTER TABLE `customer_activities`
   ADD KEY `idx_created_at` (`created_at`);
 
 --
+-- Indexes for table `customer_recalls`
+--
+ALTER TABLE `customer_recalls`
+  ADD PRIMARY KEY (`recall_id`),
+  ADD KEY `user_id` (`user_id`),
+  ADD KEY `idx_customer_id` (`customer_id`),
+  ADD KEY `idx_recall_type` (`recall_type`),
+  ADD KEY `idx_created_at` (`created_at`),
+  ADD KEY `idx_customer_recalls_customer_id` (`customer_id`),
+  ADD KEY `idx_customer_recalls_created_at` (`created_at`);
+
+--
 -- Indexes for table `customer_recall_list`
 --
 ALTER TABLE `customer_recall_list`
@@ -910,6 +1311,18 @@ ALTER TABLE `customer_recall_list`
   ADD KEY `idx_priority` (`priority`),
   ADD KEY `idx_status` (`status`),
   ADD KEY `fk_customer_recall_assigned_to` (`assigned_to`);
+
+--
+-- Indexes for table `customer_time_extensions`
+--
+ALTER TABLE `customer_time_extensions`
+  ADD PRIMARY KEY (`extension_id`),
+  ADD KEY `user_id` (`user_id`),
+  ADD KEY `idx_customer_id` (`customer_id`),
+  ADD KEY `idx_extension_type` (`extension_type`),
+  ADD KEY `idx_created_at` (`created_at`),
+  ADD KEY `idx_customer_time_extensions_customer_id` (`customer_id`),
+  ADD KEY `idx_customer_time_extensions_created_at` (`created_at`);
 
 --
 -- Indexes for table `notifications`
@@ -1091,10 +1504,22 @@ ALTER TABLE `customer_activities`
   MODIFY `activity_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
 
 --
+-- AUTO_INCREMENT for table `customer_recalls`
+--
+ALTER TABLE `customer_recalls`
+  MODIFY `recall_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
+
+--
 -- AUTO_INCREMENT for table `customer_recall_list`
 --
 ALTER TABLE `customer_recall_list`
   MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
+-- AUTO_INCREMENT for table `customer_time_extensions`
+--
+ALTER TABLE `customer_time_extensions`
+  MODIFY `extension_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
 
 --
 -- AUTO_INCREMENT for table `notifications`
@@ -1112,7 +1537,7 @@ ALTER TABLE `orders`
 -- AUTO_INCREMENT for table `order_activities`
 --
 ALTER TABLE `order_activities`
-  MODIFY `activity_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=34;
+  MODIFY `activity_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
 
 --
 -- AUTO_INCREMENT for table `order_details`
@@ -1209,11 +1634,25 @@ ALTER TABLE `customer_activities`
   ADD CONSTRAINT `customer_activities_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`);
 
 --
+-- Constraints for table `customer_recalls`
+--
+ALTER TABLE `customer_recalls`
+  ADD CONSTRAINT `customer_recalls_ibfk_1` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`customer_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `customer_recalls_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`);
+
+--
 -- Constraints for table `customer_recall_list`
 --
 ALTER TABLE `customer_recall_list`
   ADD CONSTRAINT `fk_customer_recall_assigned_to` FOREIGN KEY (`assigned_to`) REFERENCES `users` (`user_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_customer_recall_customer_id` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`customer_id`) ON DELETE CASCADE;
+
+--
+-- Constraints for table `customer_time_extensions`
+--
+ALTER TABLE `customer_time_extensions`
+  ADD CONSTRAINT `customer_time_extensions_ibfk_1` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`customer_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `customer_time_extensions_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`);
 
 --
 -- Constraints for table `notifications`

@@ -136,7 +136,7 @@ function renderCustomerTable(customers, tableId, basketType) {
     `;
     
     customers.forEach(customer => {
-        const daysRemaining = calculateDaysRemaining(customer.recall_at);
+        const daysRemaining = calculateDaysRemaining(customer.customer_time_expiry);
         const tempIcons = {
             'hot': '🔥',
             'warm': '🌤️',

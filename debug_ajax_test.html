@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug AJAX Test - ทดสอบ JavaScript และ AJAX</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .success { color: green; }
+        .error { color: red; }
+        .info { color: blue; }
+        button {
+            padding: 10px 20px;
+            margin: 5px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #results {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f8f9fa;
+            border-radius: 5px;
+            white-space: pre-wrap;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔍 Debug AJAX Test - ทดสอบ JavaScript และ AJAX</h1>
+    
+    <div class="test-section">
+        <h2>1. ทดสอบการเชื่อมต่อ AJAX พื้นฐาน</h2>
+        <button onclick="testBasicAjax()">ทดสอบ AJAX พื้นฐาน</button>
+        <button onclick="testJsonResponse()">ทดสอบ JSON Response</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>2. ทดสอบการ import CSV</h2>
+        <button onclick="testImportSales()">ทดสอบ Import Sales</button>
+        <button onclick="testImportCustomers()">ทดสอบ Import Customers</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>3. ทดสอบ Error Handling</h2>
+        <button onclick="testErrorHandling()">ทดสอบ Error Handling</button>
+        <button onclick="testNetworkError()">ทดสอบ Network Error</button>
+    </div>
+    
+    <div class="test-section">
+        <h2>4. ตรวจสอบ Browser Console</h2>
+        <p class="info">เปิด Developer Tools (F12) และดูที่ Console tab เพื่อดู error messages</p>
+        <button onclick="logToConsole()">Log ข้อมูลไปยัง Console</button>
+    </div>
+    
+    <div id="results"></div>
+    
+    <script>
+        // ฟังก์ชันสำหรับแสดงผลลัพธ์
+        function showResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            results.innerHTML += `[${timestamp}] ${message}\n`;
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        // 1. ทดสอบการเชื่อมต่อ AJAX พื้นฐาน
+        async function testBasicAjax() {
+            showResult('เริ่มทดสอบ AJAX พื้นฐาน...', 'info');
+            
+            try {
+                const response = await fetch('debug_javascript_ajax.php', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ test: 'basic' })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                showResult(`✅ AJAX สำเร็จ: ${JSON.stringify(data)}`, 'success');
+                
+            } catch (error) {
+                showResult(`❌ AJAX Error: ${error.message}`, 'error');
+            }
+        }
+        
+        // ทดสอบ JSON Response
+        async function testJsonResponse() {
+            showResult('เริ่มทดสอบ JSON Response...', 'info');
+            
+            try {
+                const response = await fetch('debug_javascript_ajax.php');
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const contentType = response.headers.get('content-type');
+                showResult(`Content-Type: ${contentType}`, 'info');
+                
+                const data = await response.json();
+                showResult(`✅ JSON Response สำเร็จ: ${JSON.stringify(data, null, 2)}`, 'success');
+                
+            } catch (error) {
+                showResult(`❌ JSON Response Error: ${error.message}`, 'error');
+            }
+        }
+        
+        // 2. ทดสอบการ import CSV
+        async function testImportSales() {
+            showResult('เริ่มทดสอบ Import Sales...', 'info');
+            
+            // สร้างไฟล์ CSV จำลอง
+            const csvContent = "ชื่อ,นามสกุล,เบอร์โทรศัพท์,อีเมล,ที่อยู่,เขต,จังหวัด,รหัสไปรษณีย์,ชื่อสินค้า,จำนวน,ราคาต่อชิ้น,วันที่สั่งซื้อ,หมายเหตุ\nทดสอบ,ระบบ,0812345678,test@example.com,123 ถ.ทดสอบ,เขตทดสอบ,จังหวัดทดสอบ,10000,สินค้าทดสอบ,1,1000,2024-01-15,ทดสอบระบบ";
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const file = new File([blob], 'test_sales.csv', { type: 'text/csv' });
+            
+            const formData = new FormData();
+            formData.append('csv_file', file);
+            
+            try {
+                const response = await fetch('import-export.php?action=importSales', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                showResult(`Response Status: ${response.status}`, 'info');
+                showResult(`Response Headers: ${JSON.stringify(Object.fromEntries(response.headers.entries()))}`, 'info');
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    showResult(`❌ Import Sales Error: ${response.status} - ${errorText}`, 'error');
+                    return;
+                }
+                
+                const data = await response.json();
+                showResult(`✅ Import Sales สำเร็จ: ${JSON.stringify(data, null, 2)}`, 'success');
+                
+            } catch (error) {
+                showResult(`❌ Import Sales Network Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testImportCustomers() {
+            showResult('เริ่มทดสอบ Import Customers...', 'info');
+            
+            // สร้างไฟล์ CSV จำลอง
+            const csvContent = "ชื่อ,นามสกุล,เบอร์โทรศัพท์,อีเมล,ที่อยู่,เขต,จังหวัด,รหัสไปรษณีย์\nทดสอบ,ระบบ,0812345678,test@example.com,123 ถ.ทดสอบ,เขตทดสอบ,จังหวัดทดสอบ,10000";
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const file = new File([blob], 'test_customers.csv', { type: 'text/csv' });
+            
+            const formData = new FormData();
+            formData.append('csv_file', file);
+            
+            try {
+                const response = await fetch('import-export.php?action=importCustomers', {
+                    method: 'POST',
+                    body: formData
+                });
+                
+                showResult(`Response Status: ${response.status}`, 'info');
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    showResult(`❌ Import Customers Error: ${response.status} - ${errorText}`, 'error');
+                    return;
+                }
+                
+                const data = await response.json();
+                showResult(`✅ Import Customers สำเร็จ: ${JSON.stringify(data, null, 2)}`, 'success');
+                
+            } catch (error) {
+                showResult(`❌ Import Customers Network Error: ${error.message}`, 'error');
+            }
+        }
+        
+        // 3. ทดสอบ Error Handling
+        async function testErrorHandling() {
+            showResult('เริ่มทดสอบ Error Handling...', 'info');
+            
+            try {
+                const response = await fetch('import-export.php?action=nonexistent', {
+                    method: 'POST'
+                });
+                
+                showResult(`Response Status: ${response.status}`, 'info');
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    showResult(`✅ Error Handling ทำงานถูกต้อง: ${response.status} - ${errorText}`, 'success');
+                } else {
+                    showResult(`❌ Error Handling ไม่ทำงาน: ได้รับ ${response.status}`, 'error');
+                }
+                
+            } catch (error) {
+                showResult(`❌ Error Handling Network Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function testNetworkError() {
+            showResult('เริ่มทดสอบ Network Error...', 'info');
+            
+            try {
+                const response = await fetch('nonexistent_file.php', {
+                    method: 'POST'
+                });
+                
+                showResult(`❌ ไม่ควรมาถึงจุดนี้`, 'error');
+                
+            } catch (error) {
+                showResult(`✅ Network Error Handling ทำงานถูกต้อง: ${error.message}`, 'success');
+            }
+        }
+        
+        // 4. Log ข้อมูลไปยัง Console
+        function logToConsole() {
+            showResult('Logging ข้อมูลไปยัง Console...', 'info');
+            
+            console.log('=== Debug Information ===');
+            console.log('User Agent:', navigator.userAgent);
+            console.log('Current URL:', window.location.href);
+            console.log('Timestamp:', new Date().toISOString());
+            console.log('Available APIs:', {
+                fetch: typeof fetch !== 'undefined',
+                FormData: typeof FormData !== 'undefined',
+                File: typeof File !== 'undefined',
+                Blob: typeof Blob !== 'undefined'
+            });
+            
+            showResult('✅ ข้อมูลถูก log ไปยัง Console แล้ว', 'success');
+        }
+        
+        // เริ่มต้น
+        showResult('Debug AJAX Test พร้อมใช้งาน', 'info');
+        showResult('กรุณากดปุ่มทดสอบเพื่อเริ่มการ debug', 'info');
+    </script>
+</body>
+</html> 

@@ -184,9 +184,12 @@ class Database {
      */
     public function tableExists($tableName) {
         try {
-            $sql = "SHOW TABLES LIKE '{$tableName}'";
-            $result = $this->pdo->query($sql);
-            return $result->rowCount() > 0;
+            // ใช้ information_schema แทน SHOW TABLES LIKE เพื่อความปลอดภัย
+            $sql = "SELECT COUNT(*) as count FROM information_schema.tables WHERE table_schema = DATABASE() AND table_name = ?";
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute([$tableName]);
+            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+            return $result && $result['count'] > 0;
         } catch (PDOException $e) {
             return false;
         }

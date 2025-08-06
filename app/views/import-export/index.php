@@ -50,46 +50,90 @@
                     <!-- Import Tab -->
                     <div class="tab-pane fade show active" id="import" role="tabpanel">
                         <div class="row mt-4">
+                            <!-- นำเข้ายอดขาย -->
                             <div class="col-md-6">
                                 <div class="card">
                                     <div class="card-header">
                                         <h5 class="mb-0">
-                                            <i class="fas fa-users me-2"></i>
-                                            นำเข้าข้อมูลลูกค้า
+                                            <i class="fas fa-shopping-cart me-2"></i>
+                                            นำเข้ายอดขาย
                                         </h5>
                                     </div>
                                     <div class="card-body">
-                                        <form id="importCustomersForm" enctype="multipart/form-data">
+                                        <form id="importSalesForm" enctype="multipart/form-data">
                                             <div class="mb-3">
-                                                <label for="csvFile" class="form-label">เลือกไฟล์ CSV</label>
-                                                <input type="file" class="form-control" id="csvFile" name="csv_file" accept=".csv" required>
+                                                <label for="salesCsvFile" class="form-label">เลือกไฟล์ CSV</label>
+                                                <input type="file" class="form-control" id="salesCsvFile" name="csv_file" accept=".csv" required>
                                                 <div class="form-text">รองรับไฟล์ CSV เท่านั้น</div>
                                             </div>
                                             
                                             <div class="mb-3">
-                                                <a href="import-export.php?action=downloadTemplate&type=customers" class="btn btn-outline-primary btn-sm">
+                                                <a href="import-export.php?action=downloadTemplate&type=sales" class="btn btn-outline-primary btn-sm">
                                                     <i class="fas fa-download me-1"></i>
-                                                    ดาวน์โหลด Template
+                                                    ดาวน์โหลด Template ยอดขาย
                                                 </a>
                                             </div>
                                             
                                             <button type="submit" class="btn btn-primary">
                                                 <i class="fas fa-upload me-1"></i>
-                                                นำเข้าข้อมูล
+                                                นำเข้ายอดขาย
                                             </button>
                                         </form>
                                         
-                                        <div id="importResults" class="mt-3" style="display: none;">
+                                        <div id="salesImportResults" class="mt-3" style="display: none;">
                                             <div class="alert" role="alert">
-                                                <div id="importMessage"></div>
-                                                <div id="importDetails" class="mt-2"></div>
+                                                <div id="salesImportMessage"></div>
+                                                <div id="salesImportDetails" class="mt-2"></div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
                             
+                            <!-- นำเข้าเฉพาะรายชื่อ -->
                             <div class="col-md-6">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="mb-0">
+                                            <i class="fas fa-users me-2"></i>
+                                            นำเข้าเฉพาะรายชื่อ
+                                        </h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <form id="importCustomersOnlyForm" enctype="multipart/form-data">
+                                            <div class="mb-3">
+                                                <label for="customersOnlyCsvFile" class="form-label">เลือกไฟล์ CSV</label>
+                                                <input type="file" class="form-control" id="customersOnlyCsvFile" name="csv_file" accept=".csv" required>
+                                                <div class="form-text">รองรับไฟล์ CSV เท่านั้น</div>
+                                            </div>
+                                            
+                                            <div class="mb-3">
+                                                <a href="import-export.php?action=downloadTemplate&type=customers_only" class="btn btn-outline-primary btn-sm">
+                                                    <i class="fas fa-download me-1"></i>
+                                                    ดาวน์โหลด Template รายชื่อ
+                                                </a>
+                                            </div>
+                                            
+                                            <button type="submit" class="btn btn-success">
+                                                <i class="fas fa-upload me-1"></i>
+                                                นำเข้าส่วนรายชื่อ
+                                            </button>
+                                        </form>
+                                        
+                                        <div id="customersOnlyImportResults" class="mt-3" style="display: none;">
+                                            <div class="alert" role="alert">
+                                                <div id="customersOnlyImportMessage"></div>
+                                                <div id="customersOnlyImportDetails" class="mt-2"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- คำแนะนำ -->
+                        <div class="row mt-4">
+                            <div class="col-12">
                                 <div class="card">
                                     <div class="card-header">
                                         <h5 class="mb-0">
@@ -98,20 +142,24 @@
                                         </h5>
                                     </div>
                                     <div class="card-body">
-                                        <h6>รูปแบบไฟล์ CSV:</h6>
-                                        <ul class="list-unstyled">
-                                            <li><strong>ชื่อ</strong> - ชื่อลูกค้า (จำเป็น)</li>
-                                            <li><strong>เบอร์โทรศัพท์</strong> - เบอร์โทรศัพท์ (จำเป็น)</li>
-                                            <li><strong>อีเมล</strong> - อีเมล (ไม่จำเป็น)</li>
-                                            <li><strong>ที่อยู่</strong> - ที่อยู่ (ไม่จำเป็น)</li>
-                                            <li><strong>สถานะ</strong> - active/inactive (ค่าเริ่มต้น: active)</li>
-                                            <li><strong>อุณหภูมิ</strong> - hot/warm/cold/frozen (ค่าเริ่มต้น: cold)</li>
-                                            <li><strong>เกรด</strong> - A+/A/B/C/D (ค่าเริ่มต้น: C)</li>
-                                        </ul>
-                                        
-                                        <div class="alert alert-info">
-                                            <i class="fas fa-lightbulb me-2"></i>
-                                            <strong>เคล็ดลับ:</strong> ใช้ไฟล์ Template เป็นตัวอย่างในการจัดรูปแบบข้อมูล
+                                        <div class="row">
+                                            <div class="col-md-6">
+                                                <h6>📊 นำเข้ายอดขาย:</h6>
+                                                <ul class="list-unstyled">
+                                                    <li>✅ <strong>มีรายชื่ออยู่แล้ว</strong> → อัพเดทยอดขายเท่านั้น</li>
+                                                    <li>✅ <strong>ไม่มีรายชื่อ</strong> → เพิ่มทั้งรายชื่อ + ยอดขาย → เข้าตะกร้าแจก</li>
+                                                    <li>✅ <strong>ข้อมูลที่ต้องมี:</strong> ชื่อ, เบอร์โทร, สินค้า, จำนวน, ราคา, ยอดรวม</li>
+                                                </ul>
+                                            </div>
+                                            <div class="col-md-6">
+                                                <h6>👥 นำเข้าเฉพาะรายชื่อ:</h6>
+                                                <ul class="list-unstyled">
+                                                    <li>✅ <strong>ไม่มียอดขาย</strong> → เข้าตะกร้าแจก</li>
+                                                    <li>✅ <strong>ชื่อซ้ำ</strong> → ตัดออก</li>
+                                                    <li>✅ <strong>ติดตามอยู่แล้ว</strong> → ตัดออก</li>
+                                                    <li>✅ <strong>ข้อมูลที่ต้องมี:</strong> ชื่อ, เบอร์โทร</li>
+                                                </ul>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>

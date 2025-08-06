@@ -103,6 +103,21 @@ class OrderService {
             
             $this->db->commit();
             
+            // ต่อเวลาอัตโนมัติเมื่อมีการสร้างคำสั่งซื้อ (หลังจาก commit แล้ว)
+            try {
+                require_once __DIR__ . '/WorkflowService.php';
+                $workflowService = new WorkflowService();
+                $workflowResult = $workflowService->autoExtendTimeOnActivity($orderData['customer_id'], 'order', $createdBy);
+                
+                if ($workflowResult['success']) {
+                    error_log("Auto time extension successful for customer {$orderData['customer_id']}: {$workflowResult['message']}");
+                } else {
+                    error_log("Auto time extension failed for customer {$orderData['customer_id']}: {$workflowResult['message']}");
+                }
+            } catch (Exception $e) {
+                error_log("Error in auto time extension: " . $e->getMessage());
+            }
+            
             return [
                 'success' => true,
                 'order_id' => $orderId,

@@ -233,17 +233,17 @@ class CustomerService {
      */
     public function getFollowUpCustomers($telesalesId) {
         $sql = "SELECT c.*, 
-                       DATEDIFF(c.recall_at, NOW()) as days_remaining,
+                       DATEDIFF(c.customer_time_expiry, NOW()) as days_remaining,
                        DATEDIFF(c.next_followup_at, NOW()) as followup_days
                 FROM customers c 
                 WHERE c.assigned_to = :telesales_id 
                 AND c.basket_type = 'assigned'
                 AND c.is_active = 1
                 AND (
-                    c.recall_at <= DATE_ADD(NOW(), INTERVAL 7 DAY) OR
+                    c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 7 DAY) OR
                     c.next_followup_at <= NOW()
                 )
-                ORDER BY c.recall_at ASC, c.next_followup_at ASC";
+                ORDER BY c.customer_time_expiry ASC, c.next_followup_at ASC";
         
         return $this->db->fetchAll($sql, ['telesales_id' => $telesalesId]);
     }

@@ -93,7 +93,7 @@ class ImportExportController {
     }
     
     /**
-     * ส่งออกข้อมูลลูกค้าเป็น CSV
+     * ส่งออกรายชื่อลูกค้าเป็น CSV
      */
     public function exportCustomers() {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -103,46 +103,51 @@ class ImportExportController {
         }
         
         $filters = [
-            'status' => $_POST['status'] ?? null,
-            'temperature' => $_POST['temperature'] ?? null,
-            'grade' => $_POST['grade'] ?? null
+            'customer_status' => $_POST['customer_status'] ?? null,
+            'temperature_status' => $_POST['temperature_status'] ?? null,
+            'customer_grade' => $_POST['customer_grade'] ?? null,
+            'basket_type' => $_POST['basket_type'] ?? null
         ];
         
         $customers = $this->importExportService->exportCustomersToCSV($filters);
         
-        // Set headers for CSV download
+        // Set headers for CSV download with proper encoding
         header('Content-Type: text/csv; charset=UTF-8');
         header('Content-Disposition: attachment; filename="customers_' . date('Y-m-d_H-i-s') . '.csv"');
+        header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+        header('Expires: 0');
         
         // Create CSV output
         $output = fopen('php://output', 'w');
         
-        // Add BOM for UTF-8
+        // Add UTF-8 BOM for Excel compatibility
         fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
-        
-        // Set internal encoding
-        mb_internal_encoding('UTF-8');
         
         // Headers
         fputcsv($output, [
-            'ID', 'ชื่อ', 'เบอร์โทรศัพท์', 'อีเมล', 'ที่อยู่', 'บริษัท', 
-            'สถานะ', 'อุณหภูมิ', 'เกรด', 'วันที่สร้าง', 'วันที่อัปเดต'
+            'ID', 'ชื่อ', 'นามสกุล', 'เบอร์โทรศัพท์', 'อีเมล', 'ที่อยู่', 'ตำบล', 'อำเภอ', 'จังหวัด', 'รหัสไปรษณีย์',
+            'สถานะ', 'อุณหภูมิ', 'เกรด', 'ประเภทตะกร้า', 'ยอดซื้อรวม', 'วันที่สร้าง', 'วันที่อัปเดต'
         ]);
         
         // Data
         foreach ($customers as $customer) {
             fputcsv($output, [
-                $customer['id'],
-                mb_convert_encoding($customer['name'], 'UTF-8', 'auto'),
-                $customer['phone'],
-                $customer['email'],
-                mb_convert_encoding($customer['address'], 'UTF-8', 'auto'),
-                mb_convert_encoding($customer['company_name'], 'UTF-8', 'auto'),
-                $this->getStatusText($customer['status']),
-                $this->getTemperatureText($customer['temperature']),
-                $customer['grade'],
-                $customer['created_at'],
-                $customer['updated_at']
+                $customer['customer_id'],
+                $customer['first_name'] ?? '',
+                $customer['last_name'] ?? '',
+                $customer['phone'] ?? '',
+                $customer['email'] ?? '',
+                $customer['address'] ?? '',
+                $customer['district'] ?? '',
+                $customer['province'] ?? '',
+                $customer['postal_code'] ?? '',
+                $this->getStatusText($customer['customer_status'] ?? ''),
+                $this->getTemperatureText($customer['temperature_status'] ?? ''),
+                $customer['customer_grade'] ?? '',
+                $customer['basket_type'] ?? '',
+                number_format($customer['total_purchase_amount'] ?? 0, 2),
+                $customer['created_at'] ?? '',
+                $customer['updated_at'] ?? ''
             ]);
         }
         
@@ -167,35 +172,38 @@ class ImportExportController {
         
         $orders = $this->importExportService->exportOrdersToCSV($filters);
         
-        // Set headers for CSV download
+        // Set headers for CSV download with proper encoding
         header('Content-Type: text/csv; charset=UTF-8');
         header('Content-Disposition: attachment; filename="orders_' . date('Y-m-d_H-i-s') . '.csv"');
+        header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+        header('Expires: 0');
         
         // Create CSV output
         $output = fopen('php://output', 'w');
         
-        // Add BOM for UTF-8
+        // Add UTF-8 BOM for Excel compatibility
         fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
         
         // Headers
         fputcsv($output, [
-            'ID', 'ลูกค้า', 'เบอร์โทรศัพท์', 'ยอดรวม', 'ส่วนลด', 'ยอดสุทธิ',
-            'สถานะการจัดส่ง', 'ผู้สร้าง', 'บริษัท', 'วันที่สร้าง'
+            'ID', 'ลูกค้า', 'เบอร์โทรศัพท์', 'หมายเลขคำสั่งซื้อ', 'ยอดรวม', 'ส่วนลด', 'ยอดสุทธิ',
+            'สถานะการชำระ', 'สถานะการจัดส่ง', 'ผู้สร้าง', 'วันที่สร้าง'
         ]);
         
         // Data
         foreach ($orders as $order) {
             fputcsv($output, [
-                $order['id'],
-                mb_convert_encoding($order['customer_name'], 'UTF-8', 'auto'),
-                $order['customer_phone'],
-                number_format($order['total_amount'], 2),
-                number_format($order['discount_amount'], 2),
-                number_format($order['net_amount'], 2),
-                $this->getDeliveryStatusText($order['delivery_status']),
-                mb_convert_encoding($order['created_by_name'], 'UTF-8', 'auto'),
-                mb_convert_encoding($order['company_name'], 'UTF-8', 'auto'),
-                $order['created_at']
+                $order['order_id'] ?? '',
+                $order['customer_name'] ?? '',
+                $order['customer_phone'] ?? '',
+                $order['order_number'] ?? '',
+                number_format($order['total_amount'] ?? 0, 2),
+                number_format($order['discount_amount'] ?? 0, 2),
+                number_format($order['net_amount'] ?? 0, 2),
+                $order['payment_status'] ?? '',
+                $this->getDeliveryStatusText($order['delivery_status'] ?? ''),
+                $order['created_by_name'] ?? '',
+                $order['created_at'] ?? ''
             ]);
         }
         
@@ -295,33 +303,104 @@ class ImportExportController {
     }
     
     /**
-     * ดาวน์โหลดไฟล์ CSV Template
+     * ดาวน์โหลด Template CSV
      */
     public function downloadTemplate() {
         $type = $_GET['type'] ?? 'customers';
         
-        // Set headers for CSV download
+        // Set filename based on type
+        $filename = '';
+        switch ($type) {
+            case 'sales':
+                $filename = 'sales_import_template.csv';
+                break;
+            case 'customers_only':
+                $filename = 'customers_only_template.csv';
+                break;
+            default:
+                $filename = 'customers_template.csv';
+                break;
+        }
+        
+        // Set headers for CSV download with proper encoding
         header('Content-Type: text/csv; charset=UTF-8');
-        header('Content-Disposition: attachment; filename="template_' . $type . '.csv"');
+        header('Content-Disposition: attachment; filename="' . $filename . '"');
+        header('Cache-Control: must-revalidate, post-check=0, pre-check=0');
+        header('Expires: 0');
         
         $output = fopen('php://output', 'w');
         
-        // Add BOM for UTF-8
+        // Add UTF-8 BOM for Excel compatibility
         fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
         
-        if ($type === 'customers') {
-            // Read from template file
+        if ($type === 'sales') {
+            // Template สำหรับนำเข้ายอดขาย
+            $templateFile = __DIR__ . '/../../templates/sales_import_template.csv';
+            if (file_exists($templateFile)) {
+                // Read file content and ensure proper encoding
+                $content = file_get_contents($templateFile);
+                // Remove existing BOM if present
+                $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
+                
+                // Split content into lines and process
+                $lines = explode("\n", $content);
+                foreach ($lines as $line) {
+                    $line = trim($line);
+                    if (!empty($line)) {
+                        $data = str_getcsv($line);
+                        fputcsv($output, $data);
+                    }
+                }
+            } else {
+                // Fallback template
+                fputcsv($output, ['ชื่อ', 'นามสกุล', 'เบอร์โทรศัพท์', 'อีเมล', 'ที่อยู่', 'เขต', 'จังหวัด', 'รหัสไปรษณีย์', 'ชื่อสินค้า', 'จำนวน', 'ราคาต่อชิ้น', 'ยอดรวม', 'วันที่สั่งซื้อ', 'ช่องทางการขาย', 'หมายเหตุ']);
+                fputcsv($output, ['สมชาย', 'ใจดี', '0812345678', 'somchai@example.com', '123 ถ.สุขุมวิท', 'คลองเตย', 'กรุงเทพฯ', '10110', 'สินค้า A', '2', '1500', '3000', '2025-08-06', 'TikTok', 'ลูกค้าใหม่']);
+            }
+        } elseif ($type === 'customers_only') {
+            // Template สำหรับเฉพาะรายชื่อ
+            $templateFile = __DIR__ . '/../../templates/customers_only_template.csv';
+            if (file_exists($templateFile)) {
+                // Read file content and ensure proper encoding
+                $content = file_get_contents($templateFile);
+                // Remove existing BOM if present
+                $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
+                
+                // Split content into lines and process
+                $lines = explode("\n", $content);
+                foreach ($lines as $line) {
+                    $line = trim($line);
+                    if (!empty($line)) {
+                        $data = str_getcsv($line);
+                        fputcsv($output, $data);
+                    }
+                }
+            } else {
+                // Fallback template
+                fputcsv($output, ['ชื่อ', 'นามสกุล', 'เบอร์โทรศัพท์', 'อีเมล', 'ที่อยู่', 'เขต', 'จังหวัด', 'รหัสไปรษณีย์', 'หมายเหตุ']);
+                fputcsv($output, ['สมชาย', 'ใจดี', '0812345678', 'somchai@example.com', '123 ถ.สุขุมวิท', 'คลองเตย', 'กรุงเทพฯ', '10110', 'ลูกค้าจาก Facebook']);
+            }
+        } else {
+            // Template เดิมสำหรับ customers
             $templateFile = __DIR__ . '/../../templates/customers_template.csv';
             if (file_exists($templateFile)) {
-                $handle = fopen($templateFile, 'r');
-                while (($data = fgetcsv($handle)) !== false) {
-                    fputcsv($output, $data);
+                // Read file content and ensure proper encoding
+                $content = file_get_contents($templateFile);
+                // Remove existing BOM if present
+                $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
+                
+                // Split content into lines and process
+                $lines = explode("\n", $content);
+                foreach ($lines as $line) {
+                    $line = trim($line);
+                    if (!empty($line)) {
+                        $data = str_getcsv($line);
+                        fputcsv($output, $data);
+                    }
                 }
-                fclose($handle);
             } else {
                 // Fallback to inline template
-                fputcsv($output, ['ชื่อ', 'เบอร์โทรศัพท์', 'อีเมล', 'ที่อยู่', 'สถานะ', 'อุณหภูมิ', 'เกรด']);
-                fputcsv($output, ['สมชาย ใจดี', '0812345678', 'somchai@example.com', '123 ถ.สุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพฯ 10110', 'active', 'cold', 'C']);
+                fputcsv($output, ['ชื่อ', 'นามสกุล', 'เบอร์โทรศัพท์', 'อีเมล', 'ที่อยู่', 'เขต', 'จังหวัด', 'รหัสไปรษณีย์', 'สถานะ', 'อุณหภูมิ', 'เกรด', 'หมายเหตุ']);
+                fputcsv($output, ['สมชาย', 'ใจดี', '0812345678', 'somchai@example.com', '123 ถ.สุขุมวิท', 'คลองเตย', 'กรุงเทพฯ', '10110', 'new', 'cold', 'C', 'ลูกค้าใหม่']);
             }
         }
         
@@ -329,10 +408,196 @@ class ImportExportController {
     }
     
     /**
+     * นำเข้ายอดขาย (Sales Import)
+     */
+    public function importSales() {
+        // Enable error reporting for debugging (but don't display errors)
+        error_reporting(E_ALL);
+        ini_set('display_errors', 0); // Don't display errors to prevent HTML output
+        
+        // Log the request
+        error_log("Import Sales Request Started");
+        error_log("Request Method: " . $_SERVER['REQUEST_METHOD']);
+        error_log("Files: " . json_encode($_FILES));
+        
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            error_log("Method not allowed: " . $_SERVER['REQUEST_METHOD']);
+            http_response_code(405);
+            echo json_encode(['error' => 'Method not allowed']);
+            return;
+        }
+        
+        if (!isset($_FILES['csv_file'])) {
+            error_log("No CSV file uploaded");
+            http_response_code(400);
+            echo json_encode(['error' => 'กรุณาเลือกไฟล์ CSV']);
+            return;
+        }
+        
+        if ($_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
+            error_log("File upload error: " . $_FILES['csv_file']['error']);
+            http_response_code(400);
+            echo json_encode(['error' => 'เกิดข้อผิดพลาดในการอัปโหลดไฟล์']);
+            return;
+        }
+        
+        $file = $_FILES['csv_file'];
+        $allowedTypes = ['text/csv', 'application/csv', 'text/plain'];
+        
+        if (!in_array($file['type'], $allowedTypes)) {
+            error_log("Invalid file type: " . $file['type']);
+            http_response_code(400);
+            echo json_encode(['error' => 'ไฟล์ต้องเป็นรูปแบบ CSV เท่านั้น']);
+            return;
+        }
+        
+        // Create upload directory
+        $uploadDir = __DIR__ . '/../../uploads/';
+        if (!is_dir($uploadDir)) {
+            if (!mkdir($uploadDir, 0755, true)) {
+                error_log("Failed to create upload directory: " . $uploadDir);
+                http_response_code(500);
+                echo json_encode(['error' => 'ไม่สามารถสร้างโฟลเดอร์อัปโหลดได้']);
+                return;
+            }
+        }
+        
+        // Check if directory is writable
+        if (!is_writable($uploadDir)) {
+            error_log("Upload directory not writable: " . $uploadDir);
+            http_response_code(500);
+            echo json_encode(['error' => 'โฟลเดอร์อัปโหลดไม่สามารถเขียนได้']);
+            return;
+        }
+        
+        // Move uploaded file
+        $uploadedFile = $uploadDir . 'sales_' . date('Y-m-d_H-i-s') . '.csv';
+        if (!move_uploaded_file($file['tmp_name'], $uploadedFile)) {
+            error_log("Failed to move uploaded file from " . $file['tmp_name'] . " to " . $uploadedFile);
+            http_response_code(500);
+            echo json_encode(['error' => 'ไม่สามารถอัปโหลดไฟล์ได้']);
+            return;
+        }
+        
+        error_log("File uploaded successfully: " . $uploadedFile);
+        
+        try {
+            // Import data
+            error_log("Starting import process");
+            $results = $this->importExportService->importSalesFromCSV($uploadedFile);
+            error_log("Import completed successfully: " . json_encode($results));
+            
+            // Clean up uploaded file
+            if (file_exists($uploadedFile)) {
+                unlink($uploadedFile);
+                error_log("Cleaned up uploaded file: " . $uploadedFile);
+            }
+            
+            // Set success status code
+            http_response_code(200);
+            echo json_encode($results);
+        } catch (Exception $e) {
+            // Clean up uploaded file
+            if (file_exists($uploadedFile)) {
+                unlink($uploadedFile);
+                error_log("Cleaned up uploaded file after error: " . $uploadedFile);
+            }
+            
+            // Log error for debugging
+            error_log("Import Sales Error: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            
+            // Set error status code
+            http_response_code(500);
+            echo json_encode([
+                'error' => 'เกิดข้อผิดพลาดในการนำเข้าข้อมูล: ' . $e->getMessage(),
+                'success' => 0,
+                'total' => 0,
+                'customers_updated' => 0,
+                'customers_created' => 0,
+                'orders_created' => 0,
+                'errors' => [$e->getMessage()]
+            ]);
+        }
+    }
+    
+    /**
+     * นำเข้าเฉพาะรายชื่อ (Customers Only Import)
+     */
+    public function importCustomersOnly() {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['error' => 'Method not allowed']);
+            return;
+        }
+        
+        if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
+            http_response_code(400);
+            echo json_encode(['error' => 'กรุณาเลือกไฟล์ CSV']);
+            return;
+        }
+        
+        $file = $_FILES['csv_file'];
+        $allowedTypes = ['text/csv', 'application/csv', 'text/plain'];
+        
+        if (!in_array($file['type'], $allowedTypes)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'ไฟล์ต้องเป็นรูปแบบ CSV เท่านั้น']);
+            return;
+        }
+        
+        // Create upload directory
+        $uploadDir = __DIR__ . '/../../uploads/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+        
+        // Move uploaded file
+        $uploadedFile = $uploadDir . 'customers_only_' . date('Y-m-d_H-i-s') . '.csv';
+        if (!move_uploaded_file($file['tmp_name'], $uploadedFile)) {
+            http_response_code(500);
+            echo json_encode(['error' => 'ไม่สามารถอัปโหลดไฟล์ได้']);
+            return;
+        }
+        
+        try {
+            // Import data
+            $results = $this->importExportService->importCustomersOnlyFromCSV($uploadedFile);
+            
+            // Clean up uploaded file
+            if (file_exists($uploadedFile)) {
+                unlink($uploadedFile);
+            }
+            
+            echo json_encode($results);
+        } catch (Exception $e) {
+            // Clean up uploaded file
+            if (file_exists($uploadedFile)) {
+                unlink($uploadedFile);
+            }
+            
+            // Log error for debugging
+            error_log("Import Customers Only Error: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            
+            echo json_encode([
+                'error' => 'เกิดข้อผิดพลาดในการนำเข้าข้อมูล: ' . $e->getMessage(),
+                'success' => 0,
+                'total' => 0,
+                'customers_created' => 0,
+                'customers_skipped' => 0,
+                'errors' => [$e->getMessage()]
+            ]);
+        }
+    }
+    
+    /**
      * Helper functions for text conversion
      */
     private function getStatusText($status) {
         $statusMap = [
+            'new' => 'ลูกค้าใหม่',
+            'existing' => 'ลูกค้าเก่า',
             'active' => 'ใช้งาน',
             'inactive' => 'ไม่ใช้งาน'
         ];
