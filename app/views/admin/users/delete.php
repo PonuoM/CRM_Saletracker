@@ -127,7 +127,7 @@ $user = $_SESSION['user'] ?? null;
 
                         <hr>
 
-                        <form method="POST" action="admin.php?action=users&action=delete&id=<?php echo $user['user_id']; ?>">
+                        <form method="POST" action="admin.php?action=users&subaction=delete&id=<?php echo $user['user_id']; ?>">
                             <div class="row">
                                 <div class="col-12">
                                     <div class="form-check mb-3">

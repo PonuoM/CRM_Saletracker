@@ -15,7 +15,7 @@
             <?php include __DIR__ . '/../components/sidebar.php'; ?>
             
             <!-- Main Content -->
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 page-transition">
                 <!-- Header -->
                 <?php include __DIR__ . '/../components/header.php'; ?>
                 
@@ -423,6 +423,7 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="assets/js/page-transitions.js"></script>
     <script src="assets/js/import-export.js"></script>
 </body>
 </html> 

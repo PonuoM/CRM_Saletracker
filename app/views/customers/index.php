@@ -9,71 +9,8 @@ $roleName = $_SESSION['role_name'] ?? '';
 $userId = $_SESSION['user_id'] ?? '';
 ?>
 
-<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>จัดการลูกค้า - CRM SalesTracker</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="assets/css/app.css" rel="stylesheet">
-    <style>
-        :root {
-            --primary-color: #7C9885;
-            --text-color: #4A5568;
-        }
-        
-        body {
-            color: var(--text-color);
-        }
-        
-        .btn-primary, .btn-success, .btn-info, .btn-warning, .btn-secondary {
-            background-color: var(--primary-color) !important;
-            border-color: var(--primary-color) !important;
-            color: white !important;
-        }
-        
-        .btn-primary:hover, .btn-success:hover, .btn-info:hover, .btn-warning:hover, .btn-secondary:hover {
-            background-color: #6a8573 !important;
-            border-color: #6a8573 !important;
-        }
-        
-        .btn-outline-primary, .btn-outline-secondary {
-            color: var(--primary-color) !important;
-            border-color: var(--primary-color) !important;
-        }
-        
-        .btn-outline-primary:hover, .btn-outline-secondary:hover {
-            background-color: var(--primary-color) !important;
-            color: white !important;
-        }
-        
-        .table th {
-            font-size: 0.875rem;
-            font-weight: 600;
-        }
-        
-        .table td {
-            font-size: 0.875rem;
-        }
-        
-        .badge {
-            font-size: 0.75rem;
-        }
-    </style>
-</head>
-<body>
-    <!-- Include Header Component -->
-    <?php include APP_VIEWS . 'components/header.php'; ?>
-    
-    <div class="container-fluid">
-        <div class="row">
-            <!-- Include Sidebar Component -->
-            <?php include APP_VIEWS . 'components/sidebar.php'; ?>
-
-            <!-- Main Content -->
-            <main class="col-md-9 col-lg-10 main-content">
+<!-- Main Content -->
+<main class="col-md-9 col-lg-10 main-content page-transition">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                     <h1 class="h2">จัดการลูกค้า</h1>
                     <div class="btn-toolbar mb-2 mb-md-0">
@@ -302,128 +239,123 @@ $userId = $_SESSION['user_id'] ?? '';
                     </div>
                 </div>
             </main>
+
+<!-- Assign Customers Modal -->
+<?php if (in_array($roleName, ['supervisor', 'admin', 'super_admin'])): ?>
+<div class="modal fade" id="assignModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">มอบหมายลูกค้า</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <label for="telesalesSelect" class="form-label">เลือก Telesales</label>
+                        <select class="form-select" id="telesalesSelect">
+                            <option value="">เลือก Telesales</option>
+                            <?php foreach ($telesalesList as $telesales): ?>
+                            <option value="<?php echo $telesales['user_id']; ?>">
+                                <?php echo htmlspecialchars($telesales['full_name']); ?>
+                            </option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">ลูกค้าที่เลือก</label>
+                        <div id="selectedCustomers" class="border rounded p-2" style="min-height: 100px;">
+                            <p class="text-muted">เลือกลูกค้าจากตารางด้านล่าง</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="mt-3">
+                    <div id="availableCustomersTable">
+                        <!-- Available customers will be loaded here -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                <button type="button" class="btn btn-primary" onclick="assignCustomers()">มอบหมาย</button>
+            </div>
         </div>
     </div>
+</div>
+<?php endif; ?>
 
-    <!-- Assign Customers Modal -->
-    <?php if (in_array($roleName, ['supervisor', 'admin', 'super_admin'])): ?>
-    <div class="modal fade" id="assignModal" tabindex="-1">
-        <div class="modal-dialog modal-lg">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">มอบหมายลูกค้า</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
+<!-- Log Call Modal -->
+<div class="modal fade" id="logCallModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">บันทึกการโทร</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="logCallForm">
+                    <input type="hidden" id="callCustomerId">
                     <div class="row">
                         <div class="col-md-6">
-                            <label for="telesalesSelect" class="form-label">เลือก Telesales</label>
-                            <select class="form-select" id="telesalesSelect">
-                                <option value="">เลือก Telesales</option>
-                                <?php foreach ($telesalesList as $telesales): ?>
-                                <option value="<?php echo $telesales['user_id']; ?>">
-                                    <?php echo htmlspecialchars($telesales['full_name']); ?>
-                                </option>
-                                <?php endforeach; ?>
+                            <label for="callType" class="form-label">ประเภทการโทร</label>
+                            <select class="form-select" id="callType" required>
+                                <option value="outbound">โทรออก</option>
+                                <option value="inbound">โทรเข้า</option>
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">ลูกค้าที่เลือก</label>
-                            <div id="selectedCustomers" class="border rounded p-2" style="min-height: 100px;">
-                                <p class="text-muted">เลือกลูกค้าจากตารางด้านล่าง</p>
-                            </div>
+                            <label for="callStatus" class="form-label">สถานะการโทร</label>
+                            <select class="form-select" id="callStatus" required>
+                                <option value="answered">รับสาย</option>
+                                <option value="no_answer">ไม่รับสาย</option>
+                                <option value="busy">สายไม่ว่าง</option>
+                                <option value="invalid">เบอร์ไม่ถูกต้อง</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <label for="callResult" class="form-label">ผลการโทร</label>
+                            <select class="form-select" id="callResult">
+                                <option value="">เลือกผลการโทร</option>
+                                <option value="interested">สนใจ</option>
+                                <option value="not_interested">ไม่สนใจ</option>
+                                <option value="callback">โทรกลับ</option>
+                                <option value="order">สั่งซื้อ</option>
+                                <option value="complaint">ร้องเรียน</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="callDuration" class="form-label">ระยะเวลา (นาที)</label>
+                            <input type="number" class="form-control" id="callDuration" min="0" value="0">
                         </div>
                     </div>
                     <div class="mt-3">
-                        <div id="availableCustomersTable">
-                            <!-- Available customers will be loaded here -->
+                        <label for="callNotes" class="form-label">หมายเหตุ</label>
+                        <textarea class="form-control" id="callNotes" rows="3"></textarea>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <label for="nextAction" class="form-label">การดำเนินการต่อไป</label>
+                            <input type="text" class="form-control" id="nextAction">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="nextFollowup" class="form-label">นัดติดตาม</label>
+                            <input type="datetime-local" class="form-control" id="nextFollowup">
                         </div>
                     </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                    <button type="button" class="btn btn-primary" onclick="assignCustomers()">มอบหมาย</button>
-                </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                <button type="button" class="btn btn-primary" onclick="submitCallLog()">บันทึก</button>
             </div>
         </div>
     </div>
-    <?php endif; ?>
+</div>
 
-    <!-- Log Call Modal -->
-    <div class="modal fade" id="logCallModal" tabindex="-1">
-        <div class="modal-dialog">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h5 class="modal-title">บันทึกการโทร</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                </div>
-                <div class="modal-body">
-                    <form id="logCallForm">
-                        <input type="hidden" id="callCustomerId">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <label for="callType" class="form-label">ประเภทการโทร</label>
-                                <select class="form-select" id="callType" required>
-                                    <option value="outbound">โทรออก</option>
-                                    <option value="inbound">โทรเข้า</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="callStatus" class="form-label">สถานะการโทร</label>
-                                <select class="form-select" id="callStatus" required>
-                                    <option value="answered">รับสาย</option>
-                                    <option value="no_answer">ไม่รับสาย</option>
-                                    <option value="busy">สายไม่ว่าง</option>
-                                    <option value="invalid">เบอร์ไม่ถูกต้อง</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="row mt-3">
-                            <div class="col-md-6">
-                                <label for="callResult" class="form-label">ผลการโทร</label>
-                                <select class="form-select" id="callResult">
-                                    <option value="">เลือกผลการโทร</option>
-                                    <option value="interested">สนใจ</option>
-                                    <option value="not_interested">ไม่สนใจ</option>
-                                    <option value="callback">โทรกลับ</option>
-                                    <option value="order">สั่งซื้อ</option>
-                                    <option value="complaint">ร้องเรียน</option>
-                                </select>
-                            </div>
-                            <div class="col-md-6">
-                                <label for="callDuration" class="form-label">ระยะเวลา (นาที)</label>
-                                <input type="number" class="form-control" id="callDuration" min="0" value="0">
-                            </div>
-                        </div>
-                        <div class="mt-3">
-                            <label for="callNotes" class="form-label">หมายเหตุ</label>
-                            <textarea class="form-control" id="callNotes" rows="3"></textarea>
-                        </div>
-                        <div class="row mt-3">
-                            <div class="col-md-6">
-                                <label for="nextAction" class="form-label">การดำเนินการต่อไป</label>
-                                <input type="text" class="form-control" id="nextAction">
-                            </div>
-                            <div class="col-md-6">
-                                <label for="nextFollowup" class="form-label">นัดติดตาม</label>
-                                <input type="datetime-local" class="form-control" id="nextFollowup">
-                            </div>
-                        </div>
-                    </form>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
-                    <button type="button" class="btn btn-primary" onclick="submitCallLog()">บันทึก</button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script>
-        // Set user role for JavaScript
-        window.currentUserRole = '<?php echo $_SESSION["role_name"] ?? ""; ?>';
-    </script>
-    <script src="assets/js/customers.js"></script>
-</body>
-</html> 
+<script>
+    // Set user role for JavaScript
+    window.currentUserRole = '<?php echo $_SESSION["role_name"] ?? ""; ?>';
+</script>
+<script src="assets/js/customers.js"></script> 

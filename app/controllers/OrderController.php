@@ -42,6 +42,14 @@ class OrderController {
         // ตัวกรองตามบทบาท
         if ($roleName === 'telesales') {
             $filters['created_by'] = $userId;
+        } elseif ($roleName === 'supervisor') {
+            // Supervisor เห็นเฉพาะคำสั่งซื้อของทีมตัวเอง
+            $teamMemberIds = $this->getTeamMemberIds($userId);
+            if (!empty($teamMemberIds)) {
+                $filters['created_by'] = $teamMemberIds;
+            } else {
+                $filters['created_by'] = [-1]; // ไม่มีทีม
+            }
         }
         
         // ตัวกรองจาก URL parameters
@@ -83,10 +91,22 @@ class OrderController {
         
         // ดึงข้อมูลลูกค้าสำหรับตัวกรอง
         $customers = [];
-        if (in_array($roleName, ['supervisor', 'admin', 'super_admin'])) {
+        if (in_array($roleName, ['admin', 'super_admin'])) {
             $customers = $this->db->fetchAll(
                 "SELECT customer_id, CONCAT(first_name, ' ', last_name) as customer_name FROM customers ORDER BY first_name, last_name"
             );
+        } elseif ($roleName === 'supervisor') {
+            // Supervisor เห็นเฉพาะลูกค้าของทีมตัวเอง
+            $teamMemberIds = $this->getTeamMemberIds($userId);
+            if (!empty($teamMemberIds)) {
+                $placeholders = str_repeat('?,', count($teamMemberIds) - 1) . '?';
+                $customers = $this->db->fetchAll(
+                    "SELECT customer_id, CONCAT(first_name, ' ', last_name) as customer_name FROM customers WHERE assigned_to IN ($placeholders) ORDER BY first_name, last_name",
+                    $teamMemberIds
+                );
+            } else {
+                $customers = [];
+            }
         } else {
             // Telesales เห็นเฉพาะลูกค้าที่ได้รับมอบหมาย
             $customers = $this->db->fetchAll(
@@ -664,6 +684,23 @@ class OrderController {
                 'message' => 'เกิดข้อผิดพลาดในการลบคำสั่งซื้อ: ' . $e->getMessage()
             ]);
         }
+    }
+    
+    /**
+     * ดึง user_id ของสมาชิกทีมทั้งหมด
+     */
+    private function getTeamMemberIds($supervisorId) {
+        $teamMembers = $this->db->fetchAll(
+            "SELECT user_id FROM users WHERE supervisor_id = :supervisor_id AND is_active = 1",
+            ['supervisor_id' => $supervisorId]
+        );
+        
+        $teamMemberIds = [];
+        foreach ($teamMembers as $member) {
+            $teamMemberIds[] = $member['user_id'];
+        }
+        
+        return $teamMemberIds;
     }
     
     /**

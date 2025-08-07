@@ -17,7 +17,7 @@
             <?php include __DIR__ . '/../components/sidebar.php'; ?>
             
             <!-- Main Content -->
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 page-transition">
                 <!-- Header -->
                 <?php include __DIR__ . '/../components/header.php'; ?>
                 
@@ -188,6 +188,7 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="assets/js/page-transitions.js"></script>
 
     <script>
         // กราฟคำสั่งซื้อรายเดือน

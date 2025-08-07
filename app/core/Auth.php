@@ -271,5 +271,106 @@ class Auth {
         
         return $this->db->fetchOne($sql, ['user_id' => $userId]);
     }
+    
+    /**
+     * Get team members for a supervisor
+     */
+    public function getTeamMembers($supervisorId) {
+        $sql = "SELECT u.*, r.role_name, c.company_name,
+                (SELECT COUNT(*) FROM customers WHERE assigned_to = u.user_id AND is_active = 1) as customer_count,
+                (SELECT COUNT(*) FROM orders WHERE created_by = u.user_id AND is_active = 1) as order_count,
+                (SELECT SUM(total_amount) FROM orders WHERE created_by = u.user_id AND is_active = 1) as total_sales
+                FROM users u 
+                LEFT JOIN roles r ON u.role_id = r.role_id 
+                LEFT JOIN companies c ON u.company_id = c.company_id 
+                WHERE u.supervisor_id = :supervisor_id AND u.is_active = 1
+                ORDER BY u.created_at DESC";
+        
+        return $this->db->fetchAll($sql, ['supervisor_id' => $supervisorId]);
+    }
+    
+    /**
+     * Get team summary for a supervisor
+     */
+    public function getTeamSummary($supervisorId) {
+        $sql = "SELECT 
+                COUNT(DISTINCT team_stats.user_id) as total_team_members,
+                SUM(team_stats.customer_count) as total_customers,
+                SUM(team_stats.order_count) as total_orders,
+                SUM(team_stats.total_sales) as total_sales_amount
+                FROM (
+                    SELECT u.user_id,
+                    (SELECT COUNT(*) FROM customers WHERE assigned_to = u.user_id AND is_active = 1) as customer_count,
+                    (SELECT COUNT(*) FROM orders WHERE created_by = u.user_id AND is_active = 1) as order_count,
+                    (SELECT COALESCE(SUM(total_amount), 0) FROM orders WHERE created_by = u.user_id AND is_active = 1) as total_sales
+                    FROM users u 
+                    WHERE u.supervisor_id = :supervisor_id AND u.is_active = 1
+                ) as team_stats";
+        
+        return $this->db->fetchOne($sql, ['supervisor_id' => $supervisorId]);
+    }
+    
+    /**
+     * Get recent team activities
+     */
+    public function getRecentTeamActivities($supervisorId, $limit = 10) {
+        $sql = "SELECT 
+                'order' as activity_type,
+                o.order_number,
+                o.total_amount,
+                o.created_at,
+                u.full_name as user_name,
+                CONCAT(c.first_name, ' ', c.last_name) as customer_name
+                FROM orders o
+                JOIN users u ON o.created_by = u.user_id
+                JOIN customers c ON o.customer_id = c.customer_id
+                WHERE u.supervisor_id = :supervisor_id AND o.is_active = 1
+                
+                UNION ALL
+                
+                SELECT 
+                'customer' as activity_type,
+                c.customer_code as order_number,
+                0 as total_amount,
+                c.assigned_at as created_at,
+                u.full_name as user_name,
+                CONCAT(c.first_name, ' ', c.last_name) as customer_name
+                FROM customers c
+                JOIN users u ON c.assigned_to = u.user_id
+                WHERE u.supervisor_id = :supervisor_id AND c.is_active = 1 AND c.assigned_at IS NOT NULL
+                
+                ORDER BY created_at DESC
+                LIMIT :limit";
+        
+        return $this->db->fetchAll($sql, ['supervisor_id' => $supervisorId, 'limit' => $limit]);
+    }
+    
+    /**
+     * Assign user to supervisor
+     */
+    public function assignToSupervisor($userId, $supervisorId) {
+        try {
+            $sql = "UPDATE users SET supervisor_id = :supervisor_id WHERE user_id = :user_id";
+            $this->db->execute($sql, ['supervisor_id' => $supervisorId, 'user_id' => $userId]);
+            
+            return ['success' => true, 'message' => 'มอบหมายผู้ใช้ให้กับหัวหน้าทีมสำเร็จ'];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'เกิดข้อผิดพลาดในการมอบหมายผู้ใช้'];
+        }
+    }
+    
+    /**
+     * Remove user from supervisor
+     */
+    public function removeFromSupervisor($userId) {
+        try {
+            $sql = "UPDATE users SET supervisor_id = NULL WHERE user_id = :user_id";
+            $this->db->execute($sql, ['user_id' => $userId]);
+            
+            return ['success' => true, 'message' => 'ลบผู้ใช้ออกจากทีมสำเร็จ'];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'เกิดข้อผิดพลาดในการลบผู้ใช้ออกจากทีม'];
+        }
+    }
 }
 ?> 

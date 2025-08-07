@@ -24,7 +24,7 @@ $user = $_SESSION['user'] ?? null;
         <div class="row">
             <?php include __DIR__ . '/../components/sidebar.php'; ?>
             
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 page-transition">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                     <h1 class="h2">
                         <i class="fas fa-cogs me-2"></i>
@@ -34,6 +34,9 @@ $user = $_SESSION['user'] ?? null;
                         <div class="btn-group me-2">
                             <a href="admin.php?action=users" class="btn btn-sm btn-outline-primary">
                                 <i class="fas fa-users me-1"></i>จัดการผู้ใช้
+                            </a>
+                            <a href="admin.php?action=companies" class="btn btn-sm btn-outline-primary">
+                                <i class="fas fa-building me-1"></i>จัดการบริษัท
                             </a>
                             <a href="admin.php?action=products" class="btn btn-sm btn-outline-primary">
                                 <i class="fas fa-box me-1"></i>จัดการสินค้า
@@ -224,17 +227,17 @@ $user = $_SESSION['user'] ?? null;
                             <div class="card-body">
                                 <div class="row">
                                     <div class="col-md-3 mb-3">
-                                        <a href="admin.php?action=users&action=create" class="btn btn-primary btn-block w-100">
+                                        <a href="admin.php?action=users&subaction=create" class="btn btn-primary btn-block w-100">
                                             <i class="fas fa-user-plus me-2"></i>เพิ่มผู้ใช้ใหม่
                                         </a>
                                     </div>
                                     <div class="col-md-3 mb-3">
-                                        <a href="admin.php?action=products&action=create" class="btn btn-success btn-block w-100">
+                                        <a href="admin.php?action=products&subaction=create" class="btn btn-success btn-block w-100">
                                             <i class="fas fa-plus me-2"></i>เพิ่มสินค้าใหม่
                                         </a>
                                     </div>
                                     <div class="col-md-3 mb-3">
-                                        <a href="admin.php?action=products&action=import" class="btn btn-info btn-block w-100">
+                                        <a href="admin.php?action=products&subaction=import" class="btn btn-info btn-block w-100">
                                             <i class="fas fa-upload me-2"></i>นำเข้าสินค้า
                                         </a>
                                     </div>
@@ -253,6 +256,8 @@ $user = $_SESSION['user'] ?? null;
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="assets/js/page-transitions.js"></script>
     <script src="assets/js/sidebar.js"></script>
 </body>
 </html> 

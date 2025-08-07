@@ -196,29 +196,37 @@ class CustomerService {
         $sql = "SELECT c.*, u.full_name as assigned_to_name 
                 FROM customers c 
                 LEFT JOIN users u ON c.assigned_to = u.user_id 
-                WHERE c.basket_type = :basket_type AND c.is_active = 1";
+                WHERE c.basket_type = ? AND c.is_active = 1";
         
-        $params = ['basket_type' => $basketType];
+        $params = [$basketType];
         
         // เพิ่มตัวกรอง
         if (!empty($filters['temperature'])) {
-            $sql .= " AND c.temperature_status = :temperature";
-            $params['temperature'] = $filters['temperature'];
+            $sql .= " AND c.temperature_status = ?";
+            $params[] = $filters['temperature'];
         }
         
         if (!empty($filters['grade'])) {
-            $sql .= " AND c.customer_grade = :grade";
-            $params['grade'] = $filters['grade'];
+            $sql .= " AND c.customer_grade = ?";
+            $params[] = $filters['grade'];
         }
         
         if (!empty($filters['province'])) {
-            $sql .= " AND c.province = :province";
-            $params['province'] = $filters['province'];
+            $sql .= " AND c.province = ?";
+            $params[] = $filters['province'];
         }
         
         if (!empty($filters['assigned_to'])) {
-            $sql .= " AND c.assigned_to = :assigned_to";
-            $params['assigned_to'] = $filters['assigned_to'];
+            if (is_array($filters['assigned_to'])) {
+                // สำหรับ supervisor ที่ส่ง array ของ user_id
+                $placeholders = str_repeat('?,', count($filters['assigned_to']) - 1) . '?';
+                $sql .= " AND c.assigned_to IN ($placeholders)";
+                $params = array_merge($params, $filters['assigned_to']);
+            } else {
+                // สำหรับ telesales ที่ส่ง user_id เดียว
+                $sql .= " AND c.assigned_to = ?";
+                $params[] = $filters['assigned_to'];
+            }
         }
         
         $sql .= " ORDER BY c.created_at DESC";

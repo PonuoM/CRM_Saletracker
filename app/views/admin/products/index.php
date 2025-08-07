@@ -24,7 +24,7 @@ $user = $_SESSION['user'] ?? null;
         <div class="row">
             <?php include __DIR__ . '/../../components/sidebar.php'; ?>
             
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 page-transition">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                     <h1 class="h2">
                         <i class="fas fa-box me-2"></i>
@@ -32,13 +32,13 @@ $user = $_SESSION['user'] ?? null;
                     </h1>
                     <div class="btn-toolbar mb-2 mb-md-0">
                         <div class="btn-group me-2">
-                            <a href="admin.php?action=products&action=create" class="btn btn-primary">
+                            <a href="admin.php?action=products&subaction=create" class="btn btn-primary">
                                 <i class="fas fa-plus me-2"></i>เพิ่มสินค้าใหม่
                             </a>
-                            <a href="admin.php?action=products&action=import" class="btn btn-info">
+                            <a href="admin.php?action=products&subaction=import" class="btn btn-info">
                                 <i class="fas fa-upload me-2"></i>นำเข้า
                             </a>
-                            <a href="admin.php?action=products&action=export" class="btn btn-success">
+                            <a href="admin.php?action=products&subaction=export" class="btn btn-success">
                                 <i class="fas fa-download me-2"></i>ส่งออก
                             </a>
                         </div>
@@ -128,11 +128,11 @@ $user = $_SESSION['user'] ?? null;
                                         </td>
                                         <td>
                                             <div class="btn-group" role="group">
-                                                <a href="admin.php?action=products&action=edit&id=<?php echo $product['product_id']; ?>" 
+                                                <a href="admin.php?action=products&subaction=edit&id=<?php echo $product['product_id']; ?>" 
                                                    class="btn btn-sm btn-outline-primary" title="แก้ไข">
                                                     <i class="fas fa-edit"></i>
                                                 </a>
-                                                <a href="admin.php?action=products&action=delete&id=<?php echo $product['product_id']; ?>" 
+                                                <a href="admin.php?action=products&subaction=delete&id=<?php echo $product['product_id']; ?>" 
                                                    class="btn btn-sm btn-outline-danger" title="ลบ"
                                                    onclick="return confirm('คุณแน่ใจหรือไม่ที่จะลบสินค้านี้?')">
                                                     <i class="fas fa-trash"></i>
@@ -234,8 +234,10 @@ $user = $_SESSION['user'] ?? null;
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="assets/js/page-transitions.js"></script>
     <script src="assets/js/sidebar.js"></script>
     
     <script>

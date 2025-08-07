@@ -18,16 +18,31 @@ class DashboardService {
      */
     public function getDashboardData($userId = null, $role = null) {
         try {
-            $data = [
-                'total_customers' => $this->getTotalCustomers(),
-                'hot_customers' => $this->getHotCustomers(),
-                'total_orders' => $this->getTotalOrders(),
-                'total_sales' => $this->getTotalSales(),
-                'monthly_sales' => $this->getMonthlySales(),
-                'recent_activities' => $this->getRecentActivities($userId),
-                'customer_grades' => $this->getCustomerGrades(),
-                'order_status' => $this->getOrderStatus()
-            ];
+            // สำหรับ supervisor ใช้ข้อมูลเฉพาะทีม
+            if ($role === 'supervisor') {
+                $data = [
+                    'total_customers' => $this->getTeamTotalCustomers($userId),
+                    'hot_customers' => $this->getTeamHotCustomers($userId),
+                    'total_orders' => $this->getTeamTotalOrders($userId),
+                    'total_sales' => $this->getTeamTotalSales($userId),
+                    'monthly_sales' => $this->getTeamMonthlySales($userId),
+                    'recent_activities' => $this->getTeamRecentActivities($userId),
+                    'customer_grades' => $this->getTeamCustomerGrades($userId),
+                    'order_status' => $this->getTeamOrderStatus($userId)
+                ];
+            } else {
+                // สำหรับ admin และ super_admin ใช้ข้อมูลทั้งหมด
+                $data = [
+                    'total_customers' => $this->getTotalCustomers(),
+                    'hot_customers' => $this->getHotCustomers(),
+                    'total_orders' => $this->getTotalOrders(),
+                    'total_sales' => $this->getTotalSales(),
+                    'monthly_sales' => $this->getMonthlySales(),
+                    'recent_activities' => $this->getRecentActivities($userId),
+                    'customer_grades' => $this->getCustomerGrades(),
+                    'order_status' => $this->getOrderStatus()
+                ];
+            }
             
             return [
                 'success' => true,
@@ -229,6 +244,206 @@ class DashboardService {
                 ORDER BY month DESC";
         
         return $this->db->fetchAll($sql, ['user_id' => $userId]);
+    }
+    
+    // ========== Supervisor Team Methods ==========
+    
+    /**
+     * ดึง user_id ของสมาชิกทีมทั้งหมด
+     */
+    private function getTeamMemberIds($supervisorId) {
+        $teamMembers = $this->db->fetchAll(
+            "SELECT user_id FROM users WHERE supervisor_id = :supervisor_id AND is_active = 1",
+            ['supervisor_id' => $supervisorId]
+        );
+        
+        $teamMemberIds = [];
+        foreach ($teamMembers as $member) {
+            $teamMemberIds[] = $member['user_id'];
+        }
+        
+        return $teamMemberIds;
+    }
+    
+    /**
+     * นับจำนวนลูกค้าทั้งหมดของทีม
+     */
+    private function getTeamTotalCustomers($supervisorId) {
+        $teamMemberIds = $this->getTeamMemberIds($supervisorId);
+        if (empty($teamMemberIds)) {
+            return 0;
+        }
+        
+        $placeholders = str_repeat('?,', count($teamMemberIds) - 1) . '?';
+        $result = $this->db->fetchOne(
+            "SELECT COUNT(*) as count FROM customers WHERE assigned_to IN ($placeholders)",
+            $teamMemberIds
+        );
+        return $result['count'] ?? 0;
+    }
+    
+    /**
+     * นับจำนวนลูกค้า Hot ของทีม
+     */
+    private function getTeamHotCustomers($supervisorId) {
+        $teamMemberIds = $this->getTeamMemberIds($supervisorId);
+        if (empty($teamMemberIds)) {
+            return 0;
+        }
+        
+        $placeholders = str_repeat('?,', count($teamMemberIds) - 1) . '?';
+        $result = $this->db->fetchOne(
+            "SELECT COUNT(*) as count FROM customers WHERE assigned_to IN ($placeholders) AND temperature_status = 'hot'",
+            $teamMemberIds
+        );
+        return $result['count'] ?? 0;
+    }
+    
+    /**
+     * นับจำนวนคำสั่งซื้อทั้งหมดของทีม
+     */
+    private function getTeamTotalOrders($supervisorId) {
+        $teamMemberIds = $this->getTeamMemberIds($supervisorId);
+        if (empty($teamMemberIds)) {
+            return 0;
+        }
+        
+        $placeholders = str_repeat('?,', count($teamMemberIds) - 1) . '?';
+        $result = $this->db->fetchOne(
+            "SELECT COUNT(*) as count FROM orders WHERE created_by IN ($placeholders)",
+            $teamMemberIds
+        );
+        return $result['count'] ?? 0;
+    }
+    
+    /**
+     * คำนวณยอดขายรวมของทีม
+     */
+    private function getTeamTotalSales($supervisorId) {
+        $teamMemberIds = $this->getTeamMemberIds($supervisorId);
+        if (empty($teamMemberIds)) {
+            return 0;
+        }
+        
+        $placeholders = str_repeat('?,', count($teamMemberIds) - 1) . '?';
+        $result = $this->db->fetchOne(
+            "SELECT SUM(net_amount) as total FROM orders WHERE created_by IN ($placeholders) AND payment_status = 'paid'",
+            $teamMemberIds
+        );
+        return $result['total'] ?? 0;
+    }
+    
+    /**
+     * ดึงข้อมูลยอดขายรายเดือนของทีม
+     */
+    private function getTeamMonthlySales($supervisorId) {
+        $teamMemberIds = $this->getTeamMemberIds($supervisorId);
+        if (empty($teamMemberIds)) {
+            return [];
+        }
+        
+        $placeholders = str_repeat('?,', count($teamMemberIds) - 1) . '?';
+        $sql = "SELECT 
+                    DATE_FORMAT(order_date, '%Y-%m') as month,
+                    SUM(net_amount) as total_sales,
+                    COUNT(*) as order_count
+                FROM orders 
+                WHERE created_by IN ($placeholders)
+                AND payment_status = 'paid' 
+                AND order_date >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                GROUP BY DATE_FORMAT(order_date, '%Y-%m')
+                ORDER BY month DESC";
+        
+        return $this->db->fetchAll($sql, $teamMemberIds);
+    }
+    
+    /**
+     * ดึงกิจกรรมล่าสุดของทีม
+     */
+    private function getTeamRecentActivities($supervisorId) {
+        $teamMemberIds = $this->getTeamMemberIds($supervisorId);
+        if (empty($teamMemberIds)) {
+            return [];
+        }
+        
+        $placeholders = str_repeat('?,', count($teamMemberIds) - 1) . '?';
+        $sql = "SELECT 
+                    'order' as type,
+                    o.order_number as title,
+                    o.created_at as date,
+                    u.full_name as user_name,
+                    CONCAT(c.first_name, ' ', c.last_name) as customer_name,
+                    o.net_amount as amount
+                FROM orders o
+                JOIN users u ON o.created_by = u.user_id
+                JOIN customers c ON o.customer_id = c.customer_id
+                WHERE o.created_by IN ($placeholders)
+                
+                UNION ALL
+                
+                SELECT 
+                    'customer' as type,
+                    CONCAT('ลูกค้าใหม่: ', c.first_name, ' ', c.last_name) as title,
+                    c.assigned_at as date,
+                    u.full_name as user_name,
+                    CONCAT(c.first_name, ' ', c.last_name) as customer_name,
+                    0 as amount
+                FROM customers c
+                JOIN users u ON c.assigned_to = u.user_id
+                WHERE c.assigned_to IN ($placeholders) AND c.assigned_at IS NOT NULL
+                
+                ORDER BY date DESC
+                LIMIT 10";
+        
+        return $this->db->fetchAll($sql, array_merge($teamMemberIds, $teamMemberIds));
+    }
+    
+    /**
+     * ดึงข้อมูลเกรดลูกค้าของทีม
+     */
+    private function getTeamCustomerGrades($supervisorId) {
+        $teamMemberIds = $this->getTeamMemberIds($supervisorId);
+        if (empty($teamMemberIds)) {
+            return [];
+        }
+        
+        $placeholders = str_repeat('?,', count($teamMemberIds) - 1) . '?';
+        $sql = "SELECT 
+                    customer_grade,
+                    COUNT(*) as count
+                FROM customers 
+                WHERE assigned_to IN ($placeholders)
+                GROUP BY customer_grade
+                ORDER BY 
+                    CASE customer_grade
+                        WHEN 'A' THEN 1
+                        WHEN 'B' THEN 2
+                        WHEN 'C' THEN 3
+                        WHEN 'D' THEN 4
+                        ELSE 5
+                    END";
+        
+        return $this->db->fetchAll($sql, $teamMemberIds);
+    }
+    
+    /**
+     * ดึงข้อมูลสถานะคำสั่งซื้อของทีม
+     */
+    private function getTeamOrderStatus($supervisorId) {
+        $teamMemberIds = $this->getTeamMemberIds($supervisorId);
+        if (empty($teamMemberIds)) {
+            return [];
+        }
+        
+        $placeholders = str_repeat('?,', count($teamMemberIds) - 1) . '?';
+        $sql = "SELECT 
+                    payment_status,
+                    COUNT(*) as count
+                FROM orders 
+                WHERE created_by IN ($placeholders)
+                GROUP BY payment_status";
+        
+        return $this->db->fetchAll($sql, $teamMemberIds);
     }
 }
 ?> 

@@ -56,6 +56,10 @@ class Router {
                 $this->handleAdmin();
                 break;
                 
+            case 'team.php':
+                $this->handleTeam();
+                break;
+                
             case 'api/':
                 $this->handleApi();
                 break;
@@ -196,6 +200,26 @@ class Router {
         }
         
         include APP_VIEWS . 'admin/index.php';
+    }
+    
+    /**
+     * Handle team management page
+     */
+    private function handleTeam() {
+        // Check authentication
+        if (!isset($_SESSION['user_id'])) {
+            $this->redirect('login.php');
+            return;
+        }
+        
+        // Check permission - only supervisor
+        $roleName = $_SESSION['role_name'] ?? '';
+        if ($roleName !== 'supervisor') {
+            $this->showError('Access Denied', 'คุณไม่มีสิทธิ์เข้าถึงหน้านี้');
+            return;
+        }
+        
+        include 'team.php';
     }
     
     /**

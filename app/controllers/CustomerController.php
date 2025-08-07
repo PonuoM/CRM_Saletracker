@@ -37,11 +37,20 @@ class CustomerController {
         $followUpCustomers = [];
         
         switch ($roleName) {
-            case 'supervisor':
             case 'admin':
             case 'super_admin':
-                // Supervisor/Admin เห็นลูกค้าทั้งหมด
+                // Admin เห็นลูกค้าทั้งหมด
                 $customers = $this->customerService->getCustomersByBasket('distribution');
+                break;
+                
+            case 'supervisor':
+                // Supervisor เห็นเฉพาะลูกค้าของทีมตัวเอง
+                $teamCustomerIds = $this->getTeamCustomerIds($userId);
+                if (!empty($teamCustomerIds)) {
+                    $customers = $this->customerService->getCustomersByBasket('assigned', ['assigned_to' => $teamCustomerIds]);
+                } else {
+                    $customers = [];
+                }
                 break;
                 
             case 'telesales':
@@ -53,9 +62,15 @@ class CustomerController {
         
         // ดึงข้อมูล Telesales สำหรับ Supervisor
         $telesalesList = [];
-        if (in_array($roleName, ['supervisor', 'admin', 'super_admin'])) {
+        if (in_array($roleName, ['admin', 'super_admin'])) {
             $telesalesList = $this->db->fetchAll(
                 "SELECT user_id, full_name FROM users WHERE role_id = 4 AND is_active = 1 ORDER BY full_name"
+            );
+        } elseif ($roleName === 'supervisor') {
+            // Supervisor เห็นเฉพาะ Telesales ในทีมตัวเอง
+            $telesalesList = $this->db->fetchAll(
+                "SELECT user_id, full_name FROM users WHERE supervisor_id = :supervisor_id AND role_id = 4 AND is_active = 1 ORDER BY full_name",
+                ['supervisor_id' => $userId]
             );
         }
         
@@ -64,7 +79,16 @@ class CustomerController {
             "SELECT DISTINCT province FROM customers WHERE province IS NOT NULL AND province != '' ORDER BY province"
         );
         
+        // ใช้ layout ที่ถูกต้อง
+        $pageTitle = 'จัดการลูกค้า - CRM SalesTracker';
+        
+        // เริ่ม output buffering
+        ob_start();
         include APP_VIEWS . 'customers/index.php';
+        $content = ob_get_clean();
+        
+        // ใช้ layout หลัก
+        include APP_VIEWS . 'layouts/main.php';
     }
     
     /**
@@ -98,6 +122,13 @@ class CustomerController {
         if ($roleName === 'telesales' && $customer['assigned_to'] != $userId) {
             $this->showError('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์เข้าถึงข้อมูลลูกค้ารายนี้');
             return;
+        } elseif ($roleName === 'supervisor') {
+            // Supervisor ตรวจสอบว่าลูกค้าอยู่ในทีมตัวเองหรือไม่
+            $teamMemberIds = $this->getTeamCustomerIds($userId);
+            if (!in_array($customer['assigned_to'], $teamMemberIds)) {
+                $this->showError('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์เข้าถึงข้อมูลลูกค้ารายนี้');
+                return;
+            }
         }
         
         // ดึงประวัติการโทร
@@ -173,6 +204,16 @@ class CustomerController {
         }
         
         $input = json_decode(file_get_contents('php://input'), true);
+        
+        // สำหรับ supervisor ตรวจสอบว่า telesales อยู่ในทีมตัวเองหรือไม่
+        if ($roleName === 'supervisor') {
+            $teamMemberIds = $this->getTeamCustomerIds($_SESSION['user_id']);
+            if (!in_array($input['telesales_id'] ?? null, $teamMemberIds)) {
+                http_response_code(403);
+                echo json_encode(['error' => 'Permission denied - Telesales not in your team']);
+                return;
+            }
+        }
         
         $supervisorId = $_SESSION['user_id'];
         $telesalesId = $input['telesales_id'] ?? null;
@@ -445,6 +486,26 @@ class CustomerController {
                     echo json_encode(['success' => false, 'message' => 'ไม่มีสิทธิ์เข้าถึงข้อมูลลูกค้ารายนี้']);
                     return;
                 }
+            } elseif ($roleName === 'supervisor') {
+                // Supervisor ตรวจสอบว่าลูกค้าอยู่ในทีมตัวเองหรือไม่
+                $teamMemberIds = $this->getTeamCustomerIds($userId);
+                if (!empty($teamMemberIds)) {
+                    $placeholders = str_repeat('?,', count($teamMemberIds) - 1) . '?';
+                    $assignedCustomer = $this->db->fetchOne(
+                        "SELECT customer_id FROM customers WHERE customer_id = ? AND assigned_to IN ($placeholders)",
+                        array_merge([$customerId], $teamMemberIds)
+                    );
+                    
+                    if (!$assignedCustomer) {
+                        header('Content-Type: application/json');
+                        echo json_encode(['success' => false, 'message' => 'ไม่มีสิทธิ์เข้าถึงข้อมูลลูกค้ารายนี้']);
+                        return;
+                    }
+                } else {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'message' => 'ไม่มีสิทธิ์เข้าถึงข้อมูลลูกค้ารายนี้']);
+                    return;
+                }
             }
             
             header('Content-Type: application/json');
@@ -481,6 +542,23 @@ class CustomerController {
             error_log('Error logging customer activity: ' . $e->getMessage());
             return false;
         }
+    }
+    
+    /**
+     * ดึง user_id ของสมาชิกทีมทั้งหมด
+     */
+    private function getTeamCustomerIds($supervisorId) {
+        $teamMembers = $this->db->fetchAll(
+            "SELECT user_id FROM users WHERE supervisor_id = :supervisor_id AND is_active = 1",
+            ['supervisor_id' => $supervisorId]
+        );
+        
+        $teamCustomerIds = [];
+        foreach ($teamMembers as $member) {
+            $teamCustomerIds[] = $member['user_id'];
+        }
+        
+        return $teamCustomerIds;
     }
     
     /**

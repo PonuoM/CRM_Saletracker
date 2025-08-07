@@ -54,7 +54,7 @@ $user = $_SESSION['user'] ?? null;
                         </h6>
                     </div>
                     <div class="card-body">
-                        <form method="POST" action="admin.php?action=users&action=edit&id=<?php echo $user['user_id']; ?>">
+                        <form method="POST" action="admin.php?action=users&subaction=edit&id=<?php echo $user['user_id']; ?>">
                             <div class="row">
                                 <div class="col-md-6">
                                     <div class="mb-3">

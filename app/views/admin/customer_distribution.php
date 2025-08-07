@@ -32,7 +32,7 @@ if (!in_array($roleName, ['admin', 'supervisor', 'super_admin'])) {
         <div class="row">
             <?php include __DIR__ . '/../components/sidebar.php'; ?>
 
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 page-transition">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                     <h1 class="h2">
                         <i class="fas fa-users me-2"></i>
@@ -231,6 +231,8 @@ if (!in_array($roleName, ['admin', 'supervisor', 'super_admin'])) {
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="assets/js/page-transitions.js"></script>
     <script src="assets/js/customer-distribution.js"></script>
 </body>
 </html> 

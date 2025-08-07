@@ -75,9 +75,9 @@ class AdminController {
     public function users() {
         $this->checkAdminPermission();
         
-        $action = $_GET['action'] ?? 'list';
+        $subaction = $_GET['subaction'] ?? 'list';
         
-        switch ($action) {
+        switch ($subaction) {
             case 'create':
                 $this->createUser();
                 break;
@@ -202,9 +202,9 @@ class AdminController {
     public function products() {
         $this->checkAdminPermission();
         
-        $action = $_GET['action'] ?? 'list';
+        $subaction = $_GET['subaction'] ?? 'list';
         
-        switch ($action) {
+        switch ($subaction) {
             case 'create':
                 $this->createProduct();
                 break;
@@ -349,42 +349,57 @@ class AdminController {
      * ส่งออกสินค้า
      */
     private function exportProducts() {
-        $products = $this->getAllProducts();
-        
-        // สร้างไฟล์ CSV
-        $filename = 'products_export_' . date('Y-m-d_H-i-s') . '.csv';
-        
-        header('Content-Type: text/csv; charset=utf-8');
-        header('Content-Disposition: attachment; filename="' . $filename . '"');
-        
-        $output = fopen('php://output', 'w');
-        
-        // เพิ่ม BOM สำหรับ UTF-8
-        fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
-        
-        // เขียน header
-        fputcsv($output, [
-            'รหัสสินค้า', 'ชื่อสินค้า', 'หมวดหมู่', 'คำอธิบาย', 
-            'หน่วย', 'ต้นทุน', 'ราคาขาย', 'จำนวนคงเหลือ', 'สถานะ'
-        ]);
-        
-        // เขียนข้อมูล
-        foreach ($products as $product) {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            // ดาวน์โหลดไฟล์
+            $products = $this->getAllProducts();
+            
+            // สร้างไฟล์ CSV
+            $filename = 'products_export_' . date('Y-m-d_H-i-s') . '.csv';
+            
+            header('Content-Type: text/csv; charset=utf-8');
+            header('Content-Disposition: attachment; filename="' . $filename . '"');
+            
+            $output = fopen('php://output', 'w');
+            
+            // เพิ่ม BOM สำหรับ UTF-8
+            fprintf($output, chr(0xEF).chr(0xBB).chr(0xBF));
+            
+            // เขียน header
             fputcsv($output, [
-                $product['product_code'],
-                $product['product_name'],
-                $product['category'],
-                $product['description'],
-                $product['unit'],
-                $product['cost_price'],
-                $product['selling_price'],
-                $product['stock_quantity'],
-                $product['is_active'] ? 'เปิดใช้งาน' : 'ปิดใช้งาน'
+                'รหัสสินค้า', 'ชื่อสินค้า', 'หมวดหมู่', 'คำอธิบาย', 
+                'หน่วย', 'ต้นทุน', 'ราคาขาย', 'จำนวนคงเหลือ', 'สถานะ'
             ]);
+            
+            // เขียนข้อมูล
+            foreach ($products as $product) {
+                fputcsv($output, [
+                    $product['product_code'],
+                    $product['product_name'],
+                    $product['category'],
+                    $product['description'],
+                    $product['unit'],
+                    $product['cost_price'],
+                    $product['selling_price'],
+                    $product['stock_quantity'],
+                    $product['is_active'] ? 'เปิดใช้งาน' : 'ปิดใช้งาน'
+                ]);
+            }
+            
+            fclose($output);
+            exit;
         }
         
-        fclose($output);
-        exit;
+        // แสดงหน้า export
+        $products = $this->getAllProducts();
+        $categories = $this->getProductCategories();
+        
+        // คำนวณสถิติ
+        $totalProducts = count($products);
+        $activeProducts = count(array_filter($products, function($p) { return $p['is_active']; }));
+        $inactiveProducts = $totalProducts - $activeProducts;
+        $outOfStockProducts = count(array_filter($products, function($p) { return $p['stock_quantity'] <= 0; }));
+        
+        include __DIR__ . '/../views/admin/products/export.php';
     }
     
     /**
@@ -540,6 +555,205 @@ class AdminController {
     }
     
     /**
+     * จัดการบริษัท
+     */
+    public function companies() {
+        $this->checkAdminPermission();
+        
+        $subaction = $_GET['subaction'] ?? 'list';
+        
+        switch ($subaction) {
+            case 'create':
+                $this->createCompany();
+                break;
+            case 'edit':
+                $this->editCompany();
+                break;
+            case 'delete':
+                $this->deleteCompany();
+                break;
+            default:
+                $this->listCompanies();
+                break;
+        }
+    }
+    
+    /**
+     * แสดงรายการบริษัท
+     */
+    private function listCompanies() {
+        $companies = $this->getAllCompanies();
+        include __DIR__ . '/../views/admin/companies/index.php';
+    }
+    
+    /**
+     * สร้างบริษัทใหม่
+     */
+    private function createCompany() {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $companyData = [
+                'company_name' => $_POST['company_name'] ?? '',
+                'company_code' => $_POST['company_code'] ?? '',
+                'address' => $_POST['address'] ?? '',
+                'phone' => $_POST['phone'] ?? '',
+                'email' => $_POST['email'] ?? '',
+                'is_active' => 1
+            ];
+            
+            $result = $this->createCompanyRecord($companyData);
+            
+            if ($result['success']) {
+                header('Location: admin.php?action=companies&message=company_created');
+                exit;
+            } else {
+                $error = $result['message'];
+            }
+        }
+        
+        include __DIR__ . '/../views/admin/companies/create.php';
+    }
+    
+    /**
+     * แก้ไขบริษัท
+     */
+    private function editCompany() {
+        $companyId = $_GET['id'] ?? null;
+        
+        if (!$companyId) {
+            header('Location: admin.php?action=companies&error=invalid_id');
+            exit;
+        }
+        
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $companyData = [
+                'company_id' => $companyId,
+                'company_name' => $_POST['company_name'] ?? '',
+                'company_code' => $_POST['company_code'] ?? '',
+                'address' => $_POST['address'] ?? '',
+                'phone' => $_POST['phone'] ?? '',
+                'email' => $_POST['email'] ?? '',
+                'is_active' => isset($_POST['is_active']) ? 1 : 0
+            ];
+            
+            $result = $this->updateCompanyRecord($companyData);
+            
+            if ($result['success']) {
+                header('Location: admin.php?action=companies&message=company_updated');
+                exit;
+            } else {
+                $error = $result['message'];
+            }
+        }
+        
+        $company = $this->getCompanyById($companyId);
+        if (!$company) {
+            header('Location: admin.php?action=companies&error=company_not_found');
+            exit;
+        }
+        
+        include __DIR__ . '/../views/admin/companies/edit.php';
+    }
+    
+    /**
+     * ลบบริษัท
+     */
+    private function deleteCompany() {
+        $companyId = $_GET['id'] ?? null;
+        
+        if (!$companyId) {
+            header('Location: admin.php?action=companies&error=invalid_id');
+            exit;
+        }
+        
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $result = $this->deleteCompanyRecord($companyId);
+            
+            if ($result['success']) {
+                header('Location: admin.php?action=companies&message=company_deleted');
+                exit;
+            } else {
+                $error = $result['message'];
+            }
+        }
+        
+        $company = $this->getCompanyById($companyId);
+        if (!$company) {
+            header('Location: admin.php?action=companies&error=company_not_found');
+            exit;
+        }
+        
+        include __DIR__ . '/../views/admin/companies/delete.php';
+    }
+    
+    /**
+     * ดึงบริษัทตาม ID
+     */
+    private function getCompanyById($companyId) {
+        $sql = "SELECT * FROM companies WHERE company_id = :company_id";
+        return $this->db->fetchOne($sql, ['company_id' => $companyId]);
+    }
+    
+    /**
+     * สร้างบริษัทใหม่
+     */
+    private function createCompanyRecord($companyData) {
+        try {
+            $sql = "INSERT INTO companies (company_name, company_code, address, phone, email, is_active) 
+                    VALUES (:company_name, :company_code, :address, :phone, :email, :is_active)";
+            
+            $this->db->query($sql, $companyData);
+            
+            return ['success' => true, 'message' => 'สร้างบริษัทใหม่สำเร็จ'];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()];
+        }
+    }
+    
+    /**
+     * อัปเดตบริษัท
+     */
+    private function updateCompanyRecord($companyData) {
+        try {
+            $sql = "UPDATE companies SET 
+                    company_name = :company_name,
+                    company_code = :company_code,
+                    address = :address,
+                    phone = :phone,
+                    email = :email,
+                    is_active = :is_active
+                    WHERE company_id = :company_id";
+            
+            $this->db->query($sql, $companyData);
+            
+            return ['success' => true, 'message' => 'อัปเดตบริษัทสำเร็จ'];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()];
+        }
+    }
+    
+    /**
+     * ลบบริษัท
+     */
+    private function deleteCompanyRecord($companyId) {
+        try {
+            // ตรวจสอบว่าบริษัทถูกใช้โดยผู้ใช้หรือไม่
+            $sql = "SELECT COUNT(*) as count FROM users WHERE company_id = :company_id";
+            $result = $this->db->fetchOne($sql, ['company_id' => $companyId]);
+            
+            if ($result['count'] > 0) {
+                return ['success' => false, 'message' => 'ไม่สามารถลบบริษัทได้ เนื่องจากมีผู้ใช้ที่เกี่ยวข้องอยู่'];
+            }
+            
+            $sql = "DELETE FROM companies WHERE company_id = :company_id";
+            $this->db->query($sql, ['company_id' => $companyId]);
+            
+            return ['success' => true, 'message' => 'ลบบริษัทสำเร็จ'];
+        } catch (Exception $e) {
+            return ['success' => false, 'message' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()];
+        }
+    }
+    
+    /**
      * ดึงสินค้าทั้งหมด
      */
     private function getAllProducts() {
@@ -559,15 +773,13 @@ class AdminController {
      * ดึงหมวดหมู่สินค้า
      */
     private function getProductCategories() {
-        $sql = "SELECT DISTINCT category FROM products WHERE category IS NOT NULL AND category != '' ORDER BY category";
-        $results = $this->db->fetchAll($sql);
-        
-        $categories = [];
-        foreach ($results as $result) {
-            $categories[] = $result['category'];
-        }
-        
-        return $categories;
+        // หมวดหมู่สินค้าที่กำหนดไว้
+        return [
+            'ปุ๋ยกระสอบใหญ่',
+            'ปุ๋ยกระสอบเล็ก', 
+            'ชีวภัณฑ์',
+            'ของแถม'
+        ];
     }
     
     /**

@@ -50,29 +50,33 @@
 }
 
 :root {
-  /* Minimalist Pastel Color Palette */
-  --primary-color: #7c9885; /* Soft Sage Green */
-  --secondary-color: #a8b5c4; /* Muted Blue Gray */
-  --success-color: #9bbf8b; /* Soft Mint Green */
-  --warning-color: #e6c27d; /* Soft Peach */
-  --danger-color: #d4a5a5; /* Soft Rose */
-  --text-color: #4a5568; /* Muted Dark Gray */
-  --text-muted: #718096; /* Light Gray */
-  --light-bg: #fafbfc; /* Very Light Gray Background */
-  --border-color: #e2e8f0; /* Soft Border */
-  --sidebar-bg: #f7fafc; /* Very Light Blue Gray */
+  /* Main Theme Colors - White, Black, Dark Green */
+  --primary-color: #1a5f3c; /* Dark Green */
+  --secondary-color: #2c3e50; /* Dark Gray/Black */
+  --success-color: #27ae60; /* Green */
+  --warning-color: #f39c12; /* Orange */
+  --danger-color: #e74c3c; /* Red */
+  --text-color: #2c3e50; /* Dark Gray/Black */
+  --text-muted: #7f8c8d; /* Light Gray */
+  --light-bg: #ffffff; /* Pure White Background */
+  --border-color: #ecf0f1; /* Light Gray Border */
+  --sidebar-bg: #f8f9fa; /* Very Light Gray */
   --card-bg: #ffffff; /* Pure White for Cards */
   
-  /* Status Colors - Pastel */
-  --hot-color: #f4a6a6; /* Soft Red */
-  --warm-color: #f4d4a6; /* Soft Orange */
-  --cold-color: #a6c8f4; /* Soft Blue */
-  --frozen-color: #c8c8c8; /* Soft Gray */
+  /* Status Colors */
+  --hot-color: #e74c3c; /* Red */
+  --warm-color: #f39c12; /* Orange */
+  --cold-color: #3498db; /* Blue */
+  --frozen-color: #95a5a6; /* Gray */
   
-  /* Shadows - Softer */
-  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.03);
-  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
-  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+  /* Shadows */
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+  
+  /* Typography */
+  --font-size-base: 14px;
+  --font-size-heading: 16px;
   
   /* Other */
   --border-radius: 0.5rem;
@@ -87,6 +91,36 @@ body {
   line-height: 1.6;
   margin: 0;
   font-weight: 400;
+  font-size: var(--font-size-base);
+}
+
+/* Page Transitions */
+.page-transition {
+  animation: fadeIn 0.3s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Typography */
+h1, h2, h3, h4, h5, h6 {
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+  color: var(--text-color);
+}
+
+.h1, .h2, .h3, .h4, .h5, .h6 {
+  font-size: var(--font-size-heading);
+  font-weight: 600;
+  color: var(--text-color);
 }
 
 /* Header & Navigation */

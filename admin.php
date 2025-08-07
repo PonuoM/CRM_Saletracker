@@ -44,12 +44,15 @@ switch ($action) {
     case 'settings':
         $adminController->settings();
         break;
-            case 'workflow':
-            $adminController->workflow();
-            break;
-        case 'customer_distribution':
-            $adminController->customer_distribution();
-            break;
+    case 'companies':
+        $adminController->companies();
+        break;
+    case 'workflow':
+        $adminController->workflow();
+        break;
+    case 'customer_distribution':
+        $adminController->customer_distribution();
+        break;
     default:
         $adminController->index();
         break;
