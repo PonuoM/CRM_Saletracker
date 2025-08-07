@@ -70,51 +70,17 @@ class ImportExportController {
             return;
         }
         
-        // Create upload directory with error handling
+        // Create upload directory
         $uploadDir = __DIR__ . '/../../uploads/';
         if (!is_dir($uploadDir)) {
-            if (!mkdir($uploadDir, 0777, true)) {
-                error_log("Failed to create upload directory: " . $uploadDir);
-                echo json_encode(['error' => 'ไม่สามารถสร้างโฟลเดอร์อัปโหลดได้']);
-                return;
-            }
+            mkdir($uploadDir, 0755, true);
         }
         
-        // Check if directory is writable
-        if (!is_writable($uploadDir)) {
-            chmod($uploadDir, 0777);
-            if (!is_writable($uploadDir)) {
-                echo json_encode(['error' => 'โฟลเดอร์อัปโหลดไม่สามารถเขียนได้']);
-                return;
-            }
-        }
-        
-        // Handle uploaded file with robust approach
+        // Move uploaded file
         $uploadedFile = $uploadDir . 'customers_' . date('Y-m-d_H-i-s') . '.csv';
-        $file_moved = false;
-        
-        // ลองใช้ move_uploaded_file ก่อน (สำหรับ real HTTP uploads)
-        if (is_uploaded_file($file['tmp_name'])) {
-            if (move_uploaded_file($file['tmp_name'], $uploadedFile)) {
-                $file_moved = true;
-                error_log("Successfully moved uploaded file for customers");
-            } else {
-                error_log("move_uploaded_file() failed for customers, trying copy()");
-            }
-        } else {
-            error_log("Not a real uploaded file for customers, using copy()");
-        }
-        
-        // ถ้า move_uploaded_file ล้มเหลว หรือไม่ใช่ uploaded file ให้ใช้ copy
-        if (!$file_moved) {
-            if (copy($file['tmp_name'], $uploadedFile)) {
-                $file_moved = true;
-                error_log("Successfully copied file for customers import");
-            } else {
-                error_log("Both move_uploaded_file() and copy() failed for customers");
-                echo json_encode(['error' => 'ไม่สามารถอัปโหลดไฟล์ได้']);
-                return;
-            }
+        if (!move_uploaded_file($file['tmp_name'], $uploadedFile)) {
+            echo json_encode(['error' => 'ไม่สามารถอัปโหลดไฟล์ได้']);
+            return;
         }
         
         // Import data
@@ -158,99 +124,27 @@ class ImportExportController {
             $file = $_FILES['csv_file'];
             error_log("File info: " . json_encode($file));
             
-            // Create upload directory with better error handling
+            // Create upload directory
             $uploadDir = __DIR__ . '/../../uploads/';
             if (!is_dir($uploadDir)) {
-                if (!mkdir($uploadDir, 0777, true)) {
-                    error_log("Failed to create upload directory: " . $uploadDir);
-                    echo json_encode([
-                        'error' => 'ไม่สามารถสร้างโฟลเดอร์อัปโหลดได้',
-                        'success' => 0,
-                        'total' => 0,
-                        'customers_updated' => 0,
-                        'customers_created' => 0,
-                        'orders_created' => 0,
-                        'errors' => ['ไม่สามารถสร้างโฟลเดอร์อัปโหลดได้']
-                    ]);
-                    return;
-                }
+                mkdir($uploadDir, 0755, true);
                 error_log("Created upload directory: " . $uploadDir);
             }
             
-            // Check if directory is writable
-            if (!is_writable($uploadDir)) {
-                error_log("Upload directory not writable: " . $uploadDir);
-                // Try to fix permissions
-                if (!chmod($uploadDir, 0777)) {
-                    error_log("Failed to fix upload directory permissions");
-                }
-                // Check again
-                if (!is_writable($uploadDir)) {
-                    echo json_encode([
-                        'error' => 'โฟลเดอร์อัปโหลดไม่สามารถเขียนได้',
-                        'success' => 0,
-                        'total' => 0,
-                        'customers_updated' => 0,
-                        'customers_created' => 0,
-                        'orders_created' => 0,
-                        'errors' => ['โฟลเดอร์อัปโหลดไม่สามารถเขียนได้']
-                    ]);
-                    return;
-                }
-            }
-            
-            // Check source file
-            if (!file_exists($file['tmp_name']) || !is_readable($file['tmp_name'])) {
-                error_log("Source file not readable: " . $file['tmp_name']);
+            // Move uploaded file
+            $uploadedFile = $uploadDir . 'sales_' . date('Y-m-d_H-i-s') . '.csv';
+            if (!move_uploaded_file($file['tmp_name'], $uploadedFile)) {
+                error_log("Failed to move uploaded file");
                 echo json_encode([
-                    'error' => 'ไฟล์ต้นฉบับไม่สามารถอ่านได้',
+                    'error' => 'ไม่สามารถอัปโหลดไฟล์ได้',
                     'success' => 0,
                     'total' => 0,
                     'customers_updated' => 0,
                     'customers_created' => 0,
                     'orders_created' => 0,
-                    'errors' => ['ไฟล์ต้นฉบับไม่สามารถอ่านได้']
+                    'errors' => ['ไม่สามารถอัปโหลดไฟล์ได้']
                 ]);
                 return;
-            }
-            
-            // Handle uploaded file with robust approach
-            $uploadedFile = $uploadDir . 'sales_' . date('Y-m-d_H-i-s') . '.csv';
-            error_log("Attempting to move file from " . $file['tmp_name'] . " to " . $uploadedFile);
-            
-            $file_moved = false;
-            
-            // ลองใช้ move_uploaded_file ก่อน (สำหรับ real HTTP uploads)
-            if (is_uploaded_file($file['tmp_name'])) {
-                error_log("Real uploaded file detected, using move_uploaded_file()");
-                if (move_uploaded_file($file['tmp_name'], $uploadedFile)) {
-                    $file_moved = true;
-                    error_log("Successfully moved uploaded file");
-                } else {
-                    error_log("move_uploaded_file() failed, trying copy() as fallback");
-                }
-            } else {
-                error_log("Not a real uploaded file, using copy() directly");
-            }
-            
-            // ถ้า move_uploaded_file ล้มเหลว หรือไม่ใช่ uploaded file ให้ใช้ copy
-            if (!$file_moved) {
-                if (copy($file['tmp_name'], $uploadedFile)) {
-                    $file_moved = true;
-                    error_log("Successfully copied file using copy()");
-                } else {
-                    error_log("Both move_uploaded_file() and copy() failed");
-                    echo json_encode([
-                        'error' => 'ไม่สามารถอัปโหลดไฟล์ได้ (ทั้ง move และ copy ล้มเหลว)',
-                        'success' => 0,
-                        'total' => 0,
-                        'customers_updated' => 0,
-                        'customers_created' => 0,
-                        'orders_created' => 0,
-                        'errors' => ['ไม่สามารถอัปโหลดไฟล์ได้']
-                    ]);
-                    return;
-                }
             }
             
             error_log("File uploaded successfully: " . $uploadedFile);
@@ -311,73 +205,24 @@ class ImportExportController {
             
             $file = $_FILES['csv_file'];
             
-            // Create upload directory with better error handling
+            // Create upload directory
             $uploadDir = __DIR__ . '/../../uploads/';
             if (!is_dir($uploadDir)) {
-                if (!mkdir($uploadDir, 0777, true)) {
-                    error_log("Failed to create upload directory: " . $uploadDir);
-                    echo json_encode([
-                        'error' => 'ไม่สามารถสร้างโฟลเดอร์อัปโหลดได้',
-                        'success' => 0,
-                        'total' => 0,
-                        'customers_created' => 0,
-                        'customers_skipped' => 0,
-                        'errors' => ['ไม่สามารถสร้างโฟลเดอร์อัปโหลดได้']
-                    ]);
-                    return;
-                }
+                mkdir($uploadDir, 0755, true);
             }
             
-            // Check if directory is writable
-            if (!is_writable($uploadDir)) {
-                error_log("Upload directory not writable: " . $uploadDir);
-                chmod($uploadDir, 0777);
-                if (!is_writable($uploadDir)) {
-                    echo json_encode([
-                        'error' => 'โฟลเดอร์อัปโหลดไม่สามารถเขียนได้',
-                        'success' => 0,
-                        'total' => 0,
-                        'customers_created' => 0,
-                        'customers_skipped' => 0,
-                        'errors' => ['โฟลเดอร์อัปโหลดไม่สามารถเขียนได้']
-                    ]);
-                    return;
-                }
-            }
-            
-            // Handle uploaded file with robust approach
+            // Move uploaded file
             $uploadedFile = $uploadDir . 'customers_only_' . date('Y-m-d_H-i-s') . '.csv';
-            $file_moved = false;
-            
-            // ลองใช้ move_uploaded_file ก่อน (สำหรับ real HTTP uploads)
-            if (is_uploaded_file($file['tmp_name'])) {
-                if (move_uploaded_file($file['tmp_name'], $uploadedFile)) {
-                    $file_moved = true;
-                    error_log("Successfully moved uploaded file for customers only");
-                } else {
-                    error_log("move_uploaded_file() failed for customers only, trying copy()");
-                }
-            } else {
-                error_log("Not a real uploaded file for customers only, using copy()");
-            }
-            
-            // ถ้า move_uploaded_file ล้มเหลว หรือไม่ใช่ uploaded file ให้ใช้ copy
-            if (!$file_moved) {
-                if (copy($file['tmp_name'], $uploadedFile)) {
-                    $file_moved = true;
-                    error_log("Successfully copied file for customers only import");
-                } else {
-                    error_log("Both move_uploaded_file() and copy() failed for customers only");
-                    echo json_encode([
-                        'error' => 'ไม่สามารถอัปโหลดไฟล์ได้',
-                        'success' => 0,
-                        'total' => 0,
-                        'customers_created' => 0,
-                        'customers_skipped' => 0,
-                        'errors' => ['ไม่สามารถอัปโหลดไฟล์ได้']
-                    ]);
-                    return;
-                }
+            if (!move_uploaded_file($file['tmp_name'], $uploadedFile)) {
+                echo json_encode([
+                    'error' => 'ไม่สามารถอัปโหลดไฟล์ได้',
+                    'success' => 0,
+                    'total' => 0,
+                    'customers_created' => 0,
+                    'customers_skipped' => 0,
+                    'errors' => ['ไม่สามารถอัปโหลดไฟล์ได้']
+                ]);
+                return;
             }
             
             // Import data

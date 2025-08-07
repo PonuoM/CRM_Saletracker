@@ -326,18 +326,21 @@ class ImportExportService {
             
             error_log("File content length: " . strlen($content));
             
-            // Detect encoding - ใช้ encoding ที่รองรับใน PHP เวอร์ชันใหม่
-            $encodings = ['UTF-8', 'ISO-8859-11', 'Windows-874'];
-            $encoding = mb_detect_encoding($content, $encodings, true);
-            if (!$encoding) {
-                $encoding = 'UTF-8';
+            // Skip encoding detection to avoid compatibility issues
+            // Assume UTF-8 and handle BOM if present
+            if (substr($content, 0, 3) === "\xEF\xBB\xBF") {
+                $content = substr($content, 3); // Remove UTF-8 BOM
+                error_log("Removed UTF-8 BOM from file");
             }
             
-            error_log("Detected encoding: " . $encoding);
-            
-            // Convert to UTF-8 if needed
-            if ($encoding !== 'UTF-8') {
-                $content = mb_convert_encoding($content, 'UTF-8', $encoding);
+            // Ensure content is treated as UTF-8
+            if (!mb_check_encoding($content, 'UTF-8')) {
+                // Try to convert from common Thai encodings
+                $content = @iconv('CP874', 'UTF-8//IGNORE', $content);
+                if ($content === false) {
+                    $content = @iconv('ISO-8859-1', 'UTF-8//IGNORE', $content);
+                }
+                error_log("Content converted to UTF-8");
             }
             
             // Remove BOM if present
@@ -478,16 +481,19 @@ class ImportExportService {
         // Read file content and handle encoding
         $content = file_get_contents($filePath);
         
-        // Detect encoding - ใช้ encoding ที่รองรับใน PHP เวอร์ชันใหม่
-        $encodings = ['UTF-8', 'ISO-8859-11', 'Windows-874'];
-        $encoding = mb_detect_encoding($content, $encodings, true);
-        if (!$encoding) {
-            $encoding = 'UTF-8';
+        // Skip encoding detection to avoid compatibility issues
+        // Assume UTF-8 and handle BOM if present
+        if (substr($content, 0, 3) === "\xEF\xBB\xBF") {
+            $content = substr($content, 3); // Remove UTF-8 BOM
         }
         
-        // Convert to UTF-8 if needed
-        if ($encoding !== 'UTF-8') {
-            $content = mb_convert_encoding($content, 'UTF-8', $encoding);
+        // Ensure content is treated as UTF-8
+        if (!mb_check_encoding($content, 'UTF-8')) {
+            // Try to convert from common Thai encodings
+            $content = @iconv('CP874', 'UTF-8//IGNORE', $content);
+            if ($content === false) {
+                $content = @iconv('ISO-8859-1', 'UTF-8//IGNORE', $content);
+            }
         }
         
         // Remove BOM if present

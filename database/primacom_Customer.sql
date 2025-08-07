@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Aug 05, 2025 at 01:23 PM
+-- Generation Time: Aug 06, 2025 at 04:04 PM
 -- Server version: 10.6.19-MariaDB
 -- PHP Version: 8.0.30
 
@@ -483,18 +483,20 @@ CREATE TABLE `customers` (
 --
 
 INSERT INTO `customers` (`customer_id`, `customer_code`, `first_name`, `last_name`, `phone`, `email`, `address`, `district`, `province`, `postal_code`, `temperature_status`, `customer_grade`, `total_purchase_amount`, `assigned_to`, `basket_type`, `assigned_at`, `last_contact_at`, `next_followup_at`, `recall_at`, `source`, `notes`, `is_active`, `created_at`, `updated_at`, `total_purchase`, `appointment_count`, `appointment_extension_count`, `last_appointment_date`, `appointment_extension_expiry`, `max_appointment_extensions`, `appointment_extension_days`, `customer_status`, `customer_time_extension`, `customer_time_base`, `customer_time_expiry`) VALUES
-(1, 'C001', 'สมชาย', 'ใจดี', '081-111-1111', 'somchai@email.com', '123 ถนนสุขุมวิท', 'คลองเตย', 'กรุงเทพฯ', NULL, 'hot', 'D', 0.00, NULL, 'waiting', '2025-08-03 07:19:20', '2025-08-04 17:06:27', NULL, NULL, 'facebook', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 12:32:24', 4805.00, 1, 0, '2025-07-21 08:32:14', '2025-08-20 08:32:14', 3, 30, 'existing', 30, '2025-08-03 07:19:20', '2025-09-04 12:32:24'),
-(2, 'C002', 'สมหญิง', 'รักดี', '081-222-2222', 'somying@email.com', '456 ถนนรัชดาภิเษก', 'ดินแดง', 'กรุงเทพฯ', NULL, 'warm', 'B', 0.00, 4, 'assigned', '2025-08-05 09:48:59', NULL, NULL, '2025-09-04 09:48:59', 'import', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 12:23:50', 0.00, 1, 0, '2025-07-21 08:32:14', '2025-08-20 08:32:14', 3, 30, 'existing', 0, '2025-08-05 09:48:59', '2025-09-04 09:48:59'),
+(1, 'C001', 'สมชาย', 'ใจดี', '081-111-1111', 'somchai@email.com', '123 ถนนสุขุมวิท', 'คลองเตย', 'กรุงเทพฯ', NULL, 'hot', 'D', 0.00, NULL, 'waiting', '2025-11-04 04:27:06', '2025-08-04 17:06:27', NULL, NULL, 'facebook', NULL, 1, '2025-08-03 07:19:20', '2025-08-06 04:27:06', 49805.00, 1, 0, '2025-07-21 08:32:14', '2025-08-20 08:32:14', 3, 30, 'existing', 90, '2025-08-03 07:19:20', '2025-11-04 04:27:06'),
+(2, 'C002', 'สมหญิง', 'รักดี', '081-222-2222', 'somying@email.com', '456 ถนนรัชดาภิเษก', 'ดินแดง', 'กรุงเทพฯ', NULL, 'warm', 'B', 0.00, 4, 'assigned', '2025-11-04 06:54:02', NULL, NULL, '2025-09-04 09:48:59', 'import', NULL, 1, '2025-08-03 07:19:20', '2025-08-06 06:54:02', 9600.00, 1, 0, '2025-07-21 08:32:14', '2025-08-20 08:32:14', 3, 30, 'existing', 90, '2025-08-05 09:48:59', '2025-11-04 06:54:02'),
 (3, 'C003', 'สมศักดิ์', 'มั่งมี', '081-333-3333', 'somsak@email.com', '789 ถนนลาดพร้าว', 'วังทองหลาง', 'กรุงเทพฯ', NULL, 'cold', 'C', 0.00, NULL, 'waiting', NULL, NULL, NULL, NULL, 'manual', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 12:23:51', 450.00, 1, 0, '2025-07-21 08:32:14', '2025-08-20 08:32:14', 3, 30, 'existing', 0, '2025-08-03 07:19:20', '2025-09-02 07:19:20'),
 (4, 'C004', 'สมปอง', 'ใจเย็น', '081-444-4444', 'sompong@email.com', '321 ถนนเพชรบุรี', 'ห้วยขวาง', 'กรุงเทพฯ', NULL, 'frozen', 'D', 0.00, NULL, 'distribution', NULL, NULL, NULL, NULL, 'facebook', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 12:23:51', 5400.00, 2, 1, '2025-07-26 08:32:14', '2025-08-25 08:32:14', 3, 30, 'existing', 0, '2025-08-03 07:19:20', '2025-03-01 17:00:00'),
-(5, 'C005', 'สมใจ', 'รักงาน', '081-555-5555', 'somjai@email.com', '654 ถนนพระราม 9', 'ห้วยขวาง', 'กรุงเทพฯ', NULL, 'hot', 'A+', 0.00, NULL, 'waiting', '2025-08-03 07:19:20', NULL, NULL, NULL, 'import', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 12:32:36', 0.00, 3, 2, '2025-07-31 08:32:14', '2025-08-30 08:32:14', 3, 30, 'existing', 0, '2025-08-03 07:19:20', '2025-09-04 12:32:36'),
-(6, 'C006', 'สมชาย', 'รวยมาก', '081-111-1111', 'somchai.rich@example.com', '123 ถ.สุขุมวิท กรุงเทพฯ', NULL, NULL, NULL, 'hot', 'A+', 150000.00, 3, 'assigned', '2025-08-05 09:48:27', '2025-06-19 17:22:31', NULL, '2025-09-04 09:48:27', NULL, NULL, 1, '2025-06-04 17:22:31', '2025-08-05 12:23:50', 0.00, 0, 0, NULL, NULL, 3, 30, 'existing', 0, '2025-08-05 09:48:27', '2025-09-04 09:48:27'),
-(7, 'C007', 'สมหญิง', 'ใจดี', '081-222-2222', 'somying.kind@example.com', '456 ถ.รัชดา กรุงเทพฯ', NULL, NULL, NULL, 'warm', 'A', 75000.00, 4, 'assigned', '2025-08-05 09:48:46', '2025-06-29 17:22:31', NULL, '2025-09-04 09:48:46', NULL, NULL, 1, '2025-06-14 17:22:31', '2025-08-05 12:23:50', 0.00, 0, 0, NULL, NULL, 3, 30, 'existing', 0, '2025-08-05 09:48:46', '2025-09-04 09:48:46'),
+(5, 'C005', 'สมใจ', 'รักงาน', '081-555-5555', 'somjai@email.com', '654 ถนนพระราม 9', 'ห้วยขวาง', 'กรุงเทพฯ', NULL, 'hot', 'A+', 0.00, NULL, 'waiting', '2025-11-04 03:42:31', NULL, NULL, NULL, 'import', NULL, 1, '2025-08-03 07:19:20', '2025-08-06 03:42:31', 1000.00, 3, 2, '2025-07-31 08:32:14', '2025-08-30 08:32:14', 3, 30, 'existing', 90, '2025-08-03 07:19:20', '2027-05-27 12:32:36'),
+(6, 'C006', 'สมชาย', 'รวยมาก', '081-111-1111', 'somchai.rich@example.com', '123 ถ.สุขุมวิท กรุงเทพฯ', NULL, NULL, NULL, 'hot', 'A+', 150000.00, 3, 'assigned', '2025-11-04 04:31:19', '2025-06-19 17:22:31', NULL, '2025-09-04 09:48:27', NULL, NULL, 1, '2025-06-04 17:22:31', '2025-08-06 04:31:19', 450.00, 0, 0, NULL, NULL, 3, 30, 'existing', 90, '2025-08-05 09:48:27', '2025-11-04 04:31:19'),
+(7, 'C007', 'สมหญิง', 'ใจดี', '081-222-2222', 'somying.kind@example.com', '456 ถ.รัชดา กรุงเทพฯ', NULL, NULL, NULL, 'warm', 'A', 75000.00, 4, 'assigned', '2025-11-04 06:54:23', '2025-06-29 17:22:31', NULL, '2025-09-04 09:48:46', NULL, NULL, 1, '2025-06-14 17:22:31', '2025-08-06 06:54:23', 600.00, 0, 0, NULL, NULL, 3, 30, 'existing', 90, '2025-08-05 09:48:46', '2025-11-04 06:54:23'),
 (8, 'C008', 'สมศักดิ์', 'มั่นคง', '081-333-3333', 'somsak.stable@example.com', '789 ถ.ลาดพร้าว กรุงเทพฯ', NULL, NULL, NULL, 'hot', 'B', 25000.00, NULL, 'distribution', NULL, '2025-07-29 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-06-24 17:22:31', '2025-08-05 12:23:51', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-06-24 17:22:31', '2025-07-24 17:22:31'),
 (9, 'C009', 'สมใจ', 'ประหยัด', '081-444-4444', 'somjai.save@example.com', '101 ถ.พระราม 4 กรุงเทพฯ', NULL, NULL, NULL, 'cold', 'C', 8000.00, NULL, 'distribution', NULL, '2025-06-04 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-05-25 17:22:31', '2025-08-05 12:23:51', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-05-25 17:22:31', '2025-06-24 17:22:31'),
 (10, 'C010', 'สมหมาย', 'รอดี', '081-555-5555', 'sommai.wait@example.com', '202 ถ.เพชรบุรี กรุงเทพฯ', NULL, NULL, NULL, 'frozen', 'D', 2000.00, NULL, 'distribution', NULL, '2025-04-25 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-05-05 17:22:31', '2025-08-05 12:23:51', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-05-05 17:22:31', '2025-06-04 17:22:31'),
-(11, 'C011', 'สมทรง', 'เศรษฐี', '081-666-6666', 'somsong.wealthy@example.com', '303 ถ.สีลม กรุงเทพฯ', NULL, NULL, NULL, 'warm', 'A+', 120000.00, 3, 'assigned', '2025-08-05 09:48:59', '2025-08-05 09:50:00', NULL, '2025-09-04 09:48:59', NULL, NULL, 1, '2025-07-04 17:22:31', '2025-08-05 12:23:50', 1150.00, 0, 0, NULL, NULL, 3, 30, 'existing', 0, '2025-08-05 09:48:59', '2025-09-04 09:48:59'),
-(12, 'C012', 'สมพร', 'หายไป', '081-777-7777', 'somporn.lost@example.com', '404 ถ.บางนา กรุงเทพฯ', NULL, NULL, NULL, 'frozen', 'C', 15000.00, NULL, 'distribution', NULL, '2025-04-30 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-04-25 17:22:31', '2025-08-05 12:23:51', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-04-25 17:22:31', '2025-05-25 17:22:31');
+(11, 'C011', 'สมทรง', 'เศรษฐี', '081-666-6666', 'somsong.wealthy@example.com', '303 ถ.สีลม กรุงเทพฯ', NULL, NULL, NULL, 'warm', 'A+', 120000.00, 3, 'assigned', '2025-11-04 04:28:50', '2025-08-05 09:50:00', NULL, '2025-09-04 09:48:59', NULL, NULL, 1, '2025-07-04 17:22:31', '2025-08-06 04:28:50', 11650.00, 0, 0, NULL, NULL, 3, 30, 'existing', 90, '2025-08-05 09:48:59', '2025-11-04 04:28:50'),
+(12, 'C012', 'สมพร', 'หายไป', '081-777-7777', 'somporn.lost@example.com', '404 ถ.บางนา กรุงเทพฯ', NULL, NULL, NULL, 'frozen', 'C', 15000.00, NULL, 'distribution', NULL, '2025-04-30 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-04-25 17:22:31', '2025-08-05 12:23:51', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-04-25 17:22:31', '2025-05-25 17:22:31'),
+(13, NULL, 'ทดสอบ', 'ระบบ', '0812345678', 'test@example.com', '123 ถ.ทดสอบ', 'เขตทดสอบ', 'จังหวัดทดสอบ', '10000', 'cold', 'C', 0.00, NULL, 'distribution', NULL, NULL, NULL, NULL, NULL, NULL, 1, '2025-08-06 09:00:52', '2025-08-06 09:25:32', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, NULL, NULL),
+(14, NULL, 'ทดสอบ', 'ระบบ', '0812345678', 'test@example.com', '123 ถ.ทดสอบ', 'เขตทดสอบ', 'จังหวัดทดสอบ', '10000', 'cold', 'C', 0.00, NULL, 'distribution', NULL, NULL, NULL, NULL, NULL, NULL, 1, '2025-08-06 09:03:03', '2025-08-06 09:03:03', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, NULL, NULL);
 
 -- --------------------------------------------------------
 
@@ -507,6 +509,7 @@ CREATE TABLE `customer_activities` (
   `customer_id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
   `activity_type` enum('status_change','assignment','call','order','note','recall') NOT NULL,
+  `activity_date` date DEFAULT NULL,
   `activity_description` text NOT NULL,
   `old_value` varchar(200) DEFAULT NULL,
   `new_value` varchar(200) DEFAULT NULL,
@@ -518,14 +521,14 @@ CREATE TABLE `customer_activities` (
 -- Dumping data for table `customer_activities`
 --
 
-INSERT INTO `customer_activities` (`activity_id`, `customer_id`, `user_id`, `activity_type`, `activity_description`, `old_value`, `new_value`, `metadata`, `created_at`) VALUES
-(1, 1, 1, 'call', 'บันทึกการโทร: answered - Test call from simple API test', NULL, NULL, NULL, '2025-08-04 16:58:33'),
-(2, 1, 3, 'call', 'บันทึกการโทร: answered - ลองทดสอบ', NULL, NULL, NULL, '2025-08-04 17:06:27'),
-(3, 6, 1, '', 'ลูกค้าถูกแจกให้ Telesales ID: 3', NULL, NULL, NULL, '2025-08-05 09:48:27'),
-(4, 7, 1, '', 'ลูกค้าถูกแจกให้ Telesales ID: 4', NULL, NULL, NULL, '2025-08-05 09:48:46'),
-(5, 11, 1, '', 'ลูกค้าถูกแจกให้ Telesales ID: 3', NULL, NULL, NULL, '2025-08-05 09:48:59'),
-(6, 2, 1, '', 'ลูกค้าถูกแจกให้ Telesales ID: 4', NULL, NULL, NULL, '2025-08-05 09:48:59'),
-(7, 11, 3, 'call', 'บันทึกการโทร: answered - ]ูกค้าซ์้อสินคาจ้า', NULL, NULL, NULL, '2025-08-05 09:50:00');
+INSERT INTO `customer_activities` (`activity_id`, `customer_id`, `user_id`, `activity_type`, `activity_date`, `activity_description`, `old_value`, `new_value`, `metadata`, `created_at`) VALUES
+(1, 1, 1, 'call', NULL, 'บันทึกการโทร: answered - Test call from simple API test', NULL, NULL, NULL, '2025-08-04 16:58:33'),
+(2, 1, 3, 'call', NULL, 'บันทึกการโทร: answered - ลองทดสอบ', NULL, NULL, NULL, '2025-08-04 17:06:27'),
+(3, 6, 1, '', NULL, 'ลูกค้าถูกแจกให้ Telesales ID: 3', NULL, NULL, NULL, '2025-08-05 09:48:27'),
+(4, 7, 1, '', NULL, 'ลูกค้าถูกแจกให้ Telesales ID: 4', NULL, NULL, NULL, '2025-08-05 09:48:46'),
+(5, 11, 1, '', NULL, 'ลูกค้าถูกแจกให้ Telesales ID: 3', NULL, NULL, NULL, '2025-08-05 09:48:59'),
+(6, 2, 1, '', NULL, 'ลูกค้าถูกแจกให้ Telesales ID: 4', NULL, NULL, NULL, '2025-08-05 09:48:59'),
+(7, 11, 3, 'call', NULL, 'บันทึกการโทร: answered - ]ูกค้าซ์้อสินคาจ้า', NULL, NULL, NULL, '2025-08-05 09:50:00');
 
 -- --------------------------------------------------------
 
@@ -872,7 +875,10 @@ INSERT INTO `orders` (`order_id`, `order_number`, `customer_id`, `created_by`, `
 (34, 'ORD202508036ABD4D', 1, 3, '2025-08-03', 700.00, 0.00, 0.00, 700.00, 'cash', 'pending', '2025-08-03', '123 ถนนสุขุมวิท', 'pending', '121', 1, '2025-08-03 13:24:46', '2025-08-03 13:24:46'),
 (36, 'ORD202508032D6B8E', 1, 3, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'cash', 'pending', '2025-08-03', '123 ถนนสุขุมวิท', 'delivered', '555', 1, '2025-08-03 13:36:18', '2025-08-04 16:16:39'),
 (37, 'ORD20250805420131', 1, 3, '2025-08-05', 1500.00, 0.00, 0.00, 1500.00, 'cod', 'pending', '2025-08-05', '123 ถนนสุขุมวิท', 'delivered', '22', 1, '2025-08-05 08:07:49', '2025-08-05 08:08:19'),
-(39, 'ORD20250805A9F387', 11, 3, '2025-08-05', 450.00, 0.00, 0.00, 450.00, 'cod', 'pending', '2025-08-05', '303 ถ.สีลม กรุงเทพฯ', 'delivered', 'กกกกกก', 1, '2025-08-05 10:07:42', '2025-08-05 11:43:40');
+(39, 'ORD20250805A9F387', 11, 3, '2025-08-05', 450.00, 0.00, 0.00, 450.00, 'cod', 'pending', '2025-08-05', '303 ถ.สีลม กรุงเทพฯ', 'delivered', 'กกกกกก', 1, '2025-08-05 10:07:42', '2025-08-05 11:43:40'),
+(40, 'ORD202508054E87F5', 11, 3, '2025-08-05', 450.00, 0.00, 0.00, 450.00, 'cod', 'pending', '2025-08-05', '303 ถ.สีลม กรุงเทพฯ', 'pending', '2222', 1, '2025-08-05 13:55:24', '2025-08-05 13:55:24'),
+(41, 'ORD2025080664A1EE', 2, 1, '2025-08-06', 1000.00, 0.00, 0.00, 1000.00, 'cash', 'pending', NULL, NULL, 'delivered', 'ทดสอบการต่อเวลาอัตโนมัติ', 1, '2025-08-06 02:08:45', '2025-08-06 02:12:52'),
+(42, 'ORD20250806D52EB3', 11, 1, '2025-08-06', 1000.00, 0.00, 0.00, 1000.00, 'cash', 'pending', NULL, NULL, 'delivered', 'ทดสอบการต่อเวลาอัตโนมัติ', 1, '2025-08-06 02:09:46', '2025-08-06 02:12:44');
 
 -- --------------------------------------------------------
 
@@ -922,7 +928,12 @@ INSERT INTO `order_activities` (`activity_id`, `order_id`, `user_id`, `activity_
 (30, 37, 3, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250805420131', '2025-08-05 08:07:49'),
 (31, 37, 3, 'status_update', 'อัปเดต delivery_status เป็น: delivered', '2025-08-05 08:08:19'),
 (33, 39, 3, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250805A9F387', '2025-08-05 10:07:42'),
-(34, 39, 3, 'status_update', 'อัปเดต delivery_status เป็น: delivered', '2025-08-05 11:43:40');
+(34, 39, 3, 'status_update', 'อัปเดต delivery_status เป็น: delivered', '2025-08-05 11:43:40'),
+(35, 40, 3, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD202508054E87F5', '2025-08-05 13:55:24'),
+(36, 41, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD2025080664A1EE', '2025-08-06 02:09:35'),
+(37, 42, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250806D52EB3', '2025-08-06 02:10:36'),
+(38, 42, 1, 'status_update', 'อัปเดต delivery_status เป็น: delivered', '2025-08-06 02:12:44'),
+(39, 41, 1, 'status_update', 'อัปเดต delivery_status เป็น: delivered', '2025-08-06 02:12:52');
 
 -- --------------------------------------------------------
 
@@ -984,7 +995,10 @@ INSERT INTO `order_items` (`item_id`, `order_id`, `product_id`, `quantity`, `uni
 (40, 36, 2, 1, 450.00, 450.00),
 (41, 37, 2, 2, 450.00, 900.00),
 (42, 37, 3, 1, 600.00, 600.00),
-(45, 39, 2, 1, 450.00, 450.00);
+(45, 39, 2, 1, 450.00, 450.00),
+(46, 40, 2, 1, 450.00, 450.00),
+(47, 41, 1, 1, 1000.00, 1000.00),
+(48, 42, 1, 1, 1000.00, 1000.00);
 
 -- --------------------------------------------------------
 
@@ -1115,9 +1129,9 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`user_id`, `username`, `password_hash`, `full_name`, `email`, `phone`, `role_id`, `company_id`, `is_active`, `created_at`, `updated_at`, `last_login`) VALUES
-(1, 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ผู้ดูแลระบบ', 'admin@prima49.com', '081-234-5678', 1, 1, 1, '2025-08-03 07:19:20', '2025-08-05 13:21:07', '2025-08-05 13:21:07'),
+(1, 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ผู้ดูแลระบบ', 'admin@prima49.com', '081-234-5678', 1, 1, 1, '2025-08-03 07:19:20', '2025-08-06 14:15:30', '2025-08-06 14:15:30'),
 (2, 'supervisor', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'หัวหน้าทีมขาย', 'supervisor@prima49.com', '081-234-5679', 3, 1, 1, '2025-08-03 07:19:20', '2025-08-03 07:19:20', NULL),
-(3, 'telesales1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'พนักงานขาย 1', 'telesales1@prima49.com', '081-234-5680', 4, 1, 1, '2025-08-03 07:19:20', '2025-08-05 11:35:38', '2025-08-05 11:35:38'),
+(3, 'telesales1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'พนักงานขาย 1', 'telesales1@prima49.com', '081-234-5680', 4, 1, 1, '2025-08-03 07:19:20', '2025-08-06 04:27:56', '2025-08-06 04:27:56'),
 (4, 'telesales2', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'พนักงานขาย 2', 'telesales2@prima49.com', '081-234-5681', 4, 1, 1, '2025-08-03 07:19:20', '2025-08-03 07:19:20', NULL);
 
 -- --------------------------------------------------------
@@ -1277,7 +1291,8 @@ ALTER TABLE `customers`
   ADD KEY `idx_customers_total_purchase` (`total_purchase`),
   ADD KEY `idx_customer_status` (`customer_status`),
   ADD KEY `idx_customer_time_expiry` (`customer_time_expiry`),
-  ADD KEY `idx_customer_time_base` (`customer_time_base`);
+  ADD KEY `idx_customer_time_base` (`customer_time_base`),
+  ADD KEY `idx_assigned_at` (`assigned_at`);
 
 --
 -- Indexes for table `customer_activities`
@@ -1495,7 +1510,7 @@ ALTER TABLE `cron_job_settings`
 -- AUTO_INCREMENT for table `customers`
 --
 ALTER TABLE `customers`
-  MODIFY `customer_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `customer_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT for table `customer_activities`
@@ -1531,13 +1546,13 @@ ALTER TABLE `notifications`
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=40;
+  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=146;
 
 --
 -- AUTO_INCREMENT for table `order_activities`
 --
 ALTER TABLE `order_activities`
-  MODIFY `activity_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=35;
+  MODIFY `activity_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=107;
 
 --
 -- AUTO_INCREMENT for table `order_details`
@@ -1549,7 +1564,7 @@ ALTER TABLE `order_details`
 -- AUTO_INCREMENT for table `order_items`
 --
 ALTER TABLE `order_items`
-  MODIFY `item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=46;
+  MODIFY `item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=123;
 
 --
 -- AUTO_INCREMENT for table `products`
