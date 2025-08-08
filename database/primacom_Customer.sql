@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Aug 06, 2025 at 04:04 PM
+-- Generation Time: Aug 08, 2025 at 05:26 AM
 -- Server version: 10.6.19-MariaDB
 -- PHP Version: 8.0.30
 
@@ -203,19 +203,9 @@ CREATE TABLE `appointments` (
 --
 
 INSERT INTO `appointments` (`appointment_id`, `customer_id`, `user_id`, `appointment_date`, `appointment_type`, `appointment_status`, `location`, `contact_person`, `contact_phone`, `title`, `description`, `notes`, `reminder_sent`, `reminder_sent_at`, `created_at`, `updated_at`) VALUES
-(1, 1, 3, '2025-08-07 09:21:51', 'meeting', 'scheduled', NULL, NULL, NULL, 'ประชุมนำเสนอสินค้าใหม่', 'ประชุมกับลูกค้าเพื่อนำเสนอสินค้าใหม่ที่เพิ่งเปิดตัว', 'ลูกค้าสนใจสินค้าใหม่มาก', 0, NULL, '2025-08-05 02:21:51', '2025-08-05 02:21:51'),
-(2, 2, 4, '2025-08-06 09:21:51', 'call', 'scheduled', NULL, NULL, NULL, 'โทรติดตามการสั่งซื้อ', 'โทรติดตามลูกค้าเกี่ยวกับการสั่งซื้อที่ค้างอยู่', 'ลูกค้าบอกว่าจะโทรกลับมา', 0, NULL, '2025-08-05 02:21:51', '2025-08-05 02:21:51'),
-(3, 5, 3, '2025-08-08 09:21:51', 'presentation', 'scheduled', NULL, NULL, NULL, 'นำเสนอโปรโมชั่นพิเศษ', 'นำเสนอโปรโมชั่นพิเศษสำหรับลูกค้าเกรด A+', 'โปรโมชั่นพิเศษ 20% สำหรับลูกค้าเกรด A+', 0, NULL, '2025-08-05 02:21:51', '2025-08-05 02:21:51'),
-(4, 1, 3, '2025-08-07 09:34:18', 'meeting', 'scheduled', NULL, NULL, NULL, 'ประชุมนำเสนอสินค้าใหม่', 'ประชุมกับลูกค้าเพื่อนำเสนอสินค้าใหม่ที่เพิ่งเปิดตัว', 'ลูกค้าสนใจสินค้าใหม่มาก', 0, NULL, '2025-08-05 02:34:18', '2025-08-05 02:34:18'),
-(5, 2, 4, '2025-08-06 09:34:18', 'call', 'scheduled', NULL, NULL, NULL, 'โทรติดตามการสั่งซื้อ', 'โทรติดตามลูกค้าเกี่ยวกับการสั่งซื้อที่ค้างอยู่', 'ลูกค้าบอกว่าจะโทรกลับมา', 0, NULL, '2025-08-05 02:34:18', '2025-08-05 02:34:18'),
-(6, 5, 3, '2025-08-08 09:34:18', 'presentation', 'scheduled', NULL, NULL, NULL, 'นำเสนอโปรโมชั่นพิเศษ', 'นำเสนอโปรโมชั่นพิเศษสำหรับลูกค้าเกรด A+', 'โปรโมชั่นพิเศษ 20% สำหรับลูกค้าเกรด A+', 0, NULL, '2025-08-05 02:34:18', '2025-08-05 02:34:18'),
-(7, 1, 3, '2025-08-07 09:37:14', 'meeting', 'scheduled', NULL, NULL, NULL, 'ประชุมนำเสนอสินค้าใหม่', 'ประชุมกับลูกค้าเพื่อนำเสนอสินค้าใหม่ที่เพิ่งเปิดตัว', 'ลูกค้าสนใจสินค้าใหม่มาก', 0, NULL, '2025-08-05 02:37:14', '2025-08-05 02:37:14'),
-(8, 2, 4, '2025-08-06 09:37:14', 'call', 'scheduled', NULL, NULL, NULL, 'โทรติดตามการสั่งซื้อ', 'โทรติดตามลูกค้าเกี่ยวกับการสั่งซื้อที่ค้างอยู่', 'ลูกค้าบอกว่าจะโทรกลับมา', 0, NULL, '2025-08-05 02:37:14', '2025-08-05 02:37:14'),
-(9, 5, 3, '2025-08-08 09:37:14', 'presentation', 'scheduled', NULL, NULL, NULL, 'นำเสนอโปรโมชั่นพิเศษ', 'นำเสนอโปรโมชั่นพิเศษสำหรับลูกค้าเกรด A+', 'โปรโมชั่นพิเศษ 20% สำหรับลูกค้าเกรด A+', 0, NULL, '2025-08-05 02:37:14', '2025-08-05 02:37:14'),
-(10, 1, 3, '2025-08-06 10:11:00', 'call', 'scheduled', NULL, NULL, NULL, NULL, NULL, 'ทดสอบ', 0, NULL, '2025-08-05 03:11:43', '2025-08-05 03:11:43'),
-(11, 1, 3, '2025-08-06 11:25:00', 'call', 'scheduled', NULL, NULL, NULL, NULL, NULL, 'ก', 0, NULL, '2025-08-05 04:25:18', '2025-08-05 04:25:18'),
-(12, 1, 3, '2025-08-06 11:47:00', 'call', 'scheduled', NULL, NULL, NULL, NULL, NULL, '5555', 0, NULL, '2025-08-05 04:47:20', '2025-08-05 04:47:20'),
-(13, 1, 3, '2025-08-07 15:08:00', 'call', 'scheduled', NULL, NULL, NULL, NULL, NULL, 'ทดสอบ', 0, NULL, '2025-08-05 08:08:43', '2025-08-05 08:08:43');
+(15, 66, 6, '2025-08-08 12:00:00', 'call', 'scheduled', NULL, NULL, NULL, NULL, NULL, '', 0, NULL, '2025-08-08 04:57:11', '2025-08-08 04:57:11'),
+(16, 65, 6, '2025-08-08 13:05:00', 'call', 'scheduled', NULL, NULL, NULL, NULL, NULL, 'ทดสอบการจับข้อมูล', 0, NULL, '2025-08-08 05:04:51', '2025-08-08 05:04:51'),
+(17, 65, 6, '2025-08-08 13:12:00', 'call', 'scheduled', NULL, NULL, NULL, NULL, NULL, 'ทดสอบ', 0, NULL, '2025-08-08 05:11:25', '2025-08-08 05:11:25');
 
 --
 -- Triggers `appointments`
@@ -261,18 +251,9 @@ CREATE TABLE `appointment_activities` (
 --
 
 INSERT INTO `appointment_activities` (`activity_id`, `appointment_id`, `user_id`, `activity_type`, `activity_description`, `metadata`, `created_at`) VALUES
-(1, 1, 3, 'created', 'สร้างนัดหมายประชุมนำเสนอสินค้าใหม่', NULL, '2025-08-05 02:21:51'),
-(2, 2, 4, 'created', 'สร้างนัดหมายโทรติดตามการสั่งซื้อ', NULL, '2025-08-05 02:21:51'),
-(3, 3, 3, 'created', 'สร้างนัดหมายนำเสนอโปรโมชั่นพิเศษ', NULL, '2025-08-05 02:21:51'),
-(4, 1, 3, 'created', 'สร้างนัดหมายประชุมนำเสนอสินค้าใหม่', NULL, '2025-08-05 02:34:18'),
-(5, 2, 4, 'created', 'สร้างนัดหมายโทรติดตามการสั่งซื้อ', NULL, '2025-08-05 02:34:18'),
-(6, 3, 3, 'created', 'สร้างนัดหมายนำเสนอโปรโมชั่นพิเศษ', NULL, '2025-08-05 02:34:18'),
-(7, 1, 3, 'created', 'สร้างนัดหมายประชุมนำเสนอสินค้าใหม่', NULL, '2025-08-05 02:37:14'),
-(8, 2, 4, 'created', 'สร้างนัดหมายโทรติดตามการสั่งซื้อ', NULL, '2025-08-05 02:37:14'),
-(9, 3, 3, 'created', 'สร้างนัดหมายนำเสนอโปรโมชั่นพิเศษ', NULL, '2025-08-05 02:37:14'),
-(10, 11, 3, 'created', 'สร้างนัดหมายใหม่', NULL, '2025-08-05 04:25:18'),
-(11, 12, 3, 'created', 'สร้างนัดหมายใหม่', NULL, '2025-08-05 04:47:20'),
-(12, 13, 3, 'created', 'สร้างนัดหมายใหม่', NULL, '2025-08-05 08:08:43');
+(14, 15, 6, 'created', 'สร้างนัดหมายใหม่', NULL, '2025-08-08 04:57:11'),
+(15, 16, 6, 'created', 'สร้างนัดหมายใหม่', NULL, '2025-08-08 05:04:51'),
+(16, 17, 6, 'created', 'สร้างนัดหมายใหม่', NULL, '2025-08-08 05:11:25');
 
 -- --------------------------------------------------------
 
@@ -294,14 +275,6 @@ CREATE TABLE `appointment_extensions` (
   `extension_count_after` int(11) NOT NULL COMMENT 'จำนวนครั้งที่ต่อเวลาหลังการต่อเวลานี้',
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `appointment_extensions`
---
-
-INSERT INTO `appointment_extensions` (`extension_id`, `customer_id`, `user_id`, `appointment_id`, `extension_type`, `extension_days`, `extension_reason`, `previous_expiry`, `new_expiry`, `extension_count_before`, `extension_count_after`, `created_at`) VALUES
-(1, 4, 3, 1, 'appointment', 30, 'นัดหมายเสร็จสิ้น - ต่อเวลา 30 วัน', '2025-06-26 08:32:14', '2025-07-26 08:32:14', 0, 1, '2025-08-05 08:32:14'),
-(2, 5, 3, 3, 'appointment', 30, 'นัดหมายเสร็จสิ้น - ต่อเวลา 30 วัน', '2025-07-01 08:32:14', '2025-07-31 08:32:14', 1, 2, '2025-08-05 08:32:14');
 
 -- --------------------------------------------------------
 
@@ -353,16 +326,6 @@ CREATE TABLE `call_logs` (
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
---
--- Dumping data for table `call_logs`
---
-
-INSERT INTO `call_logs` (`log_id`, `customer_id`, `user_id`, `call_type`, `call_status`, `call_result`, `duration_minutes`, `notes`, `next_action`, `next_followup_at`, `created_at`) VALUES
-(1, 1, 1, 'outbound', 'answered', 'interested', 5, 'Test call from system test', 'Follow up', NULL, '2025-08-04 16:53:05'),
-(2, 1, 1, 'outbound', 'answered', 'interested', 5, 'Test call from simple API test', 'Follow up', NULL, '2025-08-04 16:58:33'),
-(3, 1, 3, 'outbound', 'answered', 'interested', 5, 'ลองทดสอบ', '', NULL, '2025-08-04 17:06:27'),
-(4, 11, 3, 'outbound', 'answered', 'interested', 0, ']ูกค้าซ์้อสินคาจ้า', '', NULL, '2025-08-05 09:50:00');
-
 -- --------------------------------------------------------
 
 --
@@ -385,7 +348,8 @@ CREATE TABLE `companies` (
 --
 
 INSERT INTO `companies` (`company_id`, `company_name`, `company_code`, `address`, `phone`, `email`, `is_active`, `created_at`) VALUES
-(1, 'บริษัท พรีม่าแพสชั่น 49 จำกัด', 'PRIMA49', '123 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพฯ 10110', '02-123-4567', 'info@prima49.com', 1, '2025-08-03 07:19:20');
+(1, 'พรีม่าแพสชั่น49', 'PRIMA49', '123 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพฯ 10110', '02-123-4567', 'info@prima49.com', 1, '2025-08-03 07:19:20'),
+(2, 'พรีออนิค', 'A02', '71/13, บรมราชชนนี, อรุณอมรินทร์, บางกอกน้อย, กรุงเทพมหานคร 10700', '0989999999', 'peionic@gmail.com', 1, '2025-08-07 04:50:35');
 
 -- --------------------------------------------------------
 
@@ -465,7 +429,6 @@ CREATE TABLE `customers` (
   `is_active` tinyint(1) DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `total_purchase` decimal(12,2) DEFAULT 0.00,
   `appointment_count` int(11) DEFAULT 0 COMMENT 'จำนวนการนัดหมายที่ทำไปแล้ว',
   `appointment_extension_count` int(11) DEFAULT 0 COMMENT 'จำนวนครั้งที่ต่อเวลาจากการนัดหมาย',
   `last_appointment_date` timestamp NULL DEFAULT NULL COMMENT 'วันที่นัดหมายล่าสุด',
@@ -482,21 +445,14 @@ CREATE TABLE `customers` (
 -- Dumping data for table `customers`
 --
 
-INSERT INTO `customers` (`customer_id`, `customer_code`, `first_name`, `last_name`, `phone`, `email`, `address`, `district`, `province`, `postal_code`, `temperature_status`, `customer_grade`, `total_purchase_amount`, `assigned_to`, `basket_type`, `assigned_at`, `last_contact_at`, `next_followup_at`, `recall_at`, `source`, `notes`, `is_active`, `created_at`, `updated_at`, `total_purchase`, `appointment_count`, `appointment_extension_count`, `last_appointment_date`, `appointment_extension_expiry`, `max_appointment_extensions`, `appointment_extension_days`, `customer_status`, `customer_time_extension`, `customer_time_base`, `customer_time_expiry`) VALUES
-(1, 'C001', 'สมชาย', 'ใจดี', '081-111-1111', 'somchai@email.com', '123 ถนนสุขุมวิท', 'คลองเตย', 'กรุงเทพฯ', NULL, 'hot', 'D', 0.00, NULL, 'waiting', '2025-11-04 04:27:06', '2025-08-04 17:06:27', NULL, NULL, 'facebook', NULL, 1, '2025-08-03 07:19:20', '2025-08-06 04:27:06', 49805.00, 1, 0, '2025-07-21 08:32:14', '2025-08-20 08:32:14', 3, 30, 'existing', 90, '2025-08-03 07:19:20', '2025-11-04 04:27:06'),
-(2, 'C002', 'สมหญิง', 'รักดี', '081-222-2222', 'somying@email.com', '456 ถนนรัชดาภิเษก', 'ดินแดง', 'กรุงเทพฯ', NULL, 'warm', 'B', 0.00, 4, 'assigned', '2025-11-04 06:54:02', NULL, NULL, '2025-09-04 09:48:59', 'import', NULL, 1, '2025-08-03 07:19:20', '2025-08-06 06:54:02', 9600.00, 1, 0, '2025-07-21 08:32:14', '2025-08-20 08:32:14', 3, 30, 'existing', 90, '2025-08-05 09:48:59', '2025-11-04 06:54:02'),
-(3, 'C003', 'สมศักดิ์', 'มั่งมี', '081-333-3333', 'somsak@email.com', '789 ถนนลาดพร้าว', 'วังทองหลาง', 'กรุงเทพฯ', NULL, 'cold', 'C', 0.00, NULL, 'waiting', NULL, NULL, NULL, NULL, 'manual', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 12:23:51', 450.00, 1, 0, '2025-07-21 08:32:14', '2025-08-20 08:32:14', 3, 30, 'existing', 0, '2025-08-03 07:19:20', '2025-09-02 07:19:20'),
-(4, 'C004', 'สมปอง', 'ใจเย็น', '081-444-4444', 'sompong@email.com', '321 ถนนเพชรบุรี', 'ห้วยขวาง', 'กรุงเทพฯ', NULL, 'frozen', 'D', 0.00, NULL, 'distribution', NULL, NULL, NULL, NULL, 'facebook', NULL, 1, '2025-08-03 07:19:20', '2025-08-05 12:23:51', 5400.00, 2, 1, '2025-07-26 08:32:14', '2025-08-25 08:32:14', 3, 30, 'existing', 0, '2025-08-03 07:19:20', '2025-03-01 17:00:00'),
-(5, 'C005', 'สมใจ', 'รักงาน', '081-555-5555', 'somjai@email.com', '654 ถนนพระราม 9', 'ห้วยขวาง', 'กรุงเทพฯ', NULL, 'hot', 'A+', 0.00, NULL, 'waiting', '2025-11-04 03:42:31', NULL, NULL, NULL, 'import', NULL, 1, '2025-08-03 07:19:20', '2025-08-06 03:42:31', 1000.00, 3, 2, '2025-07-31 08:32:14', '2025-08-30 08:32:14', 3, 30, 'existing', 90, '2025-08-03 07:19:20', '2027-05-27 12:32:36'),
-(6, 'C006', 'สมชาย', 'รวยมาก', '081-111-1111', 'somchai.rich@example.com', '123 ถ.สุขุมวิท กรุงเทพฯ', NULL, NULL, NULL, 'hot', 'A+', 150000.00, 3, 'assigned', '2025-11-04 04:31:19', '2025-06-19 17:22:31', NULL, '2025-09-04 09:48:27', NULL, NULL, 1, '2025-06-04 17:22:31', '2025-08-06 04:31:19', 450.00, 0, 0, NULL, NULL, 3, 30, 'existing', 90, '2025-08-05 09:48:27', '2025-11-04 04:31:19'),
-(7, 'C007', 'สมหญิง', 'ใจดี', '081-222-2222', 'somying.kind@example.com', '456 ถ.รัชดา กรุงเทพฯ', NULL, NULL, NULL, 'warm', 'A', 75000.00, 4, 'assigned', '2025-11-04 06:54:23', '2025-06-29 17:22:31', NULL, '2025-09-04 09:48:46', NULL, NULL, 1, '2025-06-14 17:22:31', '2025-08-06 06:54:23', 600.00, 0, 0, NULL, NULL, 3, 30, 'existing', 90, '2025-08-05 09:48:46', '2025-11-04 06:54:23'),
-(8, 'C008', 'สมศักดิ์', 'มั่นคง', '081-333-3333', 'somsak.stable@example.com', '789 ถ.ลาดพร้าว กรุงเทพฯ', NULL, NULL, NULL, 'hot', 'B', 25000.00, NULL, 'distribution', NULL, '2025-07-29 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-06-24 17:22:31', '2025-08-05 12:23:51', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-06-24 17:22:31', '2025-07-24 17:22:31'),
-(9, 'C009', 'สมใจ', 'ประหยัด', '081-444-4444', 'somjai.save@example.com', '101 ถ.พระราม 4 กรุงเทพฯ', NULL, NULL, NULL, 'cold', 'C', 8000.00, NULL, 'distribution', NULL, '2025-06-04 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-05-25 17:22:31', '2025-08-05 12:23:51', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-05-25 17:22:31', '2025-06-24 17:22:31'),
-(10, 'C010', 'สมหมาย', 'รอดี', '081-555-5555', 'sommai.wait@example.com', '202 ถ.เพชรบุรี กรุงเทพฯ', NULL, NULL, NULL, 'frozen', 'D', 2000.00, NULL, 'distribution', NULL, '2025-04-25 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-05-05 17:22:31', '2025-08-05 12:23:51', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-05-05 17:22:31', '2025-06-04 17:22:31'),
-(11, 'C011', 'สมทรง', 'เศรษฐี', '081-666-6666', 'somsong.wealthy@example.com', '303 ถ.สีลม กรุงเทพฯ', NULL, NULL, NULL, 'warm', 'A+', 120000.00, 3, 'assigned', '2025-11-04 04:28:50', '2025-08-05 09:50:00', NULL, '2025-09-04 09:48:59', NULL, NULL, 1, '2025-07-04 17:22:31', '2025-08-06 04:28:50', 11650.00, 0, 0, NULL, NULL, 3, 30, 'existing', 90, '2025-08-05 09:48:59', '2025-11-04 04:28:50'),
-(12, 'C012', 'สมพร', 'หายไป', '081-777-7777', 'somporn.lost@example.com', '404 ถ.บางนา กรุงเทพฯ', NULL, NULL, NULL, 'frozen', 'C', 15000.00, NULL, 'distribution', NULL, '2025-04-30 17:22:31', NULL, NULL, NULL, NULL, 1, '2025-04-25 17:22:31', '2025-08-05 12:23:51', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-04-25 17:22:31', '2025-05-25 17:22:31'),
-(13, NULL, 'ทดสอบ', 'ระบบ', '0812345678', 'test@example.com', '123 ถ.ทดสอบ', 'เขตทดสอบ', 'จังหวัดทดสอบ', '10000', 'cold', 'C', 0.00, NULL, 'distribution', NULL, NULL, NULL, NULL, NULL, NULL, 1, '2025-08-06 09:00:52', '2025-08-06 09:25:32', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, NULL, NULL),
-(14, NULL, 'ทดสอบ', 'ระบบ', '0812345678', 'test@example.com', '123 ถ.ทดสอบ', 'เขตทดสอบ', 'จังหวัดทดสอบ', '10000', 'cold', 'C', 0.00, NULL, 'distribution', NULL, NULL, NULL, NULL, NULL, NULL, 1, '2025-08-06 09:03:03', '2025-08-06 09:03:03', 0.00, 0, 0, NULL, NULL, 3, 30, 'new', 0, NULL, NULL);
+INSERT INTO `customers` (`customer_id`, `customer_code`, `first_name`, `last_name`, `phone`, `email`, `address`, `district`, `province`, `postal_code`, `temperature_status`, `customer_grade`, `total_purchase_amount`, `assigned_to`, `basket_type`, `assigned_at`, `last_contact_at`, `next_followup_at`, `recall_at`, `source`, `notes`, `is_active`, `created_at`, `updated_at`, `appointment_count`, `appointment_extension_count`, `last_appointment_date`, `appointment_extension_expiry`, `max_appointment_extensions`, `appointment_extension_days`, `customer_status`, `customer_time_extension`, `customer_time_base`, `customer_time_expiry`) VALUES
+(65, 'Cus-927879497', 'อำนาจ', 'ศุภผล', '927879497', '', '101.หมู่.12.บ้านสันดอน ต.รางบัว.อ.จอมบึง ราชบุรี 70150 ต.รางบัว อ.จอมบึง จ.ราชบุรี 70150', '', 'ราชบุรี', '70150', 'hot', 'B', 6640.00, 6, 'assigned', NULL, NULL, '2025-08-08 06:12:00', NULL, NULL, NULL, 1, '2025-08-08 03:30:50', '2025-08-08 05:11:25', 2, 0, '2025-08-08 06:12:00', NULL, 3, 30, '', 0, '2025-08-08 03:30:50', '2025-11-06 03:30:50'),
+(66, 'Cus-869038460', 'ไซบะห์', 'เสน่หา', '869038460', '', '74 ซ.กรุงเทพกรีฑา15 แยก 4 เส้นตัดใหม่ ร่มเกล้า - ศรีนครินทร์ อยู่ตรงยูเทรินใต้สะพาน เข้าซอยตึกสีชมพู ข้างเต้นรถ ต.หัวหมาก อ.บางกะปิ จ.กรุงเทพมหานคร 10250', '', 'กรุงเทพมหานคร', '10250', 'hot', 'D', 445.00, 6, 'assigned', NULL, NULL, NULL, NULL, NULL, NULL, 1, '2025-08-08 03:30:50', '2025-08-08 04:57:11', 1, 0, '2025-08-08 05:00:00', NULL, 3, 30, 'new', 0, '2025-08-08 03:30:50', '2025-11-06 03:30:50'),
+(67, 'Cus-868104111', 'นายสมาน', 'วัฒนชัยวรรณ์', '868104111', '', '222ถ.เสือป่า ซ.ทิพย์นิเวศน์5 ต.หน้าเมือง อ.เมืองราชบุรี จ.ราชบุรี 70000', '', 'ราชบุรี', '70000', 'hot', 'D', 790.00, 6, 'assigned', NULL, NULL, NULL, NULL, NULL, NULL, 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50', 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-08-08 03:30:50', '2025-11-06 03:30:50'),
+(68, 'Cus-924656116', 'ไก่', 'ปริศณา', '924656116', '', '227 ม.9 ต.นาข่า อ.เมืองอุดรธานี จ.อุดรธานี 41000', '', 'อุดรธานี', '41000', 'hot', 'D', 790.00, 6, 'assigned', NULL, NULL, NULL, NULL, NULL, NULL, 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50', 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-08-08 03:30:50', '2025-11-06 03:30:50'),
+(69, 'Cus-818615809', 'ปัญฑิต', 'กิตติสุทรโลภาค', '818615809', '', '117/6 ม.7 ต.บ้านใหญ่ อ.เมืองนครนายก จ.นครนายก 26000', '', 'นครนายก', '26000', 'hot', 'D', 1165.00, 6, 'assigned', NULL, NULL, NULL, NULL, NULL, NULL, 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50', 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-08-08 03:30:50', '2025-11-06 03:30:50'),
+(70, 'Cus-929865556', 'มาโนด', 'สวัสดิ์ธรรม', '929865556', '', '67/1 ม.1 ต.ปรังเผล อ.สังขละบุรี จ.กาญจนบุรี 71240', '', 'กาญจนบุรี', '71240', 'hot', 'A', 21200.00, 6, 'assigned', NULL, NULL, NULL, NULL, NULL, NULL, 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50', 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-08-08 03:30:50', '2025-11-06 03:30:50'),
+(71, 'Cus-902799079', 'ครูบาศักดิ์', '', '902799079', '959634001', '187ม.3 วัดป่าบ้านกลาง ต.ปลาบ่า อ.ภูเรือ จ.เลย 42160', '', 'เลย', '42160', 'hot', 'D', 1100.00, 6, 'assigned', NULL, NULL, NULL, NULL, NULL, NULL, 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50', 0, 0, NULL, NULL, 3, 30, 'new', 0, '2025-08-08 03:30:50', '2025-11-06 03:30:50');
 
 -- --------------------------------------------------------
 
@@ -516,19 +472,6 @@ CREATE TABLE `customer_activities` (
   `metadata` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`metadata`)),
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `customer_activities`
---
-
-INSERT INTO `customer_activities` (`activity_id`, `customer_id`, `user_id`, `activity_type`, `activity_date`, `activity_description`, `old_value`, `new_value`, `metadata`, `created_at`) VALUES
-(1, 1, 1, 'call', NULL, 'บันทึกการโทร: answered - Test call from simple API test', NULL, NULL, NULL, '2025-08-04 16:58:33'),
-(2, 1, 3, 'call', NULL, 'บันทึกการโทร: answered - ลองทดสอบ', NULL, NULL, NULL, '2025-08-04 17:06:27'),
-(3, 6, 1, '', NULL, 'ลูกค้าถูกแจกให้ Telesales ID: 3', NULL, NULL, NULL, '2025-08-05 09:48:27'),
-(4, 7, 1, '', NULL, 'ลูกค้าถูกแจกให้ Telesales ID: 4', NULL, NULL, NULL, '2025-08-05 09:48:46'),
-(5, 11, 1, '', NULL, 'ลูกค้าถูกแจกให้ Telesales ID: 3', NULL, NULL, NULL, '2025-08-05 09:48:59'),
-(6, 2, 1, '', NULL, 'ลูกค้าถูกแจกให้ Telesales ID: 4', NULL, NULL, NULL, '2025-08-05 09:48:59'),
-(7, 11, 3, 'call', NULL, 'บันทึกการโทร: answered - ]ูกค้าซ์้อสินคาจ้า', NULL, NULL, NULL, '2025-08-05 09:50:00');
 
 -- --------------------------------------------------------
 
@@ -555,184 +498,38 @@ CREATE TABLE `customer_appointment_extensions` (
 -- --------------------------------------------------------
 
 --
--- Stand-in structure for view `customer_do_list`
--- (See below for the actual view)
+-- Table structure for table `customer_do_list`
 --
-CREATE TABLE `customer_do_list` (
-`customer_id` int(11)
-,`customer_code` varchar(50)
-,`first_name` varchar(50)
-,`last_name` varchar(50)
-,`phone` varchar(20)
-,`email` varchar(100)
-,`address` text
-,`district` varchar(50)
-,`province` varchar(50)
-,`postal_code` varchar(10)
-,`temperature_status` enum('hot','warm','cold','frozen')
-,`customer_grade` enum('A+','A','B','C','D')
-,`total_purchase_amount` decimal(12,2)
-,`assigned_to` int(11)
-,`basket_type` enum('distribution','waiting','assigned')
-,`assigned_at` timestamp
-,`last_contact_at` timestamp
-,`next_followup_at` timestamp
-,`recall_at` timestamp
-,`source` varchar(50)
-,`notes` text
-,`is_active` tinyint(1)
-,`created_at` timestamp
-,`updated_at` timestamp
-,`total_purchase` decimal(12,2)
-,`appointment_count` int(11)
-,`appointment_extension_count` int(11)
-,`last_appointment_date` timestamp
-,`appointment_extension_expiry` timestamp
-,`max_appointment_extensions` int(11)
-,`appointment_extension_days` int(11)
-,`customer_status` enum('new','existing')
-,`customer_time_extension` int(11)
-,`customer_time_base` timestamp
-,`customer_time_expiry` timestamp
-,`days_remaining` int(8)
-,`status_text` varchar(10)
-,`urgency_status` varchar(11)
-);
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_do_list`  AS SELECT `c`.`customer_id` AS `customer_id`, `c`.`customer_code` AS `customer_code`, `c`.`first_name` AS `first_name`, `c`.`last_name` AS `last_name`, `c`.`phone` AS `phone`, `c`.`email` AS `email`, `c`.`address` AS `address`, `c`.`district` AS `district`, `c`.`province` AS `province`, `c`.`postal_code` AS `postal_code`, `c`.`temperature_status` AS `temperature_status`, `c`.`customer_grade` AS `customer_grade`, `c`.`total_purchase_amount` AS `total_purchase_amount`, `c`.`assigned_to` AS `assigned_to`, `c`.`basket_type` AS `basket_type`, `c`.`assigned_at` AS `assigned_at`, `c`.`last_contact_at` AS `last_contact_at`, `c`.`next_followup_at` AS `next_followup_at`, `c`.`recall_at` AS `recall_at`, `c`.`source` AS `source`, `c`.`notes` AS `notes`, `c`.`is_active` AS `is_active`, `c`.`created_at` AS `created_at`, `c`.`updated_at` AS `updated_at`, `c`.`total_purchase` AS `total_purchase`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`last_appointment_date` AS `last_appointment_date`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`customer_status` AS `customer_status`, `c`.`customer_time_extension` AS `customer_time_extension`, `c`.`customer_time_base` AS `customer_time_base`, `c`.`customer_time_expiry` AS `customer_time_expiry`, to_days(`c`.`customer_time_expiry`) - to_days(current_timestamp()) AS `days_remaining`, CASE WHEN `c`.`customer_status` = 'new' THEN 'ลูกค้าใหม่' WHEN `c`.`customer_status` = 'existing' THEN 'ลูกค้าเก่า' END AS `status_text`, CASE WHEN `c`.`customer_time_expiry` <= current_timestamp() THEN 'เกินกำหนด' WHEN `c`.`customer_time_expiry` <= current_timestamp() + interval 7 day THEN 'ใกล้หมดเวลา' ELSE 'ปกติ' END AS `urgency_status` FROM `customers` AS `c` WHERE `c`.`assigned_to` is not null AND `c`.`basket_type` = 'assigned' AND `c`.`is_active` = 1 AND (`c`.`customer_time_expiry` <= current_timestamp() + interval 7 day OR `c`.`next_followup_at` <= current_timestamp()) ;
+-- Error reading data for table primacom_Customer.customer_do_list: #1064 - You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FROM `primacom_Customer`.`customer_do_list`' at line 1
 
 -- --------------------------------------------------------
 
 --
--- Stand-in structure for view `customer_existing_list`
--- (See below for the actual view)
+-- Table structure for table `customer_existing_list`
 --
-CREATE TABLE `customer_existing_list` (
-`customer_id` int(11)
-,`customer_code` varchar(50)
-,`first_name` varchar(50)
-,`last_name` varchar(50)
-,`phone` varchar(20)
-,`email` varchar(100)
-,`address` text
-,`district` varchar(50)
-,`province` varchar(50)
-,`postal_code` varchar(10)
-,`temperature_status` enum('hot','warm','cold','frozen')
-,`customer_grade` enum('A+','A','B','C','D')
-,`total_purchase_amount` decimal(12,2)
-,`assigned_to` int(11)
-,`basket_type` enum('distribution','waiting','assigned')
-,`assigned_at` timestamp
-,`last_contact_at` timestamp
-,`next_followup_at` timestamp
-,`recall_at` timestamp
-,`source` varchar(50)
-,`notes` text
-,`is_active` tinyint(1)
-,`created_at` timestamp
-,`updated_at` timestamp
-,`total_purchase` decimal(12,2)
-,`appointment_count` int(11)
-,`appointment_extension_count` int(11)
-,`last_appointment_date` timestamp
-,`appointment_extension_expiry` timestamp
-,`max_appointment_extensions` int(11)
-,`appointment_extension_days` int(11)
-,`customer_status` enum('new','existing')
-,`customer_time_extension` int(11)
-,`customer_time_base` timestamp
-,`customer_time_expiry` timestamp
-,`days_remaining` int(8)
-);
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_existing_list`  AS SELECT `c`.`customer_id` AS `customer_id`, `c`.`customer_code` AS `customer_code`, `c`.`first_name` AS `first_name`, `c`.`last_name` AS `last_name`, `c`.`phone` AS `phone`, `c`.`email` AS `email`, `c`.`address` AS `address`, `c`.`district` AS `district`, `c`.`province` AS `province`, `c`.`postal_code` AS `postal_code`, `c`.`temperature_status` AS `temperature_status`, `c`.`customer_grade` AS `customer_grade`, `c`.`total_purchase_amount` AS `total_purchase_amount`, `c`.`assigned_to` AS `assigned_to`, `c`.`basket_type` AS `basket_type`, `c`.`assigned_at` AS `assigned_at`, `c`.`last_contact_at` AS `last_contact_at`, `c`.`next_followup_at` AS `next_followup_at`, `c`.`recall_at` AS `recall_at`, `c`.`source` AS `source`, `c`.`notes` AS `notes`, `c`.`is_active` AS `is_active`, `c`.`created_at` AS `created_at`, `c`.`updated_at` AS `updated_at`, `c`.`total_purchase` AS `total_purchase`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`last_appointment_date` AS `last_appointment_date`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`customer_status` AS `customer_status`, `c`.`customer_time_extension` AS `customer_time_extension`, `c`.`customer_time_base` AS `customer_time_base`, `c`.`customer_time_expiry` AS `customer_time_expiry`, to_days(`c`.`customer_time_expiry`) - to_days(current_timestamp()) AS `days_remaining` FROM `customers` AS `c` WHERE `c`.`assigned_to` is not null AND `c`.`basket_type` = 'assigned' AND `c`.`customer_status` = 'existing' AND `c`.`is_active` = 1 ;
+-- Error reading data for table primacom_Customer.customer_existing_list: #1064 - You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FROM `primacom_Customer`.`customer_existing_list`' at line 1
 
 -- --------------------------------------------------------
 
 --
--- Stand-in structure for view `customer_followup_list`
--- (See below for the actual view)
+-- Table structure for table `customer_followup_list`
 --
-CREATE TABLE `customer_followup_list` (
-`customer_id` int(11)
-,`customer_code` varchar(50)
-,`first_name` varchar(50)
-,`last_name` varchar(50)
-,`phone` varchar(20)
-,`email` varchar(100)
-,`address` text
-,`district` varchar(50)
-,`province` varchar(50)
-,`postal_code` varchar(10)
-,`temperature_status` enum('hot','warm','cold','frozen')
-,`customer_grade` enum('A+','A','B','C','D')
-,`total_purchase_amount` decimal(12,2)
-,`assigned_to` int(11)
-,`basket_type` enum('distribution','waiting','assigned')
-,`assigned_at` timestamp
-,`last_contact_at` timestamp
-,`next_followup_at` timestamp
-,`recall_at` timestamp
-,`source` varchar(50)
-,`notes` text
-,`is_active` tinyint(1)
-,`created_at` timestamp
-,`updated_at` timestamp
-,`total_purchase` decimal(12,2)
-,`appointment_count` int(11)
-,`appointment_extension_count` int(11)
-,`last_appointment_date` timestamp
-,`appointment_extension_expiry` timestamp
-,`max_appointment_extensions` int(11)
-,`appointment_extension_days` int(11)
-,`customer_status` enum('new','existing')
-,`customer_time_extension` int(11)
-,`customer_time_base` timestamp
-,`customer_time_expiry` timestamp
-,`followup_days_remaining` int(8)
-);
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_followup_list`  AS SELECT `c`.`customer_id` AS `customer_id`, `c`.`customer_code` AS `customer_code`, `c`.`first_name` AS `first_name`, `c`.`last_name` AS `last_name`, `c`.`phone` AS `phone`, `c`.`email` AS `email`, `c`.`address` AS `address`, `c`.`district` AS `district`, `c`.`province` AS `province`, `c`.`postal_code` AS `postal_code`, `c`.`temperature_status` AS `temperature_status`, `c`.`customer_grade` AS `customer_grade`, `c`.`total_purchase_amount` AS `total_purchase_amount`, `c`.`assigned_to` AS `assigned_to`, `c`.`basket_type` AS `basket_type`, `c`.`assigned_at` AS `assigned_at`, `c`.`last_contact_at` AS `last_contact_at`, `c`.`next_followup_at` AS `next_followup_at`, `c`.`recall_at` AS `recall_at`, `c`.`source` AS `source`, `c`.`notes` AS `notes`, `c`.`is_active` AS `is_active`, `c`.`created_at` AS `created_at`, `c`.`updated_at` AS `updated_at`, `c`.`total_purchase` AS `total_purchase`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`last_appointment_date` AS `last_appointment_date`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`customer_status` AS `customer_status`, `c`.`customer_time_extension` AS `customer_time_extension`, `c`.`customer_time_base` AS `customer_time_base`, `c`.`customer_time_expiry` AS `customer_time_expiry`, to_days(`c`.`next_followup_at`) - to_days(current_timestamp()) AS `followup_days_remaining` FROM `customers` AS `c` WHERE `c`.`assigned_to` is not null AND `c`.`basket_type` = 'assigned' AND `c`.`next_followup_at` is not null AND `c`.`next_followup_at` <= current_timestamp() AND `c`.`is_active` = 1 ;
+-- Error reading data for table primacom_Customer.customer_followup_list: #1064 - You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FROM `primacom_Customer`.`customer_followup_list`' at line 1
 
 -- --------------------------------------------------------
 
 --
--- Stand-in structure for view `customer_new_list`
--- (See below for the actual view)
+-- Table structure for table `customer_new_list`
 --
-CREATE TABLE `customer_new_list` (
-`customer_id` int(11)
-,`customer_code` varchar(50)
-,`first_name` varchar(50)
-,`last_name` varchar(50)
-,`phone` varchar(20)
-,`email` varchar(100)
-,`address` text
-,`district` varchar(50)
-,`province` varchar(50)
-,`postal_code` varchar(10)
-,`temperature_status` enum('hot','warm','cold','frozen')
-,`customer_grade` enum('A+','A','B','C','D')
-,`total_purchase_amount` decimal(12,2)
-,`assigned_to` int(11)
-,`basket_type` enum('distribution','waiting','assigned')
-,`assigned_at` timestamp
-,`last_contact_at` timestamp
-,`next_followup_at` timestamp
-,`recall_at` timestamp
-,`source` varchar(50)
-,`notes` text
-,`is_active` tinyint(1)
-,`created_at` timestamp
-,`updated_at` timestamp
-,`total_purchase` decimal(12,2)
-,`appointment_count` int(11)
-,`appointment_extension_count` int(11)
-,`last_appointment_date` timestamp
-,`appointment_extension_expiry` timestamp
-,`max_appointment_extensions` int(11)
-,`appointment_extension_days` int(11)
-,`customer_status` enum('new','existing')
-,`customer_time_extension` int(11)
-,`customer_time_base` timestamp
-,`customer_time_expiry` timestamp
-,`days_remaining` int(8)
-);
+
+CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_new_list`  AS SELECT `c`.`customer_id` AS `customer_id`, `c`.`customer_code` AS `customer_code`, `c`.`first_name` AS `first_name`, `c`.`last_name` AS `last_name`, `c`.`phone` AS `phone`, `c`.`email` AS `email`, `c`.`address` AS `address`, `c`.`district` AS `district`, `c`.`province` AS `province`, `c`.`postal_code` AS `postal_code`, `c`.`temperature_status` AS `temperature_status`, `c`.`customer_grade` AS `customer_grade`, `c`.`total_purchase_amount` AS `total_purchase_amount`, `c`.`assigned_to` AS `assigned_to`, `c`.`basket_type` AS `basket_type`, `c`.`assigned_at` AS `assigned_at`, `c`.`last_contact_at` AS `last_contact_at`, `c`.`next_followup_at` AS `next_followup_at`, `c`.`recall_at` AS `recall_at`, `c`.`source` AS `source`, `c`.`notes` AS `notes`, `c`.`is_active` AS `is_active`, `c`.`created_at` AS `created_at`, `c`.`updated_at` AS `updated_at`, `c`.`total_purchase` AS `total_purchase`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`last_appointment_date` AS `last_appointment_date`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`customer_status` AS `customer_status`, `c`.`customer_time_extension` AS `customer_time_extension`, `c`.`customer_time_base` AS `customer_time_base`, `c`.`customer_time_expiry` AS `customer_time_expiry`, to_days(`c`.`customer_time_expiry`) - to_days(current_timestamp()) AS `days_remaining` FROM `customers` AS `c` WHERE `c`.`assigned_to` is not null AND `c`.`basket_type` = 'assigned' AND `c`.`customer_status` = 'new' AND `c`.`is_active` = 1 ;
+-- Error reading data for table primacom_Customer.customer_new_list: #1064 - You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FROM `primacom_Customer`.`customer_new_list`' at line 1
 
 -- --------------------------------------------------------
 
@@ -750,14 +547,6 @@ CREATE TABLE `customer_recalls` (
   `new_basket` enum('distribution','waiting','assigned') NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `customer_recalls`
---
-
-INSERT INTO `customer_recalls` (`recall_id`, `customer_id`, `user_id`, `recall_type`, `recall_reason`, `previous_basket`, `new_basket`, `created_at`) VALUES
-(1, 1, 3, 'timeout', 'เกินกำหนดเวลา', 'assigned', 'waiting', '2025-08-05 12:32:24'),
-(2, 5, 4, 'timeout', 'เกินกำหนดเวลา', 'assigned', 'waiting', '2025-08-05 12:32:36');
 
 -- --------------------------------------------------------
 
@@ -795,16 +584,6 @@ CREATE TABLE `customer_time_extensions` (
   `reason` varchar(200) DEFAULT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `customer_time_extensions`
---
-
-INSERT INTO `customer_time_extensions` (`extension_id`, `customer_id`, `user_id`, `extension_type`, `extension_days`, `previous_expiry`, `new_expiry`, `reason`, `created_at`) VALUES
-(1, 1, 3, 'sale', 90, '2025-01-30 17:00:00', '2025-04-30 17:00:00', 'ขายได้ครั้งแรก', '2025-08-05 12:23:51'),
-(2, 4, 3, 'appointment', 30, '2025-01-30 17:00:00', '2025-03-01 17:00:00', 'นัดหมายเสร็จสิ้น', '2025-08-05 12:23:51'),
-(3, 5, 4, 'sale', 90, '2025-01-30 17:00:00', '2025-04-30 17:00:00', 'ขายได้ครั้งแรก', '2025-08-05 12:23:51'),
-(4, 1, 3, 'manual', 30, '2025-04-30 17:00:00', '2025-09-04 12:32:10', 'ทดสอบต่อเวลาหลังหมดอายุ', '2025-08-05 12:32:10');
 
 -- --------------------------------------------------------
 
@@ -854,31 +633,18 @@ CREATE TABLE `orders` (
 --
 
 INSERT INTO `orders` (`order_id`, `order_number`, `customer_id`, `created_by`, `order_date`, `total_amount`, `discount_amount`, `discount_percentage`, `net_amount`, `payment_method`, `payment_status`, `delivery_date`, `delivery_address`, `delivery_status`, `notes`, `is_active`, `created_at`, `updated_at`) VALUES
-(13, 'ORD20250803D8F695', 1, 1, '2025-08-03', 100.00, 0.00, 0.00, 100.00, 'cod', 'paid', NULL, 'Test Address', 'pending', 'Test order', 1, '2025-08-03 09:29:29', '2025-08-03 09:41:53'),
-(14, 'ORD20250803F92373', 1, 1, '2025-08-03', 100.00, 0.00, 0.00, 100.00, 'cod', 'pending', NULL, 'Test Address', 'pending', 'Test order', 1, '2025-08-03 09:30:47', '2025-08-03 09:30:47'),
-(15, 'ORD20250803A214EB', 4, 1, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'cod', 'paid', '2025-08-14', '321 ถนนเพชรบุรี', 'pending', '555', 1, '2025-08-03 09:33:22', '2025-08-03 09:33:22'),
-(16, 'ORD2025080362976A', 4, 1, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'cod', 'paid', '2025-08-14', '321 ถนนเพชรบุรี', 'pending', '555', 1, '2025-08-03 09:34:12', '2025-08-03 09:34:12'),
-(17, 'ORD202508037E9FFC', 4, 1, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'cod', 'paid', '2025-08-14', '321 ถนนเพชรบุรี', 'pending', '555', 1, '2025-08-03 09:35:02', '2025-08-03 09:35:02'),
-(18, 'ORD202508039CA40F', 1, 1, '2025-08-03', 100.00, 0.00, 0.00, 100.00, 'cod', 'pending', NULL, 'Test Address', 'pending', 'Test order', 1, '2025-08-03 09:35:18', '2025-08-03 09:35:18'),
-(20, 'ORD20250803389C62', 1, 1, '2025-08-03', 100.00, 0.00, 0.00, 100.00, 'cod', 'pending', NULL, 'Test Address', 'pending', 'Test order', 1, '2025-08-03 09:35:32', '2025-08-03 09:35:32'),
-(21, 'ORD20250803C2B2B7', 4, 1, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'cod', 'paid', '2025-08-14', '321 ถนนเพชรบุรี', 'pending', '555', 1, '2025-08-03 09:35:52', '2025-08-03 09:35:52'),
-(22, 'ORD20250803604933', 4, 1, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'cod', 'paid', '2025-08-14', '321 ถนนเพชรบุรี', 'pending', '555', 1, '2025-08-03 09:36:42', '2025-08-03 09:36:42'),
-(23, 'ORD2025080341DFA0', 4, 1, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'cod', 'paid', '2025-08-14', '321 ถนนเพชรบุรี', 'pending', '555', 1, '2025-08-03 09:37:32', '2025-08-03 09:37:32'),
-(24, 'ORD20250803889D05', 4, 1, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'cod', 'paid', '2025-08-14', '321 ถนนเพชรบุรี', 'pending', '555', 1, '2025-08-03 09:38:22', '2025-08-03 09:38:22'),
-(25, 'ORD20250803196D0C', 4, 1, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'cod', 'paid', '2025-08-14', '321 ถนนเพชรบุรี', 'pending', '555', 1, '2025-08-03 09:39:12', '2025-08-03 09:39:12'),
-(26, 'ORD20250803BEE348', 4, 1, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'cod', 'paid', '2025-08-14', '321 ถนนเพชรบุรี', 'pending', '555', 1, '2025-08-03 09:39:12', '2025-08-03 09:39:12'),
-(27, 'ORD20250803D29033', 4, 1, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'cod', 'paid', '2025-08-14', '321 ถนนเพชรบุรี', 'pending', '555', 1, '2025-08-03 09:39:12', '2025-08-03 09:39:12'),
-(28, 'ORD20250803778327', 4, 1, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'cod', 'paid', '2025-08-14', '321 ถนนเพชรบุรี', 'pending', '555', 1, '2025-08-03 09:39:12', '2025-08-03 09:39:12'),
-(29, 'ORD20250803908207', 4, 1, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'cod', 'paid', '2025-08-14', '321 ถนนเพชรบุรี', 'pending', '555', 1, '2025-08-03 09:39:12', '2025-08-03 09:39:12'),
-(31, 'ORD20250803D25910', 1, 1, '2025-08-03', 450.00, 45.00, 10.00, 405.00, 'cod', 'paid', '2025-08-11', '123 ถนนสุขุมวิท', 'pending', 'ทดสอบว่าช้ามั้ย', 1, '2025-08-03 09:41:19', '2025-08-03 09:41:19'),
-(32, 'ORD20250803A46396', 3, 1, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'transfer', 'paid', '2025-08-05', '789 ถนนลาดพร้าว', 'pending', NULL, 1, '2025-08-03 10:44:30', '2025-08-03 10:44:30'),
-(34, 'ORD202508036ABD4D', 1, 3, '2025-08-03', 700.00, 0.00, 0.00, 700.00, 'cash', 'pending', '2025-08-03', '123 ถนนสุขุมวิท', 'pending', '121', 1, '2025-08-03 13:24:46', '2025-08-03 13:24:46'),
-(36, 'ORD202508032D6B8E', 1, 3, '2025-08-03', 450.00, 0.00, 0.00, 450.00, 'cash', 'pending', '2025-08-03', '123 ถนนสุขุมวิท', 'delivered', '555', 1, '2025-08-03 13:36:18', '2025-08-04 16:16:39'),
-(37, 'ORD20250805420131', 1, 3, '2025-08-05', 1500.00, 0.00, 0.00, 1500.00, 'cod', 'pending', '2025-08-05', '123 ถนนสุขุมวิท', 'delivered', '22', 1, '2025-08-05 08:07:49', '2025-08-05 08:08:19'),
-(39, 'ORD20250805A9F387', 11, 3, '2025-08-05', 450.00, 0.00, 0.00, 450.00, 'cod', 'pending', '2025-08-05', '303 ถ.สีลม กรุงเทพฯ', 'delivered', 'กกกกกก', 1, '2025-08-05 10:07:42', '2025-08-05 11:43:40'),
-(40, 'ORD202508054E87F5', 11, 3, '2025-08-05', 450.00, 0.00, 0.00, 450.00, 'cod', 'pending', '2025-08-05', '303 ถ.สีลม กรุงเทพฯ', 'pending', '2222', 1, '2025-08-05 13:55:24', '2025-08-05 13:55:24'),
-(41, 'ORD2025080664A1EE', 2, 1, '2025-08-06', 1000.00, 0.00, 0.00, 1000.00, 'cash', 'pending', NULL, NULL, 'delivered', 'ทดสอบการต่อเวลาอัตโนมัติ', 1, '2025-08-06 02:08:45', '2025-08-06 02:12:52'),
-(42, 'ORD20250806D52EB3', 11, 1, '2025-08-06', 1000.00, 0.00, 0.00, 1000.00, 'cash', 'pending', NULL, NULL, 'delivered', 'ทดสอบการต่อเวลาอัตโนมัติ', 1, '2025-08-06 02:09:46', '2025-08-06 02:12:44');
+(233, 'EXT-20250808103050-2407', 65, 6, '2025-06-06', 2190.00, 0.00, 0.00, 2190.00, 'cash', 'paid', NULL, NULL, 'delivered', 'นำเข้าจาก External - ', 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50'),
+(234, 'EXT-20250808103050-5444', 65, 6, '2025-06-06', 2230.00, 0.00, 0.00, 2230.00, 'cash', 'paid', NULL, NULL, 'delivered', 'นำเข้าจาก External - ', 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50'),
+(235, 'EXT-20250808103050-5243', 65, 6, '2025-06-06', 2220.00, 0.00, 0.00, 2220.00, 'cash', 'paid', NULL, NULL, 'delivered', 'นำเข้าจาก External - ', 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50'),
+(236, 'EXT-20250808103050-6938', 66, 6, '2025-06-06', 445.00, 0.00, 0.00, 445.00, 'cash', 'paid', NULL, NULL, 'delivered', 'นำเข้าจาก External - ', 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50'),
+(237, 'EXT-20250808103050-7345', 67, 6, '2025-06-06', 790.00, 0.00, 0.00, 790.00, 'cash', 'paid', NULL, NULL, 'delivered', 'นำเข้าจาก External - ', 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50'),
+(238, 'EXT-20250808103050-6484', 68, 6, '2025-06-06', 790.00, 0.00, 0.00, 790.00, 'cash', 'paid', NULL, NULL, 'delivered', 'นำเข้าจาก External - ', 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50'),
+(239, 'EXT-20250808103050-9459', 69, 6, '2025-06-06', 1165.00, 0.00, 0.00, 1165.00, 'cash', 'paid', NULL, NULL, 'delivered', 'นำเข้าจาก External - ', 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50'),
+(240, 'EXT-20250808103050-7950', 70, 6, '2025-06-06', 10700.00, 0.00, 0.00, 10700.00, 'cash', 'paid', NULL, NULL, 'delivered', 'นำเข้าจาก External - ', 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50'),
+(241, 'EXT-20250808103050-2882', 70, 6, '2025-06-06', 10500.00, 0.00, 0.00, 10500.00, 'cash', 'paid', NULL, NULL, 'delivered', 'นำเข้าจาก External - ', 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50'),
+(242, 'EXT-20250808103050-5925', 70, 6, '2025-06-06', 0.00, 0.00, 0.00, 0.00, 'cash', 'paid', NULL, NULL, 'delivered', 'นำเข้าจาก External - ', 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50'),
+(243, 'EXT-20250808103050-3150', 70, 6, '2025-06-06', 0.00, 0.00, 0.00, 0.00, 'cash', 'paid', NULL, NULL, 'delivered', 'นำเข้าจาก External - ', 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50'),
+(244, 'EXT-20250808103050-5631', 71, 6, '2025-06-06', 1100.00, 0.00, 0.00, 1100.00, 'cash', 'paid', NULL, NULL, 'delivered', 'นำเข้าจาก External - ', 1, '2025-08-08 03:30:50', '2025-08-08 03:30:50');
 
 -- --------------------------------------------------------
 
@@ -894,46 +660,6 @@ CREATE TABLE `order_activities` (
   `description` text NOT NULL,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp()
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
---
--- Dumping data for table `order_activities`
---
-
-INSERT INTO `order_activities` (`activity_id`, `order_id`, `user_id`, `activity_type`, `description`, `created_at`) VALUES
-(1, 13, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250803D8F695', '2025-08-03 09:30:19'),
-(2, 14, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250803F92373', '2025-08-03 09:31:37'),
-(3, 15, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250803A214EB', '2025-08-03 09:34:12'),
-(4, 16, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD2025080362976A', '2025-08-03 09:35:02'),
-(5, 17, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD202508037E9FFC', '2025-08-03 09:35:52'),
-(6, 18, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD202508039CA40F', '2025-08-03 09:36:08'),
-(7, 21, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250803C2B2B7', '2025-08-03 09:36:42'),
-(8, 20, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250803389C62', '2025-08-03 09:36:58'),
-(9, 22, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250803604933', '2025-08-03 09:37:32'),
-(10, 23, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD2025080341DFA0', '2025-08-03 09:38:22'),
-(11, 24, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250803889D05', '2025-08-03 09:39:12'),
-(12, 25, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250803196D0C', '2025-08-03 09:39:12'),
-(13, 26, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250803BEE348', '2025-08-03 09:39:12'),
-(14, 27, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250803D29033', '2025-08-03 09:39:12'),
-(15, 28, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250803778327', '2025-08-03 09:39:12'),
-(16, 29, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250803908207', '2025-08-03 09:39:12'),
-(19, 31, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250803D25910', '2025-08-03 09:41:19'),
-(20, 13, 1, 'status_update', 'อัปเดต payment_status เป็น: paid', '2025-08-03 09:41:53'),
-(21, 32, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250803A46396', '2025-08-03 10:44:30'),
-(23, 34, 3, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD202508036ABD4D', '2025-08-03 13:24:46'),
-(25, 36, 3, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD202508032D6B8E', '2025-08-03 13:36:18'),
-(26, 36, 3, 'status_update', 'อัปเดต delivery_status เป็น: delivered', '2025-08-03 14:25:51'),
-(27, 36, 3, 'status_update', 'อัปเดต delivery_status เป็น: shipped', '2025-08-03 14:25:58'),
-(28, 36, 3, 'status_update', 'อัปเดต delivery_status เป็น: cancelled', '2025-08-03 14:34:50'),
-(29, 36, 3, 'status_update', 'อัปเดต delivery_status เป็น: delivered', '2025-08-04 16:16:39'),
-(30, 37, 3, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250805420131', '2025-08-05 08:07:49'),
-(31, 37, 3, 'status_update', 'อัปเดต delivery_status เป็น: delivered', '2025-08-05 08:08:19'),
-(33, 39, 3, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250805A9F387', '2025-08-05 10:07:42'),
-(34, 39, 3, 'status_update', 'อัปเดต delivery_status เป็น: delivered', '2025-08-05 11:43:40'),
-(35, 40, 3, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD202508054E87F5', '2025-08-05 13:55:24'),
-(36, 41, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD2025080664A1EE', '2025-08-06 02:09:35'),
-(37, 42, 1, 'created', 'สร้างคำสั่งซื้อใหม่ หมายเลข: ORD20250806D52EB3', '2025-08-06 02:10:36'),
-(38, 42, 1, 'status_update', 'อัปเดต delivery_status เป็น: delivered', '2025-08-06 02:12:44'),
-(39, 41, 1, 'status_update', 'อัปเดต delivery_status เป็น: delivered', '2025-08-06 02:12:52');
 
 -- --------------------------------------------------------
 
@@ -972,33 +698,18 @@ CREATE TABLE `order_items` (
 --
 
 INSERT INTO `order_items` (`item_id`, `order_id`, `product_id`, `quantity`, `unit_price`, `total_price`) VALUES
-(15, 13, 1, 1, 100.00, 100.00),
-(16, 14, 1, 1, 100.00, 100.00),
-(17, 15, 2, 1, 450.00, 450.00),
-(18, 16, 2, 1, 450.00, 450.00),
-(19, 17, 2, 1, 450.00, 450.00),
-(20, 18, 1, 1, 100.00, 100.00),
-(21, 21, 2, 1, 450.00, 450.00),
-(22, 20, 1, 1, 100.00, 100.00),
-(24, 22, 2, 1, 450.00, 450.00),
-(25, 23, 2, 1, 450.00, 450.00),
-(26, 24, 2, 1, 450.00, 450.00),
-(27, 25, 2, 1, 450.00, 450.00),
-(28, 26, 2, 1, 450.00, 450.00),
-(29, 27, 2, 1, 450.00, 450.00),
-(30, 28, 2, 1, 450.00, 450.00),
-(31, 29, 2, 1, 450.00, 450.00),
-(33, 31, 2, 1, 450.00, 450.00),
-(34, 32, 2, 1, 450.00, 450.00),
-(36, 34, 2, 1, 450.00, 450.00),
-(37, 34, 1, 1, 250.00, 250.00),
-(40, 36, 2, 1, 450.00, 450.00),
-(41, 37, 2, 2, 450.00, 900.00),
-(42, 37, 3, 1, 600.00, 600.00),
-(45, 39, 2, 1, 450.00, 450.00),
-(46, 40, 2, 1, 450.00, 450.00),
-(47, 41, 1, 1, 1000.00, 1000.00),
-(48, 42, 1, 1, 1000.00, 1000.00);
+(135, 233, 8, 2, 1095.00, 2190.00),
+(136, 234, 9, 2, 1115.00, 2230.00),
+(137, 235, 10, 3, 740.00, 2220.00),
+(138, 236, 11, 1, 445.00, 445.00),
+(139, 237, 10, 1, 790.00, 790.00),
+(140, 238, 10, 1, 790.00, 790.00),
+(141, 239, 9, 1, 1165.00, 1165.00),
+(142, 240, 8, 10, 1070.00, 10700.00),
+(143, 241, 12, 10, 1050.00, 10500.00),
+(144, 242, 13, 1, 0.00, 0.00),
+(145, 243, 14, 2, 0.00, 0.00),
+(146, 244, 12, 1, 1100.00, 1100.00);
 
 -- --------------------------------------------------------
 
@@ -1029,7 +740,27 @@ INSERT INTO `products` (`product_id`, `product_code`, `product_name`, `category`
 (1, 'P001', 'เสื้อโปโล', 'เสื้อผ้า', 'เสื้อโปโลคุณภาพดี', 'ตัว', 150.00, 250.00, 100, 1, '2025-08-03 07:19:20', '2025-08-03 07:19:20'),
 (2, 'P002', 'กางเกงยีนส์', 'เสื้อผ้า', 'กางเกงยีนส์สไตล์สวย', 'ตัว', 300.00, 450.00, 50, 1, '2025-08-03 07:19:20', '2025-08-03 07:19:20'),
 (3, 'P003', 'รองเท้าผ้าใบ', 'รองเท้า', 'รองเท้าผ้าใบสไตล์สปอร์ต', 'คู่', 400.00, 600.00, 30, 1, '2025-08-03 07:19:20', '2025-08-03 07:19:20'),
-(4, 'P004', 'กระเป๋าถือ', 'กระเป๋า', 'กระเป๋าถือสไตล์แฟชั่น', 'ใบ', 200.00, 350.00, 25, 1, '2025-08-03 07:19:20', '2025-08-03 07:19:20');
+(4, 'P004', 'กระเป๋าถือ', 'กระเป๋า', 'กระเป๋าถือสไตล์แฟชั่น', 'ใบ', 200.00, 350.00, 25, 1, '2025-08-03 07:19:20', '2025-08-03 07:19:20'),
+(8, 'SCSR050002', 'สิงห์เขียว 50 กก. 4-4-12', 'ปุ๋ยกระสอบใหญ่', '', 'กระสอบ', 0.00, 0.00, 0, 1, '2025-08-07 12:20:40', '2025-08-07 12:20:40'),
+(9, 'SCSR050001', 'สิงห์ส้ม 50 กก. 12-4-4', 'ปุ๋ยกระสอบใหญ่', '', 'กระสอบ', 0.00, 0.00, 0, 1, '2025-08-07 12:21:14', '2025-08-07 12:21:14'),
+(10, '3SOSR050001', 'สิงห์ทอง 50 กก.', 'ปุ๋ยกระสอบใหญ่', '', 'กระสอบ', 0.00, 0.00, 0, 1, '2025-08-07 12:21:29', '2025-08-07 12:22:23'),
+(11, '3SOSR025001', 'สิงห์ทอง 25 กก.', 'ปุ๋ยกระสอบเล็ก', '', 'กระสอบ', 0.00, 0.00, 0, 1, '2025-08-07 12:21:51', '2025-08-07 12:21:51'),
+(12, '1SDSR050001', 'สิงห์ชมพู สูตร 6-3-3 50 กก.', 'ปุ๋ยกระสอบใหญ่', '', 'กระสอบ', 0.00, 0.00, 0, 1, '2025-08-07 12:22:11', '2025-08-07 12:22:11'),
+(13, 'FRSDSR050001', 'สิงห์ชมพู สูตร 6-3-3 50 กก. (แถม)', 'ของแถม', '', 'กระสอบ', 0.00, 0.00, 0, 1, '2025-08-07 12:22:59', '2025-08-07 12:22:59'),
+(14, 'FR-PN001', 'เสื้อแสนราชสีห์ (พรีออนิค)', 'ของแถม', '', 'ชิ้น', 0.00, 0.00, 0, 1, '2025-08-07 12:23:27', '2025-08-07 12:23:27'),
+(15, 'FRSOSR050001', 'แถม สิงห์ส้ม 50 กก. 12-4-4', 'ของแถม', '', 'กระสอบ', 0.00, 0.00, 0, 1, '2025-08-07 12:24:04', '2025-08-07 13:20:28'),
+(16, '1SSSR025001', 'ปุ๋ยสารปรับปรุงดิน 25 กก.', 'ปุ๋ยกระสอบเล็ก', '', 'กระสอบ', 0.00, 0.00, 0, 1, '2025-08-07 12:24:46', '2025-08-07 12:24:46'),
+(17, 'FRSCSR050002', 'แถม สิงห์เขียว 50 กก. 4-4-12', 'ปุ๋ยกระสอบใหญ่', '', 'กระสอบ', 0.00, 0.00, 0, 1, '2025-08-07 12:25:14', '2025-08-07 13:20:07'),
+(18, 'FR-PN002', 'เสื้อแสนราชสีห์ (เทเลเซลล์)', 'ของแถม', '', 'ชิ้น', 0.00, 0.00, 0, 1, '2025-08-07 12:25:35', '2025-08-07 12:25:35'),
+(19, 'FRSSSR025001', 'แถม ปุ๋ยสารปรับปรุงดิน 25 กก.', 'ของแถม', '', 'กระสอบ', 0.00, 0.00, 0, 1, '2025-08-07 13:23:33', '2025-08-07 13:23:33'),
+(20, 'FRSOSR025001', 'แถม สิงห์ทอง 25 กก.', 'ของแถม', '', 'กระสอบ', 0.00, 0.00, 0, 1, '2025-08-07 13:23:49', '2025-08-07 13:23:49'),
+(22, 'LASR01L001', 'อะมิโนเฟรช', 'ชีวภัณฑ์', '', 'ขวด', 0.00, 0.00, 0, 1, '2025-08-07 13:25:56', '2025-08-07 13:25:56'),
+(23, 'PTSR01L001', 'จุลินทรีย์ปรับปรุงดินชนิดน้ำ สิงห์พลัส', 'ชีวภัณฑ์', '', 'ขวด', 0.00, 0.00, 0, 1, '2025-08-07 13:26:18', '2025-08-07 13:26:18'),
+(24, 'LCSR050001', 'ไคโตซานพลัส ตราเเสนราชสีห์ ขนาด 500 ซีซี', 'ชีวภัณฑ์', '', 'ขวด', 0.00, 0.00, 0, 1, '2025-08-07 13:26:37', '2025-08-07 13:26:37'),
+(25, 'FRLCSR050001', 'แถม ไคโตซานพลัส ตราเเสนราชสีห์ ขนาด 500 ซีซี', 'ของแถม', '', 'ขวด', 0.00, 0.00, 0, 1, '2025-08-07 13:27:16', '2025-08-07 13:27:16'),
+(26, 'FRPTSR01L001', 'แถม จุลินทรีย์ปรับปรุงดินชนิดน้ำ สิงห์พลัส', 'ของแถม', '', 'ขวด', 0.00, 0.00, 0, 1, '2025-08-07 13:27:38', '2025-08-07 13:27:38'),
+(27, 'FRLASR01L001', 'แถม อะมิโนเฟรช', 'ของแถม', '', 'ขวด', 0.00, 0.00, 0, 1, '2025-08-07 13:27:55', '2025-08-07 13:27:55'),
+(28, '1SOSR025001', 'สิงห์ทอง 25 กก.', 'ปุ๋ยกระสอบเล็ก', '', 'กระสอบ', 0.00, 0.00, 0, 0, '2025-08-07 13:28:18', '2025-08-07 13:28:46');
 
 -- --------------------------------------------------------
 
@@ -1118,6 +849,7 @@ CREATE TABLE `users` (
   `phone` varchar(20) DEFAULT NULL,
   `role_id` int(11) NOT NULL,
   `company_id` int(11) DEFAULT NULL,
+  `supervisor_id` int(11) DEFAULT NULL COMMENT 'References user_id of supervisor who manages this user',
   `is_active` tinyint(1) DEFAULT 1,
   `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
   `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
@@ -1128,11 +860,13 @@ CREATE TABLE `users` (
 -- Dumping data for table `users`
 --
 
-INSERT INTO `users` (`user_id`, `username`, `password_hash`, `full_name`, `email`, `phone`, `role_id`, `company_id`, `is_active`, `created_at`, `updated_at`, `last_login`) VALUES
-(1, 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ผู้ดูแลระบบ', 'admin@prima49.com', '081-234-5678', 1, 1, 1, '2025-08-03 07:19:20', '2025-08-06 14:15:30', '2025-08-06 14:15:30'),
-(2, 'supervisor', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'หัวหน้าทีมขาย', 'supervisor@prima49.com', '081-234-5679', 3, 1, 1, '2025-08-03 07:19:20', '2025-08-03 07:19:20', NULL),
-(3, 'telesales1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'พนักงานขาย 1', 'telesales1@prima49.com', '081-234-5680', 4, 1, 1, '2025-08-03 07:19:20', '2025-08-06 04:27:56', '2025-08-06 04:27:56'),
-(4, 'telesales2', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'พนักงานขาย 2', 'telesales2@prima49.com', '081-234-5681', 4, 1, 1, '2025-08-03 07:19:20', '2025-08-03 07:19:20', NULL);
+INSERT INTO `users` (`user_id`, `username`, `password_hash`, `full_name`, `email`, `phone`, `role_id`, `company_id`, `supervisor_id`, `is_active`, `created_at`, `updated_at`, `last_login`) VALUES
+(1, 'admin', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'ผู้ดูแลระบบ', 'admin@prima49.com', '081-234-5678', 1, 1, NULL, 1, '2025-08-03 07:19:20', '2025-08-08 05:17:21', '2025-08-08 05:17:21'),
+(2, 'supervisor', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'หัวหน้าทีมขาย', 'supervisor@prima49.com', '081-234-5679', 3, 1, NULL, 1, '2025-08-03 07:19:20', '2025-08-07 08:34:42', '2025-08-07 08:34:42'),
+(3, 'telesales1', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'พนักงานขาย 1', 'telesales1@prima49.com', '081-234-5680', 4, 1, 2, 1, '2025-08-03 07:19:20', '2025-08-07 14:50:14', '2025-08-07 14:50:14'),
+(4, 'telesales2', '$2y$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2.uheWG/igi', 'พนักงานขาย 2', 'telesales2@prima49.com', '081-234-5681', 4, 1, 2, 1, '2025-08-03 07:19:20', '2025-08-07 05:32:13', NULL),
+(5, 'thanu', '$2y$10$6tbVyo5RJdCYGaflQBmnmOkfXlnQx3V8Jg6xaZi2ieaHdfQlLwK76', 'ธนู สุริวงศ์', 'prima.thanu.s@gmail.com', '0952519797', 1, 1, NULL, 1, '2025-08-07 04:25:43', '2025-08-07 04:26:18', '2025-08-07 04:26:18'),
+(6, 'gif', '$2y$10$GLCrR7q.uR1seJ1Vm6YcUuMZB9HGi1vSxCUhwzAV9oEY.wedIiIYC', 'กิ๊ฟ Telesale', 'gif-prionic@gmail.com', '-', 4, 2, NULL, 1, '2025-08-07 13:31:30', '2025-08-08 05:08:37', '2025-08-08 05:08:37');
 
 -- --------------------------------------------------------
 
@@ -1142,42 +876,6 @@ INSERT INTO `users` (`user_id`, `username`, `password_hash`, `full_name`, `email
 DROP TABLE IF EXISTS `customer_appointment_extensions`;
 
 CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_appointment_extensions`  AS SELECT `c`.`customer_id` AS `customer_id`, concat(`c`.`first_name`,' ',`c`.`last_name`) AS `customer_name`, `c`.`customer_grade` AS `customer_grade`, `c`.`temperature_status` AS `temperature_status`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`last_appointment_date` AS `last_appointment_date`, CASE WHEN `c`.`appointment_extension_expiry` is null THEN 'ไม่มีวันหมดอายุ' WHEN `c`.`appointment_extension_expiry` < current_timestamp() THEN 'หมดอายุแล้ว' ELSE 'ยังไม่หมดอายุ' END AS `expiry_status`, CASE WHEN `c`.`appointment_extension_count` >= `c`.`max_appointment_extensions` THEN 'ไม่สามารถต่อเวลาได้แล้ว' ELSE 'สามารถต่อเวลาได้' END AS `extension_status`, `u`.`username` AS `assigned_user` FROM (`customers` `c` left join `users` `u` on(`c`.`assigned_to` = `u`.`user_id`)) WHERE `c`.`is_active` = 1 ;
-
--- --------------------------------------------------------
-
---
--- Structure for view `customer_do_list`
---
-DROP TABLE IF EXISTS `customer_do_list`;
-
-CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_do_list`  AS SELECT `c`.`customer_id` AS `customer_id`, `c`.`customer_code` AS `customer_code`, `c`.`first_name` AS `first_name`, `c`.`last_name` AS `last_name`, `c`.`phone` AS `phone`, `c`.`email` AS `email`, `c`.`address` AS `address`, `c`.`district` AS `district`, `c`.`province` AS `province`, `c`.`postal_code` AS `postal_code`, `c`.`temperature_status` AS `temperature_status`, `c`.`customer_grade` AS `customer_grade`, `c`.`total_purchase_amount` AS `total_purchase_amount`, `c`.`assigned_to` AS `assigned_to`, `c`.`basket_type` AS `basket_type`, `c`.`assigned_at` AS `assigned_at`, `c`.`last_contact_at` AS `last_contact_at`, `c`.`next_followup_at` AS `next_followup_at`, `c`.`recall_at` AS `recall_at`, `c`.`source` AS `source`, `c`.`notes` AS `notes`, `c`.`is_active` AS `is_active`, `c`.`created_at` AS `created_at`, `c`.`updated_at` AS `updated_at`, `c`.`total_purchase` AS `total_purchase`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`last_appointment_date` AS `last_appointment_date`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`customer_status` AS `customer_status`, `c`.`customer_time_extension` AS `customer_time_extension`, `c`.`customer_time_base` AS `customer_time_base`, `c`.`customer_time_expiry` AS `customer_time_expiry`, to_days(`c`.`customer_time_expiry`) - to_days(current_timestamp()) AS `days_remaining`, CASE WHEN `c`.`customer_status` = 'new' THEN 'ลูกค้าใหม่' WHEN `c`.`customer_status` = 'existing' THEN 'ลูกค้าเก่า' END AS `status_text`, CASE WHEN `c`.`customer_time_expiry` <= current_timestamp() THEN 'เกินกำหนด' WHEN `c`.`customer_time_expiry` <= current_timestamp() + interval 7 day THEN 'ใกล้หมดเวลา' ELSE 'ปกติ' END AS `urgency_status` FROM `customers` AS `c` WHERE `c`.`assigned_to` is not null AND `c`.`basket_type` = 'assigned' AND `c`.`is_active` = 1 AND (`c`.`customer_time_expiry` <= current_timestamp() + interval 7 day OR `c`.`next_followup_at` <= current_timestamp()) ;
-
--- --------------------------------------------------------
-
---
--- Structure for view `customer_existing_list`
---
-DROP TABLE IF EXISTS `customer_existing_list`;
-
-CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_existing_list`  AS SELECT `c`.`customer_id` AS `customer_id`, `c`.`customer_code` AS `customer_code`, `c`.`first_name` AS `first_name`, `c`.`last_name` AS `last_name`, `c`.`phone` AS `phone`, `c`.`email` AS `email`, `c`.`address` AS `address`, `c`.`district` AS `district`, `c`.`province` AS `province`, `c`.`postal_code` AS `postal_code`, `c`.`temperature_status` AS `temperature_status`, `c`.`customer_grade` AS `customer_grade`, `c`.`total_purchase_amount` AS `total_purchase_amount`, `c`.`assigned_to` AS `assigned_to`, `c`.`basket_type` AS `basket_type`, `c`.`assigned_at` AS `assigned_at`, `c`.`last_contact_at` AS `last_contact_at`, `c`.`next_followup_at` AS `next_followup_at`, `c`.`recall_at` AS `recall_at`, `c`.`source` AS `source`, `c`.`notes` AS `notes`, `c`.`is_active` AS `is_active`, `c`.`created_at` AS `created_at`, `c`.`updated_at` AS `updated_at`, `c`.`total_purchase` AS `total_purchase`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`last_appointment_date` AS `last_appointment_date`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`customer_status` AS `customer_status`, `c`.`customer_time_extension` AS `customer_time_extension`, `c`.`customer_time_base` AS `customer_time_base`, `c`.`customer_time_expiry` AS `customer_time_expiry`, to_days(`c`.`customer_time_expiry`) - to_days(current_timestamp()) AS `days_remaining` FROM `customers` AS `c` WHERE `c`.`assigned_to` is not null AND `c`.`basket_type` = 'assigned' AND `c`.`customer_status` = 'existing' AND `c`.`is_active` = 1 ;
-
--- --------------------------------------------------------
-
---
--- Structure for view `customer_followup_list`
---
-DROP TABLE IF EXISTS `customer_followup_list`;
-
-CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_followup_list`  AS SELECT `c`.`customer_id` AS `customer_id`, `c`.`customer_code` AS `customer_code`, `c`.`first_name` AS `first_name`, `c`.`last_name` AS `last_name`, `c`.`phone` AS `phone`, `c`.`email` AS `email`, `c`.`address` AS `address`, `c`.`district` AS `district`, `c`.`province` AS `province`, `c`.`postal_code` AS `postal_code`, `c`.`temperature_status` AS `temperature_status`, `c`.`customer_grade` AS `customer_grade`, `c`.`total_purchase_amount` AS `total_purchase_amount`, `c`.`assigned_to` AS `assigned_to`, `c`.`basket_type` AS `basket_type`, `c`.`assigned_at` AS `assigned_at`, `c`.`last_contact_at` AS `last_contact_at`, `c`.`next_followup_at` AS `next_followup_at`, `c`.`recall_at` AS `recall_at`, `c`.`source` AS `source`, `c`.`notes` AS `notes`, `c`.`is_active` AS `is_active`, `c`.`created_at` AS `created_at`, `c`.`updated_at` AS `updated_at`, `c`.`total_purchase` AS `total_purchase`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`last_appointment_date` AS `last_appointment_date`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`customer_status` AS `customer_status`, `c`.`customer_time_extension` AS `customer_time_extension`, `c`.`customer_time_base` AS `customer_time_base`, `c`.`customer_time_expiry` AS `customer_time_expiry`, to_days(`c`.`next_followup_at`) - to_days(current_timestamp()) AS `followup_days_remaining` FROM `customers` AS `c` WHERE `c`.`assigned_to` is not null AND `c`.`basket_type` = 'assigned' AND `c`.`next_followup_at` is not null AND `c`.`next_followup_at` <= current_timestamp() AND `c`.`is_active` = 1 ;
-
--- --------------------------------------------------------
-
---
--- Structure for view `customer_new_list`
---
-DROP TABLE IF EXISTS `customer_new_list`;
-
-CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_new_list`  AS SELECT `c`.`customer_id` AS `customer_id`, `c`.`customer_code` AS `customer_code`, `c`.`first_name` AS `first_name`, `c`.`last_name` AS `last_name`, `c`.`phone` AS `phone`, `c`.`email` AS `email`, `c`.`address` AS `address`, `c`.`district` AS `district`, `c`.`province` AS `province`, `c`.`postal_code` AS `postal_code`, `c`.`temperature_status` AS `temperature_status`, `c`.`customer_grade` AS `customer_grade`, `c`.`total_purchase_amount` AS `total_purchase_amount`, `c`.`assigned_to` AS `assigned_to`, `c`.`basket_type` AS `basket_type`, `c`.`assigned_at` AS `assigned_at`, `c`.`last_contact_at` AS `last_contact_at`, `c`.`next_followup_at` AS `next_followup_at`, `c`.`recall_at` AS `recall_at`, `c`.`source` AS `source`, `c`.`notes` AS `notes`, `c`.`is_active` AS `is_active`, `c`.`created_at` AS `created_at`, `c`.`updated_at` AS `updated_at`, `c`.`total_purchase` AS `total_purchase`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`last_appointment_date` AS `last_appointment_date`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`customer_status` AS `customer_status`, `c`.`customer_time_extension` AS `customer_time_extension`, `c`.`customer_time_base` AS `customer_time_base`, `c`.`customer_time_expiry` AS `customer_time_expiry`, to_days(`c`.`customer_time_expiry`) - to_days(current_timestamp()) AS `days_remaining` FROM `customers` AS `c` WHERE `c`.`assigned_to` is not null AND `c`.`basket_type` = 'assigned' AND `c`.`customer_status` = 'new' AND `c`.`is_active` = 1 ;
 
 --
 -- Indexes for dumped tables
@@ -1288,7 +986,6 @@ ALTER TABLE `customers`
   ADD KEY `idx_created_at` (`created_at`),
   ADD KEY `idx_customers_phone` (`phone`),
   ADD KEY `idx_customers_email` (`email`),
-  ADD KEY `idx_customers_total_purchase` (`total_purchase`),
   ADD KEY `idx_customer_status` (`customer_status`),
   ADD KEY `idx_customer_time_expiry` (`customer_time_expiry`),
   ADD KEY `idx_customer_time_base` (`customer_time_base`),
@@ -1446,7 +1143,8 @@ ALTER TABLE `users`
   ADD KEY `idx_role` (`role_id`),
   ADD KEY `idx_active` (`is_active`),
   ADD KEY `idx_users_username` (`username`),
-  ADD KEY `idx_users_role_id` (`role_id`);
+  ADD KEY `idx_users_role_id` (`role_id`),
+  ADD KEY `idx_supervisor_id` (`supervisor_id`);
 
 --
 -- AUTO_INCREMENT for dumped tables
@@ -1462,13 +1160,13 @@ ALTER TABLE `activity_logs`
 -- AUTO_INCREMENT for table `appointments`
 --
 ALTER TABLE `appointments`
-  MODIFY `appointment_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=14;
+  MODIFY `appointment_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=18;
 
 --
 -- AUTO_INCREMENT for table `appointment_activities`
 --
 ALTER TABLE `appointment_activities`
-  MODIFY `activity_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=13;
+  MODIFY `activity_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=17;
 
 --
 -- AUTO_INCREMENT for table `appointment_extensions`
@@ -1486,13 +1184,13 @@ ALTER TABLE `appointment_extension_rules`
 -- AUTO_INCREMENT for table `call_logs`
 --
 ALTER TABLE `call_logs`
-  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `log_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=6;
 
 --
 -- AUTO_INCREMENT for table `companies`
 --
 ALTER TABLE `companies`
-  MODIFY `company_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
+  MODIFY `company_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=3;
 
 --
 -- AUTO_INCREMENT for table `cron_job_logs`
@@ -1510,13 +1208,13 @@ ALTER TABLE `cron_job_settings`
 -- AUTO_INCREMENT for table `customers`
 --
 ALTER TABLE `customers`
-  MODIFY `customer_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
+  MODIFY `customer_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=72;
 
 --
 -- AUTO_INCREMENT for table `customer_activities`
 --
 ALTER TABLE `customer_activities`
-  MODIFY `activity_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=8;
+  MODIFY `activity_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=10;
 
 --
 -- AUTO_INCREMENT for table `customer_recalls`
@@ -1546,7 +1244,7 @@ ALTER TABLE `notifications`
 -- AUTO_INCREMENT for table `orders`
 --
 ALTER TABLE `orders`
-  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=146;
+  MODIFY `order_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=245;
 
 --
 -- AUTO_INCREMENT for table `order_activities`
@@ -1564,13 +1262,13 @@ ALTER TABLE `order_details`
 -- AUTO_INCREMENT for table `order_items`
 --
 ALTER TABLE `order_items`
-  MODIFY `item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=123;
+  MODIFY `item_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=147;
 
 --
 -- AUTO_INCREMENT for table `products`
 --
 ALTER TABLE `products`
-  MODIFY `product_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `product_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=29;
 
 --
 -- AUTO_INCREMENT for table `roles`
@@ -1594,7 +1292,7 @@ ALTER TABLE `system_settings`
 -- AUTO_INCREMENT for table `users`
 --
 ALTER TABLE `users`
-  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=5;
+  MODIFY `user_id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
 
 --
 -- Constraints for dumped tables
@@ -1721,7 +1419,8 @@ ALTER TABLE `system_settings`
 --
 ALTER TABLE `users`
   ADD CONSTRAINT `users_ibfk_1` FOREIGN KEY (`role_id`) REFERENCES `roles` (`role_id`),
-  ADD CONSTRAINT `users_ibfk_2` FOREIGN KEY (`company_id`) REFERENCES `companies` (`company_id`);
+  ADD CONSTRAINT `users_ibfk_2` FOREIGN KEY (`company_id`) REFERENCES `companies` (`company_id`),
+  ADD CONSTRAINT `users_ibfk_3` FOREIGN KEY (`supervisor_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL;
 COMMIT;
 
 /*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;

@@ -7,95 +7,8 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/app.css" rel="stylesheet">
-    <style>
-        :root {
-            --primary-color: #7C9885;
-            --text-color: #4A5568;
-        }
-        
-        body {
-            color: var(--text-color);
-        }
-        
-        .btn-primary, .btn-success, .btn-info, .btn-warning, .btn-secondary {
-            background-color: var(--primary-color) !important;
-            border-color: var(--primary-color) !important;
-            color: white !important;
-        }
-        
-        .btn-primary:hover, .btn-success:hover, .btn-info:hover, .btn-warning:hover, .btn-secondary:hover {
-            background-color: #6a8573 !important;
-            border-color: #6a8573 !important;
-        }
-        
-        .btn-outline-primary, .btn-outline-secondary {
-            color: var(--primary-color) !important;
-            border-color: var(--primary-color) !important;
-        }
-        
-        .btn-outline-primary:hover, .btn-outline-secondary:hover {
-            background-color: var(--primary-color) !important;
-            color: white !important;
-        }
-        
-        .card-header {
-            background-color: #f8f9fa;
-            border-bottom: 1px solid #dee2e6;
-        }
-        
-        .timeline {
-            position: relative;
-            padding-left: 30px;
-        }
-        
-        .timeline-item {
-            position: relative;
-            margin-bottom: 20px;
-        }
-        
-        .timeline-marker {
-            position: absolute;
-            left: -35px;
-            top: 5px;
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background-color: var(--primary-color);
-            border: 2px solid #fff;
-            box-shadow: 0 0 0 2px var(--primary-color);
-        }
-        
-        .timeline-content {
-            background: #f8f9fa;
-            padding: 15px;
-            border-radius: 5px;
-            border-left: 3px solid var(--primary-color);
-        }
-        
-        .pagination .page-link {
-            color: var(--primary-color);
-        }
-        
-        .pagination .page-item.active .page-link {
-            background-color: var(--primary-color);
-            border-color: var(--primary-color);
-        }
-        
-        .table th {
-            font-size: 0.875rem;
-            font-weight: 600;
-        }
-        
-        .table td {
-            font-size: 0.875rem;
-        }
-        
-        .badge {
-            font-size: 0.75rem;
-        }
-    </style>
 </head>
-<body>
+<body class="<?php echo $bodyClass ?? ''; ?>">
     <!-- Include Header Component -->
     <?php include APP_VIEWS . 'components/header.php'; ?>
 
@@ -104,7 +17,7 @@
             <!-- Include Sidebar Component -->
             <?php include APP_VIEWS . 'components/sidebar.php'; ?>
 
-            <!-- Main Content -->
+            <!-- Main Content (grid sums to 12 with sidebar: 2 + 10) -->
             <main class="col-md-9 col-lg-10 main-content">
                 <?php echo $content ?? ''; ?>
             </main>

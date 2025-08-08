@@ -55,6 +55,20 @@ class AppointmentService {
                 
                 // บันทึกกิจกรรม
                 $this->logActivity($appointmentId, $data['user_id'], 'created', 'สร้างนัดหมายใหม่');
+
+                // อัปเดตสถานะลูกค้าให้เป็น "followup" และตั้งวันติดตามถัดไป
+                try {
+                    $this->db->query(
+                        "UPDATE customers 
+                         SET next_followup_at = ?, 
+                             customer_status = CASE WHEN customer_status = 'new' THEN 'followup' ELSE customer_status END,
+                             updated_at = NOW()
+                         WHERE customer_id = ?",
+                        [$data['appointment_date'], $data['customer_id']]
+                    );
+                } catch (Exception $e) {
+                    error_log('Failed to update customer followup info: ' . $e->getMessage());
+                }
                 
                 return [
                     'success' => true,

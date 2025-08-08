@@ -9,8 +9,8 @@ $roleName = $_SESSION['role_name'] ?? '';
 $userId = $_SESSION['user_id'] ?? '';
 ?>
 
-<!-- Main Content -->
-<main class="col-md-9 col-lg-10 main-content page-transition customer-page">
+<!-- Main Content (content wrapper only; grid handled by layout) -->
+<div class="page-transition customer-page">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                     <h1 class="h2">จัดการลูกค้า</h1>
                     <div class="btn-toolbar mb-2 mb-md-0">
@@ -49,12 +49,12 @@ $userId = $_SESSION['user_id'] ?? '';
                     </li>
                 </ul>
 
-                <!-- Filters -->
+                <!-- Filters (match orders page styling) -->
                 <div class="row mt-3 mb-3">
                     <div class="col-md-12">
                         <div class="card">
                             <div class="card-body">
-                                <div class="row">
+                                <form class="row g-3" onsubmit="event.preventDefault(); applyFilters();">
                                     <div class="col-md-3">
                                         <label for="tempFilter" class="form-label">สถานะ</label>
                                         <select class="form-select" id="tempFilter">
@@ -87,18 +87,15 @@ $userId = $_SESSION['user_id'] ?? '';
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
-                                    <div class="col-md-3">
-                                        <label class="form-label">&nbsp;</label>
-                                        <div>
-                                            <button type="button" class="btn btn-primary" onclick="applyFilters()">
-                                                <i class="fas fa-filter me-1"></i>กรอง
-                                            </button>
-                                            <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
-                                                <i class="fas fa-times me-1"></i>ล้าง
-                                            </button>
-                                        </div>
+                                    <div class="col-md-3 d-flex align-items-end">
+                                        <button type="submit" class="btn btn-primary me-2">
+                                            <i class="fas fa-filter me-1"></i>กรอง
+                                        </button>
+                                        <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
+                                            <i class="fas fa-times me-1"></i>ล้าง
+                                        </button>
                                     </div>
-                                </div>
+                                </form>
                             </div>
                         </div>
                     </div>
@@ -163,6 +160,17 @@ $userId = $_SESSION['user_id'] ?? '';
                                                     <?php else: ?>
                                                     <span class="badge bg-warning"><?php echo $customer['days_remaining']; ?> วัน</span>
                                                     <?php endif; ?>
+                                                    <?php if (isset($customer['reason_type'])): ?>
+                                                        <br><small class="text-muted">
+                                                            <?php 
+                                                            switch($customer['reason_type']) {
+                                                                case 'expiry': echo '⏰ ใกล้หมดระยะดูแล'; break;
+                                                                case 'appointment': echo '📅 มีนัดหมาย'; break;
+                                                                default: echo '📋 อื่นๆ'; break;
+                                                            }
+                                                            ?>
+                                                        </small>
+                                                    <?php endif; ?>
                                                 </td>
                                                 <td>
                                                     <button class="btn btn-sm btn-primary" onclick="viewCustomer(<?php echo $customer['customer_id']; ?>)">
@@ -209,10 +217,11 @@ $userId = $_SESSION['user_id'] ?? '';
                     <!-- Follow-up Tab -->
                     <div class="tab-pane fade" id="followup" role="tabpanel">
                         <div class="card">
-                            <div class="card-header">
+                            <div class="card-header d-flex justify-content-between align-items-center">
                                 <h5 class="card-title mb-0">
                                     <i class="fas fa-clock me-2"></i>ลูกค้าที่ต้องติดตาม
                                 </h5>
+                                <div></div>
                             </div>
                             <div class="card-body">
                                 <div id="followupCustomersTable">
@@ -225,10 +234,11 @@ $userId = $_SESSION['user_id'] ?? '';
                     <!-- Existing Customers Tab -->
                     <div class="tab-pane fade" id="existing" role="tabpanel">
                         <div class="card">
-                            <div class="card-header">
+                            <div class="card-header d-flex justify-content-between align-items-center">
                                 <h5 class="card-title mb-0">
                                     <i class="fas fa-user me-2"></i>ลูกค้าเก่า
                                 </h5>
+                                <div></div>
                             </div>
                             <div class="card-body">
                                 <div id="existingCustomersTable">
@@ -238,7 +248,7 @@ $userId = $_SESSION['user_id'] ?? '';
                         </div>
                     </div>
                 </div>
-            </main>
+            </div>
 
 <!-- Assign Customers Modal -->
 <?php if (in_array($roleName, ['supervisor', 'admin', 'super_admin'])): ?>

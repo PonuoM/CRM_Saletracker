@@ -253,14 +253,19 @@ class CustomerService {
     public function getFollowUpCustomers($telesalesId) {
         $sql = "SELECT c.*, 
                        DATEDIFF(c.customer_time_expiry, NOW()) as days_remaining,
-                       DATEDIFF(c.next_followup_at, NOW()) as followup_days
+                       DATEDIFF(c.next_followup_at, NOW()) as followup_days,
+                       CASE 
+                           WHEN c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 7 DAY) THEN 'expiry'
+                           WHEN c.next_followup_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 7 DAY) THEN 'appointment'
+                           ELSE 'other'
+                       END as reason_type
                 FROM customers c 
                 WHERE c.assigned_to = :telesales_id 
                 AND c.basket_type = 'assigned'
                 AND c.is_active = 1
                 AND (
                     c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 7 DAY) OR
-                    c.next_followup_at <= NOW()
+                    c.next_followup_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 7 DAY)
                 )
                 ORDER BY c.customer_time_expiry ASC, c.next_followup_at ASC";
         

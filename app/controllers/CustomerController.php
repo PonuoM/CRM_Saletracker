@@ -81,6 +81,7 @@ class CustomerController {
         
         // ใช้ layout ที่ถูกต้อง
         $pageTitle = 'จัดการลูกค้า - CRM SalesTracker';
+        $bodyClass = 'customer-page-body';
         
         // เริ่ม output buffering
         ob_start();
@@ -424,6 +425,10 @@ class CustomerController {
             $filters['province'] = $_GET['province'];
         }
         
+        if (!empty($_GET['customer_status'])) {
+            $filters['customer_status'] = $_GET['customer_status'];
+        }
+        
         // สำหรับ Telesales เห็นเฉพาะลูกค้าที่ได้รับมอบหมาย
         $roleName = $_SESSION['role_name'] ?? '';
         if ($roleName === 'telesales') {
@@ -436,6 +441,59 @@ class CustomerController {
             'success' => true,
             'data' => $customers
         ]);
+    }
+
+    /**
+     * API: ดึงรายการลูกค้าที่มีนัดติดตาม (แท็บ "ติดตาม")
+     */
+    public function getFollowups() {
+        // ตรวจสอบการยืนยันตัวตน
+        if (!isset($_SESSION['user_id'])) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Authentication required']);
+            return;
+        }
+
+        $roleName = $_SESSION['role_name'] ?? '';
+        $userId = $_SESSION['user_id'];
+
+        // สำหรับ telesales ใช้ service โดยตรง (ตามผู้ใช้)
+        if ($roleName === 'telesales') {
+            $data = $this->customerService->getFollowUpCustomers($userId);
+            echo json_encode(['success' => true, 'data' => $data]);
+            return;
+        }
+
+        // สำหรับ supervisor/admin แสดงตามทีม/ทั้งหมด
+        $params = [];
+        $where = "c.is_active = 1 AND (c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 7 DAY) OR c.next_followup_at <= NOW())";
+
+        if ($roleName === 'supervisor') {
+            $teamIds = $this->getTeamCustomerIds($userId);
+            if (!empty($teamIds)) {
+                $placeholders = str_repeat('?,', count($teamIds) - 1) . '?';
+                $where .= " AND c.assigned_to IN ($placeholders)";
+                $params = array_merge($params, $teamIds);
+            } else {
+                echo json_encode(['success' => true, 'data' => []]);
+                return;
+            }
+        }
+
+        $sql = "SELECT c.*, 
+                        DATEDIFF(c.customer_time_expiry, NOW()) as days_remaining,
+                        DATEDIFF(c.next_followup_at, NOW()) as followup_days,
+                        CASE 
+                            WHEN c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 7 DAY) THEN 'expiry'
+                            WHEN c.next_followup_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 7 DAY) THEN 'appointment'
+                            ELSE 'other'
+                        END as reason_type
+                FROM customers c
+                WHERE $where
+                ORDER BY c.customer_time_expiry ASC, c.next_followup_at ASC";
+
+        $data = $this->db->fetchAll($sql, $params);
+        echo json_encode(['success' => true, 'data' => $data]);
     }
     
     /**

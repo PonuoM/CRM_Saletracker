@@ -62,6 +62,10 @@ try {
             // Handle export functionality
             handleExport($controller);
             break;
+        
+        case 'followups':
+            $controller->getFollowups();
+            break;
             
         default:
             // Default action: get customers by basket

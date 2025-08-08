@@ -558,6 +558,34 @@ h1, h2, h3, h4, h5, h6 {
   min-height: calc(100vh - 72px);
 }
 
+/* Reduce padding for customer page to maximize usable width */
+.customer-page.main-content {
+  padding: 0.5rem 0;
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* remove bootstrap column horizontal gutters for customer main only */
+.row > .customer-page.main-content {
+  padding-left: 0 !important;
+  padding-right: 0 !important;
+}
+
+/* Remove side gaps for customer page only */
+.customer-page-body .container-fluid {
+  padding-left: 0.5rem;
+  padding-right: 0.5rem;
+}
+
+.customer-page-body .row {
+  --bs-gutter-x: 0.5rem;
+}
+
+.customer-page-body .card {
+  margin-left: 0;
+  margin-right: 0;
+}
+
 /* Match orders page layout (sidebar 2/12, content 10/12) */
 
 /* Responsive Design */

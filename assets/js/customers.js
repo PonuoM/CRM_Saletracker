@@ -12,8 +12,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load initial data
     // ลูกค้าใหม่: แสดงตามสถานะ customer_status = 'new'
     loadCustomersByBasket('all', 'newCustomersTable', { customer_status: 'new' });
-    // ติดตาม: ลูกค้ารอการติดตาม (basket waiting)
-    loadCustomersByBasket('waiting', 'followupCustomersTable');
+    // ติดตาม: ใช้ API เฉพาะ followups เพื่อดึงลูกค้าที่มีนัด/ครบกำหนด
+    loadFollowups('followupCustomersTable');
     // ลูกค้าเก่า: เฉพาะสถานะ customer_status = 'existing' (ใน assigned)
     loadCustomersByBasket('assigned', 'existingCustomersTable', { customer_status: 'existing' });
     
@@ -35,7 +35,7 @@ function addEventListeners() {
                     loadCustomersByBasket('all', 'newCustomersTable', { customer_status: 'new' });
                     break;
                 case '#followup':
-                    loadCustomersByBasket('waiting', 'followupCustomersTable');
+                    loadFollowups('followupCustomersTable');
                     break;
                 case '#existing':
                     loadCustomersByBasket('assigned', 'existingCustomersTable', { customer_status: 'existing' });
@@ -99,6 +99,24 @@ function loadCustomersByBasket(basketType, tableId, extraFilters = {}) {
             console.error('Error:', error);
             showError('เกิดข้อผิดพลาดในการเชื่อมต่อ');
         });
+}
+
+// Load followups list
+function loadFollowups(tableId) {
+    const tableElement = document.getElementById(tableId);
+    if (tableElement) {
+        tableElement.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i><p class="mt-2">กำลังโหลดข้อมูล...</p></div>';
+    }
+    fetch('api/customers.php?action=followups')
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                renderCustomerTable(data.data, tableId, 'followups');
+            } else {
+                showError('เกิดข้อผิดพลาดในการโหลดข้อมูล');
+            }
+        })
+        .catch(() => showError('เกิดข้อผิดพลาดในการเชื่อมต่อ'));
 }
 
 /**
@@ -175,6 +193,14 @@ function renderCustomerTable(customers, tableId, basketType) {
                     ${daysRemaining <= 0 ? 
                         '<span class="badge bg-danger">เกินกำหนด</span>' : 
                         `<span class="badge bg-warning">${daysRemaining} วัน</span>`
+                    }
+                    ${customer.reason_type ? 
+                        `<br><small class="text-muted">${
+                            customer.reason_type === 'expiry' ? '⏰ ใกล้หมดระยะดูแล' :
+                            customer.reason_type === 'appointment' ? '📅 มีนัดหมาย' :
+                            '📋 อื่นๆ'
+                        }</small>` : 
+                        ''
                     }
                 </td>
                 <td>
