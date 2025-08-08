@@ -105,7 +105,7 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                         </p>
                         <p><strong>ยอดซื้อรวม:</strong> 
                             <strong class="text-success fs-5">
-                                ฿<?php echo number_format($customer['total_purchase'] ?? 0, 2); ?>
+                                ฿<?php echo number_format($customer['total_purchase_amount'] ?? 0, 2); ?>
                             </strong>
                         </p>
                         <p><strong>จำนวนครั้งที่ซื้อ:</strong> <?php echo count($orders); ?> ครั้ง</p>
@@ -136,7 +136,7 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                         <small class="text-muted">คำสั่งซื้อ</small>
                     </div>
                     <div class="col-6 mb-3">
-                        <div class="h4 text-success">฿<?php echo number_format($customer['total_purchase'] ?? 0, 0); ?></div>
+                        <div class="h4 text-success">฿<?php echo number_format($customer['total_purchase_amount'] ?? 0, 0); ?></div>
                         <small class="text-muted">ยอดซื้อรวม</small>
                     </div>
                     <div class="col-6 mb-3">

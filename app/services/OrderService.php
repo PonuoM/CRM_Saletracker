@@ -473,9 +473,9 @@ class OrderService {
      * @param bool $updateGrade อัปเดตเกรดลูกค้าหรือไม่ (default: false เพื่อเพิ่มประสิทธิภาพ)
      */
     private function updateCustomerPurchaseHistory($customerId, $amount, $updateGrade = false) {
-        // อัปเดตยอดซื้อรวม
+        // อัปเดตยอดซื้อรวม - ใช้ total_purchase_amount แทน total_purchase
         $this->db->query(
-            "UPDATE customers SET total_purchase = total_purchase + :amount WHERE customer_id = :customer_id",
+            "UPDATE customers SET total_purchase_amount = total_purchase_amount + :amount WHERE customer_id = :customer_id",
             ['amount' => $amount, 'customer_id' => $customerId]
         );
         

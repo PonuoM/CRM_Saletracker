@@ -93,13 +93,17 @@ function handleExport($controller) {
         $filters['temperature'] = $_GET['temperature'];
     }
     
-    if (!empty($_GET['grade'])) {
+        if (!empty($_GET['grade'])) {
         $filters['grade'] = $_GET['grade'];
     }
     
     if (!empty($_GET['province'])) {
         $filters['province'] = $_GET['province'];
     }
+        
+        if (!empty($_GET['customer_status'])) {
+            $filters['customer_status'] = $_GET['customer_status'];
+        }
     
     // Get customers
     $customers = $controller->customerService->getCustomersByBasket($basketType, $filters);

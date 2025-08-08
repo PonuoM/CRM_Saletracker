@@ -114,6 +114,7 @@ try {
             break;
             
         case 'downloadTemplate':
+            // Clear any previous output
             ob_end_clean();
             $controller->downloadTemplate();
             break;

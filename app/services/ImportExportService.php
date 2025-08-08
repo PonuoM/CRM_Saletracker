@@ -14,6 +14,189 @@ class ImportExportService {
     }
     
     /**
+     * ทดสอบการนำเข้าข้อมูลจาก CSV (Dry Run)
+     * ไม่บันทึกลงฐานข้อมูล แต่แสดงผลการประมวลผล
+     */
+    public function testImportFromCSV($filePath) {
+        $results = [
+            'total_rows' => 0,
+            'processed_rows' => 0,
+            'error_rows' => 0,
+            'new_customers' => 0,
+            'existing_customers' => 0,
+            'orders_to_create' => 0,
+            'warnings' => [],
+            'errors' => [],
+            'sample_data' => []
+        ];
+        
+        if (!file_exists($filePath)) {
+            $results['errors'][] = 'ไฟล์ไม่พบ';
+            return $results;
+        }
+        
+        // Set internal encoding
+        mb_internal_encoding('UTF-8');
+        
+        $handle = fopen($filePath, 'r');
+        if (!$handle) {
+            $results['errors'][] = 'ไม่สามารถเปิดไฟล์ได้';
+            return $results;
+        }
+        
+        // อ่าน header
+        $headers = fgetcsv($handle);
+        
+        // Check for UTF-8 BOM and skip if present
+        if ($headers && !empty($headers[0]) && substr($headers[0], 0, 3) === "\xEF\xBB\xBF") {
+            $headers[0] = substr($headers[0], 3);
+        }
+        
+        if (!$headers) {
+            $results['errors'][] = 'ไฟล์ CSV ไม่ถูกต้อง';
+            fclose($handle);
+            return $results;
+        }
+        
+        // Map headers to database columns
+        $columnMap = $this->getSalesColumnMap();
+        $mappedHeaders = [];
+        
+        foreach ($headers as $header) {
+            $header = trim($header);
+            // Ensure proper UTF-8 encoding for header
+            if (!mb_check_encoding($header, 'UTF-8')) {
+                $header = mb_convert_encoding($header, 'UTF-8', 'auto');
+            }
+            if (isset($columnMap[$header])) {
+                $mappedHeaders[] = $columnMap[$header];
+            } else {
+                $mappedHeaders[] = null;
+            }
+        }
+        
+        $rowNumber = 1; // Header row
+        $customerCounts = [];
+        $processedCustomers = [];
+        
+        while (($data = fgetcsv($handle)) !== false) {
+            $rowNumber++;
+            $results['total_rows']++;
+            
+            try {
+                $salesData = [];
+                foreach ($mappedHeaders as $index => $column) {
+                    if ($column && isset($data[$index])) {
+                        $value = trim($data[$index]);
+                        // Ensure proper UTF-8 encoding
+                        if (!mb_check_encoding($value, 'UTF-8')) {
+                            $value = mb_convert_encoding($value, 'UTF-8', 'auto');
+                        }
+                        $salesData[$column] = $value;
+                    }
+                }
+                
+                // Validate required fields
+                if (empty($salesData['customer_name']) || empty($salesData['phone'])) {
+                    $results['errors'][] = "แถวที่ {$rowNumber}: ชื่อลูกค้าและเบอร์โทรศัพท์เป็นข้อมูลที่จำเป็น";
+                    $results['error_rows']++;
+                    continue;
+                }
+                
+                // ตรวจสอบว่าลูกค้ามีอยู่แล้วหรือไม่
+                $phone = $salesData['phone'];
+                $existingCustomer = $this->db->query("SELECT id FROM customers WHERE phone = ?", [$phone])->fetch();
+                
+                if ($existingCustomer) {
+                    $results['existing_customers']++;
+                    $customerKey = 'existing_' . $existingCustomer['id'];
+                } else {
+                    $results['new_customers']++;
+                    $customerKey = 'new_' . $phone;
+                }
+                
+                // นับจำนวนคำสั่งซื้อที่จะสร้าง
+                if (!isset($customerCounts[$customerKey])) {
+                    $customerCounts[$customerKey] = 0;
+                }
+                $customerCounts[$customerKey]++;
+                $results['orders_to_create']++;
+                
+                // คำนวณยอดเงิน
+                $quantity = floatval($salesData['quantity'] ?? 0);
+                $unitPrice = floatval($salesData['unit_price'] ?? 0);
+                $totalAmountFromCSV = floatval($salesData['total_amount'] ?? 0);
+                
+                $totalAmount = 0;
+                $calculatedTotal = 0;
+                
+                // ให้ความสำคัญกับคอลัมน์ 'ยอดรวม' ใน CSV ก่อน
+                if ($totalAmountFromCSV > 0) {
+                    $totalAmount = $totalAmountFromCSV;
+                    // ถ้ามีราคาต่อชิ้นและจำนวน ให้ตรวจสอบความถูกต้อง
+                    if ($unitPrice > 0 && $quantity > 0) {
+                        $calculatedTotal = $quantity * $unitPrice;
+                        // ถ้าคำนวณไม่ตรงกับยอดรวมใน CSV ให้ใช้ยอดรวมใน CSV
+                        if (abs($calculatedTotal - $totalAmount) > 0.01) {
+                            $results['warnings'][] = "แถวที่ {$rowNumber}: ยอดคำนวณ ({$calculatedTotal}) ไม่ตรงกับยอดใน CSV ({$totalAmount})";
+                        }
+                    }
+                    // คำนวณราคาต่อชิ้นย้อนกลับ (สำหรับแสดงใน order_items)
+                    $unitPrice = $quantity > 0 ? $totalAmount / $quantity : 0;
+                }
+                // ถ้าไม่มียอดรวมใน CSV แต่มีราคาต่อชิ้นและจำนวน
+                elseif ($unitPrice > 0 && $quantity > 0) {
+                    $totalAmount = $quantity * $unitPrice;
+                    $calculatedTotal = $totalAmount;
+                }
+                // ถ้าไม่มีทั้งคู่ ให้ใช้ค่าเริ่มต้น
+                else {
+                    $totalAmount = 0;
+                    $unitPrice = 0;
+                    $results['warnings'][] = "แถวที่ {$rowNumber}: ไม่มียอดเงินหรือข้อมูลไม่ครบ";
+                }
+                
+                // เพิ่มข้อมูลตัวอย่าง (แสดงแค่ 10 แถวแรก)
+                if (count($results['sample_data']) < 10) {
+                    $sampleRow = [
+                        'customer_name' => $salesData['customer_name'],
+                        'phone' => $salesData['phone'],
+                        'product_name' => $salesData['product_name'] ?? '',
+                        'quantity' => $quantity,
+                        'unit_price' => $unitPrice,
+                        'total_amount_from_csv' => $totalAmountFromCSV,
+                        'calculated_total' => $calculatedTotal,
+                        'status' => $totalAmount > 0 ? 'success' : 'warning'
+                    ];
+                    
+                    if (abs($calculatedTotal - $totalAmountFromCSV) > 0.01 && $totalAmountFromCSV > 0 && $calculatedTotal > 0) {
+                        $sampleRow['status'] = 'warning';
+                    }
+                    
+                    $results['sample_data'][] = $sampleRow;
+                }
+                
+                $results['processed_rows']++;
+                
+            } catch (Exception $e) {
+                $results['errors'][] = "แถวที่ {$rowNumber}: " . $e->getMessage();
+                $results['error_rows']++;
+            }
+        }
+        
+        fclose($handle);
+        
+        // ตรวจสอบลูกค้าที่มีหลายคำสั่งซื้อ
+        foreach ($customerCounts as $customerKey => $count) {
+            if ($count > 1) {
+                $results['warnings'][] = "ลูกค้า {$customerKey} จะมีคำสั่งซื้อ {$count} รายการ";
+            }
+        }
+        
+        return $results;
+    }
+
+    /**
      * นำเข้าข้อมูลลูกค้าจาก CSV
      */
     public function importCustomersFromCSV($filePath) {
@@ -98,12 +281,34 @@ class ImportExportService {
                 $customerData['customer_status'] = $customerData['customer_status'] ?? 'new';
                 $customerData['temperature_status'] = $customerData['temperature_status'] ?? 'cold';
                 $customerData['customer_grade'] = $customerData['customer_grade'] ?? 'C';
-                $customerData['basket_type'] = 'distribution';
+                // Handle assigned_to field (convert name to user_id if needed)
+                $assignedTo = null;
+                if (!empty($customerData['assigned_to'])) {
+                    // Check if it's a user ID or name
+                    if (is_numeric($customerData['assigned_to'])) {
+                        $assignedTo = $customerData['assigned_to'];
+                    } else {
+                        // Try to find user by name
+                        $userSql = "SELECT user_id FROM users WHERE CONCAT(first_name, ' ', last_name) LIKE ? OR username LIKE ?";
+                        $userResult = $this->db->fetchOne($userSql, [$customerData['assigned_to'], $customerData['assigned_to']]);
+                        if ($userResult) {
+                            $assignedTo = $userResult['user_id'];
+                        }
+                    }
+                }
+                
+                // Set basket_type based on whether a follower is assigned
+                if ($assignedTo) {
+                    $customerData['basket_type'] = 'assigned'; // มีผู้ติดตามแล้ว
+                } else {
+                    $customerData['basket_type'] = 'distribution'; // อยู่ในตะกร้าแจก
+                }
+                
                 $customerData['is_active'] = 1;
                 
                 // Insert customer
-                $sql = "INSERT INTO customers (first_name, last_name, phone, email, address, district, province, postal_code, customer_status, temperature_status, customer_grade, basket_type, is_active, created_at, updated_at) 
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                $sql = "INSERT INTO customers (first_name, last_name, phone, email, address, district, province, postal_code, customer_status, temperature_status, customer_grade, basket_type, assigned_to, is_active, created_at, updated_at) 
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 
                 $stmt = $this->db->query($sql, [
                     $customerData['first_name'],
@@ -118,6 +323,7 @@ class ImportExportService {
                     $customerData['temperature_status'],
                     $customerData['customer_grade'],
                     $customerData['basket_type'],
+                    $assignedTo,
                     $customerData['is_active'],
                     $customerData['created_at'],
                     $customerData['updated_at']
@@ -605,12 +811,24 @@ class ImportExportService {
             'จังหวัด' => 'province',
             'อำเภอ' => 'province',  // Support old column name
             'รหัสไปรษณีย์' => 'postal_code',
+            'รหัสสินค้า' => 'product_code',
+            'Product Code' => 'product_code',
             'ชื่อสินค้า' => 'product_name',
             'จำนวน' => 'quantity',
             'ราคาต่อชิ้น' => 'unit_price',
             'ยอดรวม' => 'total_amount',
             'วันที่สั่งซื้อ' => 'order_date',
             'ช่องทางการขาย' => 'sales_channel',
+            'ผู้ติดตาม' => 'assigned_to',
+            'Follower' => 'assigned_to',
+            'Tracker' => 'assigned_to',
+            'ผู้ขาย' => 'created_by',
+            'Seller' => 'created_by',
+            'Sales Person' => 'created_by',
+            'วิธีการชำระเงิน' => 'payment_method',
+            'Payment Method' => 'payment_method',
+            'สถานะการชำระเงิน' => 'payment_status',
+            'Payment Status' => 'payment_status',
             'หมายเหตุ' => 'notes'
         ];
     }
@@ -630,6 +848,11 @@ class ImportExportService {
             'จังหวัด' => 'province',
             'อำเภอ' => 'province',  // Support old column name
             'รหัสไปรษณีย์' => 'postal_code',
+            'รหัสสินค้า' => 'product_code',
+            'Product Code' => 'product_code',
+            'ผู้ติดตาม' => 'assigned_to',
+            'Follower' => 'assigned_to',
+            'Tracker' => 'assigned_to',
             'หมายเหตุ' => 'notes'
         ];
     }
@@ -657,6 +880,11 @@ class ImportExportService {
             'Province' => 'province',
             'รหัสไปรษณีย์' => 'postal_code',
             'Postal Code' => 'postal_code',
+            'รหัสสินค้า' => 'product_code',
+            'Product Code' => 'product_code',
+            'ผู้ติดตาม' => 'assigned_to',
+            'Follower' => 'assigned_to',
+            'Tracker' => 'assigned_to',
             'สถานะ' => 'customer_status',
             'Status' => 'customer_status',
             'อุณหภูมิ' => 'temperature_status',
@@ -726,6 +954,28 @@ class ImportExportService {
      */
     private function createNewCustomer($salesData) {
         try {
+            // Handle assigned_to field (convert name to user_id if needed)
+            $assignedTo = null;
+            if (!empty($salesData['assigned_to'])) {
+                // Check if it's a user ID or name
+                if (is_numeric($salesData['assigned_to'])) {
+                    $assignedTo = (int)$salesData['assigned_to'];
+                } else {
+                    // Try to find user by name
+                    $userSql = "SELECT user_id FROM users WHERE CONCAT(first_name, ' ', last_name) LIKE ? OR username LIKE ?";
+                    $userResult = $this->db->fetchOne($userSql, [$salesData['assigned_to'], $salesData['assigned_to']]);
+                    if ($userResult) {
+                        $assignedTo = (int)$userResult['user_id'];
+                    }
+                }
+            }
+            
+            // Set basket_type based on whether a follower is assigned
+            $basketType = $assignedTo ? 'assigned' : 'distribution';
+            
+            // Generate customer_code from phone number
+            $customerCode = $this->generateCustomerCode($salesData['phone']);
+            
             $customerData = [
                 'first_name' => $salesData['first_name'],
                 'last_name' => $salesData['last_name'] ?? '',
@@ -735,17 +985,19 @@ class ImportExportService {
                 'district' => $salesData['district'] ?? '',
                 'province' => $salesData['province'] ?? '',
                 'postal_code' => $salesData['postal_code'] ?? '',
-                'basket_type' => 'distribution', // เข้าตะกร้าแจก
+                'basket_type' => $basketType, // กำหนดตามการมีผู้ติดตาม
                 'temperature_status' => 'hot', // ลูกค้าใหม่
                 'customer_grade' => 'D', // เกรดเริ่มต้น
                 'customer_status' => 'new',
+                'assigned_to' => $assignedTo,
+                'customer_code' => $customerCode,
                 'is_active' => 1,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s')
             ];
             
-            $sql = "INSERT INTO customers (first_name, last_name, phone, email, address, district, province, postal_code, basket_type, temperature_status, customer_grade, customer_status, is_active, created_at, updated_at) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO customers (first_name, last_name, phone, email, address, district, province, postal_code, basket_type, temperature_status, customer_grade, customer_status, assigned_to, customer_code, is_active, created_at, updated_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             
             $stmt = $this->db->query($sql, [
                 $customerData['first_name'],
@@ -760,12 +1012,31 @@ class ImportExportService {
                 $customerData['temperature_status'],
                 $customerData['customer_grade'],
                 $customerData['customer_status'],
+                $customerData['assigned_to'],
+                $customerData['customer_code'],
                 $customerData['is_active'],
                 $customerData['created_at'],
                 $customerData['updated_at']
             ]);
             
-            return $this->db->lastInsertId();
+            $newCustomerId = $this->db->lastInsertId();
+
+            // ถ้าลูกค้าใหม่ถูกกำหนดผู้ดูแลมาในไฟล์ยอดขาย ให้เริ่มนับเวลา 90 วันทันที
+            if ($assignedTo) {
+                try {
+                    $this->db->query(
+                        "UPDATE customers 
+                         SET customer_time_base = NOW(), 
+                             customer_time_expiry = DATE_ADD(NOW(), INTERVAL 90 DAY)
+                         WHERE customer_id = ?",
+                        [$newCustomerId]
+                    );
+                } catch (Exception $e) {
+                    error_log("Failed to set customer time window for new customer {$newCustomerId}: " . $e->getMessage());
+                }
+            }
+
+            return $newCustomerId;
             
         } catch (Exception $e) {
             error_log("Error creating new customer: " . $e->getMessage());
@@ -778,6 +1049,28 @@ class ImportExportService {
      */
     private function createNewCustomerOnly($customerData) {
         try {
+            // Handle assigned_to field (convert name to user_id if needed)
+            $assignedTo = null;
+            if (!empty($customerData['assigned_to'])) {
+                // Check if it's a user ID or name
+                if (is_numeric($customerData['assigned_to'])) {
+                    $assignedTo = $customerData['assigned_to'];
+                } else {
+                    // Try to find user by name
+                    $userSql = "SELECT user_id FROM users WHERE CONCAT(first_name, ' ', last_name) LIKE ? OR username LIKE ?";
+                    $userResult = $this->db->fetchOne($userSql, [$customerData['assigned_to'], $customerData['assigned_to']]);
+                    if ($userResult) {
+                        $assignedTo = $userResult['user_id'];
+                    }
+                }
+            }
+            
+            // Set basket_type based on whether a follower is assigned
+            $basketType = $assignedTo ? 'assigned' : 'distribution';
+            
+            // Generate customer_code from phone number
+            $customerCode = $this->generateCustomerCode($customerData['phone']);
+            
             $data = [
                 'first_name' => $customerData['first_name'],
                 'last_name' => $customerData['last_name'] ?? '',
@@ -787,17 +1080,19 @@ class ImportExportService {
                 'district' => $customerData['district'] ?? '',
                 'province' => $customerData['province'] ?? '',
                 'postal_code' => $customerData['postal_code'] ?? '',
-                'basket_type' => 'distribution', // เข้าตะกร้าแจก
+                'basket_type' => $basketType, // กำหนดตามการมีผู้ติดตาม
                 'temperature_status' => 'cold', // ลูกค้าเย็น (ยังไม่มียอดขาย)
                 'customer_grade' => 'D', // เกรดเริ่มต้น
                 'customer_status' => 'new',
+                'assigned_to' => $assignedTo,
+                'customer_code' => $customerCode,
                 'is_active' => 1,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s')
             ];
             
-            $sql = "INSERT INTO customers (first_name, last_name, phone, email, address, district, province, postal_code, basket_type, temperature_status, customer_grade, customer_status, is_active, created_at, updated_at) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO customers (first_name, last_name, phone, email, address, district, province, postal_code, basket_type, temperature_status, customer_grade, customer_status, assigned_to, customer_code, is_active, created_at, updated_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             
             $stmt = $this->db->query($sql, [
                 $data['first_name'],
@@ -812,6 +1107,8 @@ class ImportExportService {
                 $data['temperature_status'],
                 $data['customer_grade'],
                 $data['customer_status'],
+                $data['assigned_to'],
+                $data['customer_code'],
                 $data['is_active'],
                 $data['created_at'],
                 $data['updated_at']
@@ -830,23 +1127,62 @@ class ImportExportService {
      */
     private function updateCustomerPurchaseHistory($customerId, $salesData) {
         try {
-            // สร้างคำสั่งซื้อ
+            // Map payment method from Thai to English
+            $paymentMethod = $this->mapPaymentMethod($salesData['payment_method'] ?? 'cash');
+            
+            // Map payment status from Thai to English
+            $paymentStatus = $this->mapPaymentStatus($salesData['payment_status'] ?? 'pending');
+            
+            // แปลง created_by จากชื่อหรือรหัสเป็น user_id
+            $createdBy = $this->getUserIdFromNameOrId($salesData['created_by'] ?? '');
+            
+            // คำนวณ total_amount และ net_amount - ปรับปรุงการคำนวณ
+            $quantity = floatval($salesData['quantity'] ?? 1);
+            $unitPrice = floatval($salesData['unit_price'] ?? 0);
+            $totalAmountFromCSV = floatval($salesData['total_amount'] ?? 0);
+            
+            // ให้ความสำคัญกับคอลัมน์ 'ยอดรวม' ใน CSV ก่อน
+            if ($totalAmountFromCSV > 0) {
+                $totalAmount = $totalAmountFromCSV;
+                // ถ้ามีราคาต่อชิ้นและจำนวน ให้ตรวจสอบความถูกต้อง
+                if ($unitPrice > 0 && $quantity > 0) {
+                    $calculatedTotal = $quantity * $unitPrice;
+                    // ถ้าคำนวณไม่ตรงกับยอดรวมใน CSV ให้ใช้ยอดรวมใน CSV
+                    if (abs($calculatedTotal - $totalAmount) > 0.01) {
+                        error_log("Warning: Calculated total ({$calculatedTotal}) doesn't match CSV total ({$totalAmount}) for customer {$customerId}");
+                    }
+                }
+                // คำนวณราคาต่อชิ้นย้อนกลับ (สำหรับแสดงใน order_items)
+                $unitPrice = $quantity > 0 ? $totalAmount / $quantity : 0;
+            } 
+            // ถ้าไม่มียอดรวมใน CSV แต่มีราคาต่อชิ้นและจำนวน
+            elseif ($unitPrice > 0 && $quantity > 0) {
+                $totalAmount = $quantity * $unitPrice;
+            } 
+            // ถ้าไม่มีทั้งคู่ ให้ใช้ค่าเริ่มต้น
+            else {
+                $totalAmount = 0;
+                $unitPrice = 0;
+            }
+            
+            // สร้างคำสั่งซื้อ - ตรวจสอบให้ net_amount เท่ากับ total_amount
             $orderData = [
                 'customer_id' => $customerId,
                 'order_number' => 'EXT-' . date('YmdHis') . '-' . rand(1000, 9999),
                 'order_date' => $salesData['order_date'] ?? date('Y-m-d'),
-                'total_amount' => $salesData['total_amount'] ?? 0,
-                'net_amount' => $salesData['total_amount'] ?? 0,
-                'payment_status' => 'paid',
+                'total_amount' => $totalAmount,
+                'net_amount' => $totalAmount, // ให้ net_amount เท่ากับ total_amount เสมอ
+                'payment_method' => $paymentMethod,
+                'payment_status' => $paymentStatus,
                 'delivery_status' => 'delivered',
                 'notes' => 'นำเข้าจาก ' . ($salesData['sales_channel'] ?? 'External') . ' - ' . ($salesData['notes'] ?? ''),
-                'created_by' => $_SESSION['user_id'] ?? 1,
+                'created_by' => $createdBy,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s')
             ];
             
-            $sql = "INSERT INTO orders (customer_id, order_number, order_date, total_amount, net_amount, payment_status, delivery_status, notes, created_by, created_at, updated_at) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            $sql = "INSERT INTO orders (customer_id, order_number, order_date, total_amount, net_amount, payment_method, payment_status, delivery_status, notes, created_by, created_at, updated_at) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             
             $stmt = $this->db->query($sql, [
                 $orderData['customer_id'],
@@ -854,6 +1190,7 @@ class ImportExportService {
                 $orderData['order_date'],
                 $orderData['total_amount'],
                 $orderData['net_amount'],
+                $orderData['payment_method'],
                 $orderData['payment_status'],
                 $orderData['delivery_status'],
                 $orderData['notes'],
@@ -865,31 +1202,91 @@ class ImportExportService {
             $orderId = $this->db->lastInsertId();
             
             // สร้างรายการสินค้า (ถ้าตาราง order_items มีอยู่)
-            if (!empty($salesData['product_name']) && $this->tableExists('order_items')) {
-                $itemData = [
-                    'order_id' => $orderId,
-                    'product_name' => $salesData['product_name'],
-                    'quantity' => $salesData['quantity'] ?? 1,
-                    'unit_price' => $salesData['unit_price'] ?? 0,
-                    'total_price' => $salesData['total_amount'] ?? 0,
-                    'created_at' => date('Y-m-d H:i:s')
-                ];
-                
-                $sql = "INSERT INTO order_items (order_id, product_name, quantity, unit_price, total_price, created_at) 
-                        VALUES (?, ?, ?, ?, ?, ?)";
-                
-                $this->db->query($sql, [
-                    $itemData['order_id'],
-                    $itemData['product_name'],
-                    $itemData['quantity'],
-                    $itemData['unit_price'],
-                    $itemData['total_price'],
-                    $itemData['created_at']
-                ]);
+            if ($this->tableExists('order_items')) {
+                // เตรียมค่าเริ่มต้นของจำนวน/ราคา
+                if (($quantity <= 0 || $unitPrice <= 0) && $totalAmount > 0) {
+                    // ถ้าขาด quantity หรือ unit_price แต่มียอดรวม ให้ตั้ง quantity = 1 และ unit_price = totalAmount
+                    if ($quantity <= 0) { $quantity = 1; }
+                    if ($unitPrice <= 0) { $unitPrice = $totalAmount; }
+                }
+
+                // อ่านโครงสร้างตาราง order_items เพื่อเลือกคอลัมน์ที่ถูกต้อง
+                $columns = [];
+                try {
+                    $structure = $this->db->getTableStructure('order_items');
+                    foreach ($structure as $col) {
+                        $columns[$col['Field']] = true;
+                    }
+                } catch (Exception $e) {
+                    error_log('Failed to read order_items structure: ' . $e->getMessage());
+                }
+
+                $hasProductId = isset($columns['product_id']);
+                $hasProductName = isset($columns['product_name']);
+                $hasCreatedAt = isset($columns['created_at']);
+
+                $productId = null;
+                $resolvedProductName = trim($salesData['product_name'] ?? '');
+
+                // หากมี products ให้พยายาม resolve product_id และ/หรือชื่อจาก product_code
+                if ($this->tableExists('products')) {
+                    if (!empty($salesData['product_code'])) {
+                        try {
+                            $product = $this->db->fetchOne(
+                                "SELECT product_id, product_name FROM products WHERE product_code = ? LIMIT 1",
+                                [$salesData['product_code']]
+                            );
+                            if ($product) {
+                                $productId = (int)$product['product_id'];
+                                if ($resolvedProductName === '' && !empty($product['product_name'])) {
+                                    $resolvedProductName = $product['product_name'];
+                                }
+                            }
+                        } catch (Exception $e) {
+                            error_log("Lookup product by code failed for order {$orderId}: " . $e->getMessage());
+                        }
+                    }
+                }
+
+                if ($resolvedProductName === '') {
+                    $resolvedProductName = 'ไม่ระบุสินค้า';
+                }
+
+                if ($quantity > 0 || $totalAmount > 0) {
+                    // ประกอบ SQL ตามคอลัมน์ที่มีจริง
+                    $fields = ['order_id', 'quantity', 'unit_price', 'total_price'];
+                    $params = [$orderId, $quantity, $unitPrice, $totalAmount];
+
+                    if ($hasProductId) {
+                        array_splice($fields, 1, 0, 'product_id');
+                        array_splice($params, 1, 0, $productId);
+                    } elseif ($hasProductName) {
+                        array_splice($fields, 1, 0, 'product_name');
+                        array_splice($params, 1, 0, $resolvedProductName);
+                    }
+
+                    if ($hasCreatedAt) {
+                        $fields[] = 'created_at';
+                        $params[] = date('Y-m-d H:i:s');
+                    }
+
+                    $placeholders = rtrim(str_repeat('?, ', count($fields)), ', ');
+                    $sql = "INSERT INTO order_items (" . implode(', ', $fields) . ") VALUES ({$placeholders})";
+                    $this->db->query($sql, $params);
+                }
             }
             
             // อัปเดตยอดซื้อรวมของลูกค้า
             $this->updateCustomerTotalPurchase($customerId);
+
+            // อัปเดตเกรดลูกค้าทันทีหลังอัปเดตยอด (เพื่อให้สะท้อนผลหลัง import)
+            try {
+                require_once __DIR__ . '/CustomerService.php';
+                $customerService = new CustomerService();
+                $customerService->updateCustomerGrade($customerId);
+            } catch (Exception $e) {
+                error_log("Failed to update customer grade for {$customerId}: " . $e->getMessage());
+            }
             
         } catch (Exception $e) {
             error_log("Error updating customer purchase history: " . $e->getMessage());
@@ -905,12 +1302,15 @@ class ImportExportService {
                         total_purchase_amount = (
                             SELECT COALESCE(SUM(net_amount), 0) 
                             FROM orders 
-                            WHERE customer_id = ? AND payment_status = 'paid'
+                            WHERE customer_id = ? AND payment_status IN ('paid', 'partial')
                         ),
                         updated_at = NOW()
                     WHERE customer_id = ?";
             
             $this->db->query($sql, [$customerId, $customerId]);
+            
+            // Log for debugging
+            error_log("Updated total_purchase_amount for customer ID: " . $customerId);
             
         } catch (Exception $e) {
             error_log("Error updating customer total purchase: " . $e->getMessage());
@@ -961,5 +1361,107 @@ class ImportExportService {
         }
         
         return $this->db->fetchOne($sql, $params);
+    }
+    
+    /**
+     * Map payment method from Thai to English
+     */
+    private function mapPaymentMethod($paymentMethod) {
+        $mapping = [
+            'เงินสด' => 'cash',
+            'โอนเงิน' => 'transfer',
+            'เก็บเงินปลายทาง' => 'cod',
+            'เครดิต' => 'credit',
+            'รับสินค้าก่อนชำระ' => 'receive_before_payment',
+            'อื่นๆ' => 'other',
+            // English mappings
+            'cash' => 'cash',
+            'transfer' => 'transfer',
+            'cod' => 'cod',
+            'credit' => 'credit',
+            'receive_before_payment' => 'receive_before_payment',
+            'other' => 'other'
+        ];
+        
+        return $mapping[$paymentMethod] ?? 'cash';
+    }
+    
+    /**
+     * Map payment status from Thai to English
+     */
+    private function mapPaymentStatus($paymentStatus) {
+        $mapping = [
+            'รอดำเนินการ' => 'pending',
+            'ชำระแล้ว' => 'paid',
+            'ชำระบางส่วน' => 'partial',
+            'ยกเลิก' => 'cancelled',
+            // English mappings
+            'pending' => 'pending',
+            'paid' => 'paid',
+            'partial' => 'partial',
+            'cancelled' => 'cancelled'
+        ];
+        
+        return $mapping[$paymentStatus] ?? 'pending';
+    }
+    
+    /**
+     * แปลงชื่อหรือรหัสพนักงานเป็น user_id
+     */
+    private function getUserIdFromNameOrId($nameOrId) {
+        if (empty($nameOrId)) {
+            return $_SESSION['user_id'] ?? 1; // ใช้ user ปัจจุบันถ้าไม่ระบุ
+        }
+        
+        // ถ้าเป็นตัวเลข ให้ถือว่าเป็น user_id
+        if (is_numeric($nameOrId)) {
+            return (int)$nameOrId;
+        }
+        
+        try {
+            // ค้นหาจากชื่อหรือ username
+            $sql = "SELECT user_id FROM users WHERE 
+                    username = ? OR 
+                    first_name = ? OR 
+                    last_name = ? OR 
+                    CONCAT(first_name, ' ', last_name) = ? OR
+                    CONCAT(last_name, ' ', first_name) = ?";
+            
+            $result = $this->db->fetchOne($sql, [$nameOrId, $nameOrId, $nameOrId, $nameOrId, $nameOrId]);
+            
+            if ($result) {
+                return $result['user_id'];
+            }
+            
+            // ถ้าไม่เจอ ให้ใช้ user ปัจจุบัน
+            return $_SESSION['user_id'] ?? 1;
+            
+        } catch (Exception $e) {
+            error_log("Error getting user ID from name: " . $e->getMessage());
+            return $_SESSION['user_id'] ?? 1;
+        }
+    }
+
+    /**
+     * Generate customer code from phone number
+     */
+    private function generateCustomerCode($phone) {
+        // Remove all non-digit characters
+        $phone = preg_replace('/[^0-9]/', '', $phone);
+        
+        // Take last 9 digits (remove leading 0 if present)
+        if (strlen($phone) > 9) {
+            $phone = substr($phone, -9);
+        }
+        
+        // Remove leading 0 if present
+        $phone = ltrim($phone, '0');
+        
+        // Ensure we have exactly 9 digits
+        if (strlen($phone) < 9) {
+            $phone = str_pad($phone, 9, '0', STR_PAD_LEFT);
+        }
+        
+        return 'Cus-' . $phone;
     }
 } 

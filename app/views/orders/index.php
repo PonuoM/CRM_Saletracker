@@ -127,6 +127,9 @@ $userId = $_SESSION['user_id'] ?? 0;
                                                     <strong class="text-success">
                                                         ฿<?php echo number_format($order['total_amount'], 2); ?>
                                                     </strong>
+                                                    <?php if (isset($order['item_count']) && $order['item_count'] > 0): ?>
+                                                        <br><small class="text-muted"><?php echo $order['item_count']; ?> รายการ</small>
+                                                    <?php endif; ?>
                                                 </td>
                                                 <td>
                                                     <span class="badge bg-<?php echo $order['delivery_status'] === 'delivered' ? 'success' : ($order['delivery_status'] === 'shipped' ? 'primary' : ($order['delivery_status'] === 'pending' ? 'warning' : 'secondary')); ?> text-dark">
@@ -134,8 +137,20 @@ $userId = $_SESSION['user_id'] ?? 0;
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <span class="badge bg-<?php echo $order['payment_method'] === 'cod' ? 'warning' : 'info'; ?> text-dark">
-                                                        <?php echo $order['payment_method'] === 'cod' ? 'เก็บเงินปลายทาง' : htmlspecialchars($order['payment_method']); ?>
+                                                    <?php
+                                                    $paymentMethodLabels = [
+                                                        'cash' => 'เงินสด',
+                                                        'transfer' => 'โอนเงิน',
+                                                        'cod' => 'เก็บเงินปลายทาง',
+                                                        'receive_before_payment' => 'รับสินค้าก่อนชำระ',
+                                                        'credit' => 'เครดิต',
+                                                        'other' => 'อื่นๆ'
+                                                    ];
+                                                    $paymentMethodLabel = $paymentMethodLabels[$order['payment_method']] ?? $order['payment_method'];
+                                                    $badgeClass = in_array($order['payment_method'], ['cod', 'receive_before_payment']) ? 'warning' : 'info';
+                                                    ?>
+                                                    <span class="badge bg-<?php echo $badgeClass; ?> text-dark">
+                                                        <?php echo htmlspecialchars($paymentMethodLabel); ?>
                                                     </span>
                                                 </td>
                                                 <td>

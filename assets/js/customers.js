@@ -10,9 +10,12 @@ let currentBasketType = 'distribution';
 // Initialize when document is ready
 document.addEventListener('DOMContentLoaded', function() {
     // Load initial data
-    loadCustomersByBasket('distribution', 'newCustomersTable');
+    // ลูกค้าใหม่: แสดงตามสถานะ customer_status = 'new'
+    loadCustomersByBasket('all', 'newCustomersTable', { customer_status: 'new' });
+    // ติดตาม: ลูกค้ารอการติดตาม (basket waiting)
     loadCustomersByBasket('waiting', 'followupCustomersTable');
-    loadCustomersByBasket('assigned', 'existingCustomersTable');
+    // ลูกค้าเก่า: เฉพาะสถานะ customer_status = 'existing' (ใน assigned)
+    loadCustomersByBasket('assigned', 'existingCustomersTable', { customer_status: 'existing' });
     
     // Add event listeners
     addEventListeners();
@@ -29,13 +32,13 @@ function addEventListeners() {
             const target = e.target.getAttribute('data-bs-target');
             switch(target) {
                 case '#new':
-                    loadCustomersByBasket('distribution', 'newCustomersTable');
+                    loadCustomersByBasket('all', 'newCustomersTable', { customer_status: 'new' });
                     break;
                 case '#followup':
                     loadCustomersByBasket('waiting', 'followupCustomersTable');
                     break;
                 case '#existing':
-                    loadCustomersByBasket('assigned', 'existingCustomersTable');
+                    loadCustomersByBasket('assigned', 'existingCustomersTable', { customer_status: 'existing' });
                     break;
             }
         });
@@ -56,7 +59,7 @@ function addEventListeners() {
 /**
  * Load customers by basket type
  */
-function loadCustomersByBasket(basketType, tableId) {
+function loadCustomersByBasket(basketType, tableId, extraFilters = {}) {
     currentBasketType = basketType;
     
     // Build query parameters
@@ -71,6 +74,10 @@ function loadCustomersByBasket(basketType, tableId) {
     if (tempFilter) params.append('temperature', tempFilter);
     if (gradeFilter) params.append('grade', gradeFilter);
     if (provinceFilter) params.append('province', provinceFilter);
+    // add extra filters (e.g., customer_status)
+    Object.entries(extraFilters).forEach(([k, v]) => {
+        if (v !== undefined && v !== null && v !== '') params.append(k, v);
+    });
     
     // Show loading
     const tableElement = document.getElementById(tableId);
@@ -116,14 +123,13 @@ function renderCustomerTable(customers, tableId, basketType) {
         <div class="table-responsive">
             <table class="table table-hover">
                 <thead>
-                    <tr>
+                     <tr>
                         <th>
                             ${basketType === 'distribution' ? '<input type="checkbox" id="selectAll" onchange="toggleSelectAll()">' : ''}
                         </th>
                         <th>วันที่ได้รับ</th>
                         <th>ชื่อลูกค้า</th>
                         <th>ผู้รับผิดชอบ</th>
-                        <th>ที่อยู่</th>
                         <th>จังหวัด</th>
                         <th>เวลาที่เหลือ</th>
                         <th>สถานะ</th>
@@ -164,7 +170,6 @@ function renderCustomerTable(customers, tableId, basketType) {
                         '<span class="text-muted">-</span>'
                     }
                 </td>
-                <td>${escapeHtml(customer.address || '')}</td>
                 <td>${escapeHtml(customer.province || '')}</td>
                 <td>
                     ${daysRemaining <= 0 ? 
@@ -203,10 +208,60 @@ function renderCustomerTable(customers, tableId, basketType) {
     tableHTML += `
                 </tbody>
             </table>
+            <div class="d-flex justify-content-between align-items-center mt-3">
+                <div class="small text-muted">แสดงสูงสุด 10 รายการต่อหน้า</div>
+                <nav>
+                    <ul class="pagination pagination-sm mb-0" id="${tableId}-pagination"></ul>
+                </nav>
+            </div>
         </div>
     `;
     
     tableElement.innerHTML = tableHTML;
+    paginateTable(tableElement.querySelector('table'), `${tableId}-pagination`, 10);
+}
+/**
+ * Simple client-side pagination for rendered tables
+ */
+function paginateTable(table, paginationId, pageSize = 10) {
+    if (!table) return;
+    const tbody = table.querySelector('tbody');
+    const rows = Array.from(tbody.querySelectorAll('tr'));
+    const total = rows.length;
+    const totalPages = Math.max(1, Math.ceil(total / pageSize));
+    let current = 1;
+
+    function renderPage(page) {
+        current = Math.min(Math.max(1, page), totalPages);
+        rows.forEach((row, idx) => {
+            const start = (current - 1) * pageSize;
+            const end = start + pageSize;
+            row.style.display = (idx >= start && idx < end) ? '' : 'none';
+        });
+        renderPager();
+    }
+
+    function renderPager() {
+        const pager = document.getElementById(paginationId);
+        if (!pager) return;
+        let html = '';
+        html += `<li class="page-item ${current === 1 ? 'disabled' : ''}"><a class="page-link" href="#">«</a></li>`;
+        for (let i = 1; i <= totalPages; i++) {
+            html += `<li class="page-item ${i === current ? 'active' : ''}"><a class="page-link" href="#">${i}</a></li>`;
+        }
+        html += `<li class="page-item ${current === totalPages ? 'disabled' : ''}"><a class="page-link" href="#">»</a></li>`;
+        pager.innerHTML = html;
+        Array.from(pager.querySelectorAll('.page-item')).forEach((li, idx, arr) => {
+            li.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (idx === 0 && current > 1) renderPage(current - 1);
+                else if (idx === arr.length - 1 && current < totalPages) renderPage(current + 1);
+                else if (idx > 0 && idx < arr.length - 1) renderPage(idx);
+            });
+        });
+    }
+
+    renderPage(1);
 }
 
 /**

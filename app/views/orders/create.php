@@ -83,7 +83,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                                                 <option value="cash">เงินสด</option>
                                                 <option value="transfer">โอนเงิน</option>
                                                 <option value="cod">เก็บเงินปลายทาง</option>
-                                                <option value="credit">เครดิต</option>
+                                                <option value="credit">รับสินค้าก่อนชำระ</option>
                                                 <option value="other">อื่นๆ</option>
                                             </select>
                                         </div>

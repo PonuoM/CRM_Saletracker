@@ -87,6 +87,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                                                 <option value="cash" <?php echo ($order['payment_method'] ?? '') === 'cash' ? 'selected' : ''; ?>>เงินสด</option>
                                                 <option value="transfer" <?php echo ($order['payment_method'] ?? '') === 'transfer' ? 'selected' : ''; ?>>โอนเงิน</option>
                                                 <option value="cod" <?php echo ($order['payment_method'] ?? '') === 'cod' ? 'selected' : ''; ?>>เก็บเงินปลายทาง</option>
+                                                <option value="receive_before_payment" <?php echo ($order['payment_method'] ?? '') === 'receive_before_payment' ? 'selected' : ''; ?>>รับสินค้าก่อนชำระ</option>
                                                 <option value="credit" <?php echo ($order['payment_method'] ?? '') === 'credit' ? 'selected' : ''; ?>>เครดิต</option>
                                                 <option value="other" <?php echo ($order['payment_method'] ?? '') === 'other' ? 'selected' : ''; ?>>อื่นๆ</option>
                                             </select>

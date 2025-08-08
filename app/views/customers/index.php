@@ -10,7 +10,7 @@ $userId = $_SESSION['user_id'] ?? '';
 ?>
 
 <!-- Main Content -->
-<main class="col-md-9 col-lg-10 main-content page-transition">
+<main class="col-md-9 col-lg-10 main-content page-transition customer-page">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                     <h1 class="h2">จัดการลูกค้า</h1>
                     <div class="btn-toolbar mb-2 mb-md-0">
@@ -358,4 +358,3 @@ $userId = $_SESSION['user_id'] ?? '';
     // Set user role for JavaScript
     window.currentUserRole = '<?php echo $_SESSION["role_name"] ?? ""; ?>';
 </script>
-<script src="assets/js/customers.js"></script> 

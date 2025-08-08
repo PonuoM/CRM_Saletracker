@@ -26,6 +26,25 @@
                     </h1>
                 </div>
 
+                <!-- Success/Error Messages -->
+                <?php if (isset($_SESSION['upload_success'])): ?>
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        <i class="fas fa-check-circle me-2"></i>
+                        <?php echo htmlspecialchars($_SESSION['upload_success']); ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    <?php unset($_SESSION['upload_success']); ?>
+                <?php endif; ?>
+
+                <?php if (isset($_SESSION['upload_error'])): ?>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        <?php echo htmlspecialchars($_SESSION['upload_error']); ?>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                    <?php unset($_SESSION['upload_error']); ?>
+                <?php endif; ?>
+
                 <!-- Tabs -->
                 <ul class="nav nav-tabs" id="importExportTabs" role="tablist">
                     <li class="nav-item" role="presentation">
@@ -68,16 +87,25 @@
                                             </div>
                                             
                                             <div class="mb-3">
-                                                <a href="import-export.php?action=downloadTemplate&type=sales" class="btn btn-outline-primary btn-sm">
+                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="downloadTemplate('sales')">
                                                     <i class="fas fa-download me-1"></i>
-                                                    ดาวน์โหลด Template ยอดขาย
-                                                </a>
+                                                    ดาวน์โหลด Template ยอดขาย (แบบเต็ม)
+                                                </button>
+                                                <button type="button" class="btn btn-outline-secondary btn-sm ms-2" onclick="downloadTemplate('sales_simple')">
+                                                    <i class="fas fa-download me-1"></i>
+                                                    ดาวน์โหลด Template ยอดขาย (แบบง่าย)
+                                                </button>
                                             </div>
                                             
                                             <button type="submit" class="btn btn-primary">
                                                 <i class="fas fa-upload me-1"></i>
                                                 นำเข้ายอดขาย
                                             </button>
+                                            
+                                            <a href="test_import_dry_run.php" class="btn btn-warning ms-2">
+                                                <i class="fas fa-flask me-1"></i>
+                                                ทดสอบการนำเข้า (Dry Run)
+                                            </a>
                                         </form>
                                         
                                         <div id="salesImportResults" class="mt-3" style="display: none;">
@@ -108,10 +136,10 @@
                                             </div>
                                             
                                             <div class="mb-3">
-                                                <a href="import-export.php?action=downloadTemplate&type=customers_only" class="btn btn-outline-primary btn-sm">
+                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="downloadTemplate('customers_only')">
                                                     <i class="fas fa-download me-1"></i>
                                                     ดาวน์โหลด Template รายชื่อ
-                                                </a>
+                                                </button>
                                             </div>
                                             
                                             <button type="submit" class="btn btn-success">
@@ -148,7 +176,12 @@
                                                 <ul class="list-unstyled">
                                                     <li>✅ <strong>มีรายชื่ออยู่แล้ว</strong> → อัพเดทยอดขายเท่านั้น</li>
                                                     <li>✅ <strong>ไม่มีรายชื่อ</strong> → เพิ่มทั้งรายชื่อ + ยอดขาย → เข้าตะกร้าแจก</li>
-                                                    <li>✅ <strong>ข้อมูลที่ต้องมี:</strong> ชื่อ, เบอร์โทร, สินค้า, จำนวน, ราคา, ยอดรวม</li>
+                                                    <li>✅ <strong>ข้อมูลที่ต้องมี:</strong> ชื่อ, เบอร์โทร, รหัสสินค้า, ชื่อสินค้า, จำนวน, ยอดรวม</li>
+                                                    <li>✅ <strong>Template แบบเต็ม:</strong> มีคอลัมน์ "ราคาต่อชิ้น" และ "ยอดรวม"</li>
+                                                    <li>✅ <strong>Template แบบง่าย:</strong> มีแค่คอลัมน์ "ยอดรวม" (ระบบจะคำนวณราคาต่อชิ้นให้อัตโนมัติ)</li>
+                                                    <li>✅ <strong>ฟิลด์ใหม่:</strong> ผู้ติดตาม (ชื่อหรือรหัสพนักงาน)</li>
+                                                    <li>✅ <strong>ฟิลด์ใหม่:</strong> ผู้ขาย (ชื่อหรือรหัสพนักงาน) - เพื่อเป็นผลงานของคนนั้น</li>
+                                                    <li>✅ <strong>ฟิลด์ใหม่:</strong> วิธีการชำระเงิน, สถานะการชำระเงิน</li>
                                                 </ul>
                                             </div>
                                             <div class="col-md-6">
@@ -158,9 +191,26 @@
                                                     <li>✅ <strong>ชื่อซ้ำ</strong> → ตัดออก</li>
                                                     <li>✅ <strong>ติดตามอยู่แล้ว</strong> → ตัดออก</li>
                                                     <li>✅ <strong>ข้อมูลที่ต้องมี:</strong> ชื่อ, เบอร์โทร</li>
+                                                    <li>✅ <strong>ฟิลด์ใหม่:</strong> รหัสสินค้า, ผู้ติดตาม (ชื่อหรือรหัสพนักงาน)</li>
                                                 </ul>
                                             </div>
                                         </div>
+                                        
+                                                                        <div class="row mt-3">
+                                    <div class="col-12">
+                                        <div class="alert alert-info">
+                                            <h6><i class="fas fa-lightbulb me-2"></i>ฟิลด์ใหม่ที่เพิ่มเข้ามา:</h6>
+                                            <ul class="mb-0">
+                                                <li><strong>รหัสสินค้า:</strong> รหัสสินค้าที่ลูกค้าสนใจ (เช่น P001, P002)</li>
+                                                <li><strong>ผู้ติดตาม:</strong> ชื่อพนักงานหรือรหัสพนักงานที่จะติดตามลูกค้า</li>
+                                                <li><strong>ผู้ขาย:</strong> ชื่อพนักงานหรือรหัสพนักงานที่เป็นผู้ขาย (เพื่อเป็นผลงานของคนนั้น)</li>
+                                                <li><strong>รหัสไปรษณีย์:</strong> มีอยู่แล้วในระบบ</li>
+                                                <li><strong>วิธีการชำระเงิน:</strong> เงินสด, โอนเงิน, เก็บเงินปลายทาง, รับสินค้าก่อนชำระ, เครดิต, อื่นๆ</li>
+                                                <li><strong>สถานะการชำระเงิน:</strong> รอดำเนินการ, ชำระแล้ว, ชำระบางส่วน, ยกเลิก</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
                                     </div>
                                 </div>
                             </div>
@@ -425,5 +475,45 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="assets/js/page-transitions.js"></script>
     <script src="assets/js/import-export.js"></script>
+    
+    <script>
+    /**
+     * Download template and show success message
+     */
+    function downloadTemplate(type) {
+        // Show loading state
+        const button = event.target.closest('button');
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>กำลังดาวน์โหลด...';
+        button.disabled = true;
+        
+        // Create download link
+        const link = document.createElement('a');
+        link.href = `import-export.php?action=downloadTemplate&type=${type}`;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        
+        // Trigger download
+        link.click();
+        document.body.removeChild(link);
+        
+        // Show success message immediately
+        const templateNames = {
+            'sales': 'Template ยอดขาย (แบบเต็ม)',
+            'sales_simple': 'Template ยอดขาย (แบบง่าย)',
+            'customers_only': 'Template รายชื่อ',
+            'customers': 'Template ลูกค้า'
+        };
+        const templateName = templateNames[type] || 'Template';
+        
+        showPageMessage(`ดาวน์โหลด${templateName} สำเร็จแล้ว`, 'success');
+        
+        // Reset button after a short delay
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }, 1000);
+    }
+    </script>
 </body>
 </html> 

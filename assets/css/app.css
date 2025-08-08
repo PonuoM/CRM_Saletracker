@@ -235,6 +235,21 @@ h1, h2, h3, h4, h5, h6 {
   padding: 1.5rem;
 }
 
+/* Make customer page cards fill available height like orders page */
+.customer-page .card,
+.customer-page .card-body {
+  height: 100%;
+}
+
+.customer-page .card {
+  display: flex;
+  flex-direction: column;
+}
+
+.customer-page .card-body > .table-responsive {
+  flex: 1 1 auto;
+}
+
 /* Buttons */
 .btn {
   border-radius: var(--border-radius);
@@ -539,7 +554,11 @@ h1, h2, h3, h4, h5, h6 {
 .main-content {
   padding: 2rem;
   background: var(--light-bg);
+  /* ให้ความสูงอย่างน้อยเท่ากับพื้นที่แสดงผลเหมือนหน้า orders */
+  min-height: calc(100vh - 72px);
 }
+
+/* Match orders page layout (sidebar 2/12, content 10/12) */
 
 /* Responsive Design */
 @media (max-width: 768px) {

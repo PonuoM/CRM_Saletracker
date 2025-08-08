@@ -1,7 +1,7 @@
 <?php
 /**
  * Update Payment Method ENUM
- * อัปเดต ENUM ของ payment_method เพื่อเพิ่ม 'cod'
+ * อัปเดต ENUM ของ payment_method เพื่อเพิ่ม 'receive_before_payment' (รับสินค้าก่อนชำระ)
  */
 
 // Enable error reporting
@@ -31,17 +31,17 @@ try {
     if ($result) {
         echo "Current payment_method ENUM: " . $result['COLUMN_TYPE'] . "<br>";
         
-        // Check if 'cod' is already in the ENUM
-        if (strpos($result['COLUMN_TYPE'], "'cod'") !== false) {
-            echo "✅ 'cod' payment method already exists<br>";
+        // Check if 'receive_before_payment' is already in the ENUM
+        if (strpos($result['COLUMN_TYPE'], "'receive_before_payment'") !== false) {
+            echo "✅ 'receive_before_payment' payment method already exists<br>";
         } else {
-            echo "❌ 'cod' payment method missing, updating...<br>";
+            echo "❌ 'receive_before_payment' payment method missing, updating...<br>";
             
-            // Update the ENUM to include 'cod'
+            // Update the ENUM to include 'receive_before_payment'
             $db->query("
                 ALTER TABLE orders 
                 MODIFY COLUMN payment_method 
-                ENUM('cash', 'transfer', 'cod', 'credit', 'other') DEFAULT 'cash'
+                ENUM('cash', 'transfer', 'cod', 'credit', 'receive_before_payment', 'other') DEFAULT 'cash'
             ");
             
             echo "✅ Payment method ENUM updated successfully<br>";
@@ -61,29 +61,29 @@ try {
         echo "❌ Could not retrieve payment_method column information<br>";
     }
     
-    echo "<h2>2. Test inserting order with 'cod' payment method</h2>";
+    echo "<h2>2. Test inserting order with 'receive_before_payment' payment method</h2>";
     $db->beginTransaction();
     
     try {
         $testData = [
-            'order_number' => 'TEST-' . date('Ymd') . '-002',
+            'order_number' => 'TEST-' . date('Ymd') . '-003',
             'customer_id' => 1,
             'created_by' => 1,
             'order_date' => date('Y-m-d'),
-            'total_amount' => 150.00,
+            'total_amount' => 200.00,
             'discount_amount' => 0,
             'discount_percentage' => 0,
-            'net_amount' => 150.00,
-            'payment_method' => 'cod',
+            'net_amount' => 200.00,
+            'payment_method' => 'receive_before_payment',
             'payment_status' => 'pending',
             'delivery_date' => null,
-            'delivery_address' => 'Test COD Address',
+            'delivery_address' => 'Test Receive Before Payment Address',
             'delivery_status' => 'pending',
-            'notes' => 'Test COD order'
+            'notes' => 'Test Receive Before Payment order'
         ];
         
         $orderId = $db->insert('orders', $testData);
-        echo "✅ Test COD order inserted successfully, Order ID: {$orderId}<br>";
+        echo "✅ Test Receive Before Payment order inserted successfully, Order ID: {$orderId}<br>";
         
         // Verify the payment method was saved correctly
         $savedOrder = $db->fetchOne(
@@ -94,7 +94,7 @@ try {
         echo "Saved payment method: " . $savedOrder['payment_method'] . "<br>";
         
     } catch (Exception $e) {
-        echo "❌ Test COD insert failed: " . $e->getMessage() . "<br>";
+        echo "❌ Test Receive Before Payment insert failed: " . $e->getMessage() . "<br>";
     }
     
     $db->rollback();
@@ -108,4 +108,13 @@ try {
 }
 
 echo "<h2>Update Complete</h2>";
+echo "<p>Payment method options now include:</p>";
+echo "<ul>";
+echo "<li>cash - เงินสด</li>";
+echo "<li>transfer - โอนเงิน</li>";
+echo "<li>cod - เก็บเงินปลายทาง</li>";
+echo "<li>credit - เครดิต</li>";
+echo "<li>receive_before_payment - รับสินค้าก่อนชำระ</li>";
+echo "<li>other - อื่นๆ</li>";
+echo "</ul>";
 ?> 

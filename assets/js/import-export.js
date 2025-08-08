@@ -17,6 +17,42 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /**
+ * Show message at top of page
+ */
+function showPageMessage(message, type = 'success') {
+    // Remove existing messages
+    const existingMessages = document.querySelectorAll('.page-message');
+    existingMessages.forEach(msg => msg.remove());
+    
+    // Create new message
+    const messageDiv = document.createElement('div');
+    messageDiv.className = `alert alert-${type} alert-dismissible fade show page-message`;
+    messageDiv.style.position = 'fixed';
+    messageDiv.style.top = '20px';
+    messageDiv.style.left = '50%';
+    messageDiv.style.transform = 'translateX(-50%)';
+    messageDiv.style.zIndex = '9999';
+    messageDiv.style.minWidth = '300px';
+    
+    const icon = type === 'success' ? 'check-circle' : 'exclamation-triangle';
+    messageDiv.innerHTML = `
+        <i class="fas fa-${icon} me-2"></i>
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    // Add to page
+    document.body.appendChild(messageDiv);
+    
+    // Auto remove after 5 seconds
+    setTimeout(() => {
+        if (messageDiv.parentNode) {
+            messageDiv.remove();
+        }
+    }, 5000);
+}
+
+/**
  * Initialize Sales Import Form
  */
 function initializeSalesImportForm() {
@@ -53,6 +89,9 @@ function initializeSalesImportForm() {
                 resultsDiv.className = 'alert alert-danger';
                 messageDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>เกิดข้อผิดพลาด';
                 detailsDiv.innerHTML = data.error;
+                
+                // Show error message at top of page
+                showPageMessage('เกิดข้อผิดพลาดในการนำเข้ายอดขาย: ' + data.error, 'danger');
             } else if (data.success !== undefined) {
                 // Success
                 resultsDiv.className = 'alert alert-success';
@@ -90,6 +129,25 @@ function initializeSalesImportForm() {
                 
                 // Reset form
                 form.reset();
+                
+                // Clear file input
+                const fileInput = form.querySelector('input[type="file"]');
+                if (fileInput) {
+                    fileInput.value = '';
+                }
+                
+                // Show success message at top of page
+                showPageMessage('นำเข้ายอดขายสำเร็จ! ' + data.total + ' รายการ', 'success');
+                
+                // Refresh page after 2 seconds to fix white screen issue
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+                
+                // Hide results after 5 seconds
+                setTimeout(() => {
+                    resultsDiv.style.display = 'none';
+                }, 5000);
             } else {
                 // Unknown response
                 resultsDiv.className = 'alert alert-warning';
@@ -143,10 +201,13 @@ function initializeCustomersOnlyImportForm() {
                 resultsDiv.className = 'alert alert-danger';
                 messageDiv.innerHTML = '<i class="fas fa-exclamation-triangle me-2"></i>เกิดข้อผิดพลาด';
                 detailsDiv.innerHTML = data.error;
+                
+                // Show error message at top of page
+                showPageMessage('เกิดข้อผิดพลาดในการนำเข้ารายชื่อ: ' + data.error, 'danger');
             } else if (data.success !== undefined) {
                 // Success
                 resultsDiv.className = 'alert alert-success';
-                messageDiv.innerHTML = '<i class="fas fa-check-circle me-2"></i>นำเข้าส่วนรายชื่อสำเร็จ!';
+                messageDiv.innerHTML = '<i class="fas fa-check-circle me-2"></i>นำเข้ารายชื่อสำเร็จ!';
                 
                 let details = `
                     <div class="row">
@@ -160,7 +221,7 @@ function initializeCustomersOnlyImportForm() {
                             <strong>ลูกค้าใหม่:</strong> ${data.customers_created || 0} ราย
                         </div>
                         <div class="col-md-3">
-                            <strong>ข้าม:</strong> ${data.customers_skipped || 0} ราย
+                            <strong>อัพเดทลูกค้า:</strong> ${data.customers_updated || 0} ราย
                         </div>
                     </div>
                 `;
@@ -180,6 +241,25 @@ function initializeCustomersOnlyImportForm() {
                 
                 // Reset form
                 form.reset();
+                
+                // Clear file input
+                const fileInput = form.querySelector('input[type="file"]');
+                if (fileInput) {
+                    fileInput.value = '';
+                }
+                
+                // Show success message at top of page
+                showPageMessage('นำเข้ารายชื่อสำเร็จ! ' + data.total + ' รายการ', 'success');
+                
+                // Refresh page after 2 seconds to fix white screen issue
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+                
+                // Hide results after 5 seconds
+                setTimeout(() => {
+                    resultsDiv.style.display = 'none';
+                }, 5000);
             } else {
                 // Unknown response
                 resultsDiv.className = 'alert alert-warning';

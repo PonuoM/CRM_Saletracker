@@ -196,9 +196,15 @@ class CustomerService {
         $sql = "SELECT c.*, u.full_name as assigned_to_name 
                 FROM customers c 
                 LEFT JOIN users u ON c.assigned_to = u.user_id 
-                WHERE c.basket_type = ? AND c.is_active = 1";
+                WHERE c.is_active = 1";
         
-        $params = [$basketType];
+        $params = [];
+        
+        // เงื่อนไข basket_type: ถ้าเป็น 'all' จะไม่กรองตาม basket
+        if (!empty($basketType) && $basketType !== 'all') {
+            $sql .= " AND c.basket_type = ?";
+            $params[] = $basketType;
+        }
         
         // เพิ่มตัวกรอง
         if (!empty($filters['temperature'])) {
@@ -214,6 +220,11 @@ class CustomerService {
         if (!empty($filters['province'])) {
             $sql .= " AND c.province = ?";
             $params[] = $filters['province'];
+        }
+        
+        if (!empty($filters['customer_status'])) {
+            $sql .= " AND c.customer_status = ?";
+            $params[] = $filters['customer_status'];
         }
         
         if (!empty($filters['assigned_to'])) {
