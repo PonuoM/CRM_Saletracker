@@ -38,6 +38,11 @@ $userId = $_SESSION['user_id'] ?? '';
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="calls-tab" data-bs-toggle="tab" data-bs-target="#calls" type="button" role="tab">
+                            การโทรติดตาม
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
                         <button class="nav-link" id="followup-tab" data-bs-toggle="tab" data-bs-target="#followup" type="button" role="tab">
                             <i class="fas fa-clock me-1"></i>ติดตาม
                         </button>
@@ -55,7 +60,15 @@ $userId = $_SESSION['user_id'] ?? '';
                         <div class="card">
                             <div class="card-body">
                                 <form class="row g-3" onsubmit="event.preventDefault(); applyFilters();">
-                                    <div class="col-md-3">
+                                    <div class="col-md-2">
+                                        <label for="nameFilter" class="form-label">ชื่อ</label>
+                                        <input type="text" class="form-control" id="nameFilter" placeholder="ค้นหาชื่อลูกค้า">
+                                    </div>
+                                    <div class="col-md-2">
+                                        <label for="phoneFilter" class="form-label">เบอร์โทร</label>
+                                        <input type="text" class="form-control" id="phoneFilter" placeholder="ค้นหาเบอร์โทร">
+                                    </div>
+                                    <div class="col-md-2">
                                         <label for="tempFilter" class="form-label">สถานะ</label>
                                         <select class="form-select" id="tempFilter">
                                             <option value="">สถานะทั้งหมด</option>
@@ -65,7 +78,7 @@ $userId = $_SESSION['user_id'] ?? '';
                                             <option value="frozen">🧊 Frozen</option>
                                         </select>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-2">
                                         <label for="gradeFilter" class="form-label">เกรด</label>
                                         <select class="form-select" id="gradeFilter">
                                             <option value="">เกรดทั้งหมด</option>
@@ -76,7 +89,7 @@ $userId = $_SESSION['user_id'] ?? '';
                                             <option value="D">D</option>
                                         </select>
                                     </div>
-                                    <div class="col-md-3">
+                                    <div class="col-md-2">
                                         <label for="provinceFilter" class="form-label">จังหวัด</label>
                                         <select class="form-select" id="provinceFilter">
                                             <option value="">จังหวัดทั้งหมด</option>
@@ -87,7 +100,7 @@ $userId = $_SESSION['user_id'] ?? '';
                                             <?php endforeach; ?>
                                         </select>
                                     </div>
-                                    <div class="col-md-3 d-flex align-items-end">
+                                    <div class="col-md-2 d-flex align-items-end">
                                         <button type="submit" class="btn btn-primary me-2">
                                             <i class="fas fa-filter me-1"></i>กรอง
                                         </button>
@@ -113,16 +126,10 @@ $userId = $_SESSION['user_id'] ?? '';
                                 </h5>
                             </div>
                             <div class="card-body">
-                                <?php if (empty($followUpCustomers)): ?>
-                                <div class="text-center py-4">
-                                    <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
-                                    <h5>ไม่มีงานที่ต้องทำ</h5>
-                                    <p class="text-muted">คุณได้ทำงานเสร็จเรียบร้อยแล้ว</p>
-                                </div>
-                                <?php else: ?>
+                                <?php if (!empty($followUpCustomers)): ?>
                                 <div class="table-responsive">
-                                    <table class="table table-hover">
-                                        <thead>
+                                    <table class="table table-striped table-hover">
+                                        <thead class="table-dark">
                                             <tr>
                                                 <th>ลูกค้า</th>
                                                 <th>เบอร์โทร</th>
@@ -137,46 +144,61 @@ $userId = $_SESSION['user_id'] ?? '';
                                             <tr>
                                                 <td>
                                                     <strong><?php echo htmlspecialchars($customer['first_name'] . ' ' . $customer['last_name']); ?></strong>
-                                                    <br>
-                                                    <small class="text-muted"><?php echo htmlspecialchars($customer['customer_code'] ?? ''); ?></small>
+                                                    <br><small class="text-muted"><?php echo htmlspecialchars($customer['customer_code']); ?></small>
                                                 </td>
-                                                <td><?php echo htmlspecialchars($customer['phone'] ?? ''); ?></td>
-                                                <td><?php echo htmlspecialchars($customer['province'] ?? ''); ?></td>
+                                                <td><?php echo htmlspecialchars($customer['phone']); ?></td>
+                                                <td><?php echo htmlspecialchars($customer['province']); ?></td>
                                                 <td>
-                                                    <?php
-                                                    $tempIcons = [
-                                                        'hot' => '🔥',
-                                                        'warm' => '🌤️',
-                                                        'cold' => '❄️',
-                                                        'frozen' => '🧊'
-                                                    ];
-                                                    echo $tempIcons[$customer['temperature_status']] ?? '❓';
+                                                    <?php 
+                                                    $statusIcon = '';
+                                                    $statusClass = '';
+                                                    switch($customer['temperature_status']) {
+                                                        case 'hot':
+                                                            $statusIcon = '🔥';
+                                                            $statusClass = 'danger';
+                                                            break;
+                                                        case 'warm':
+                                                            $statusIcon = '🌤️';
+                                                            $statusClass = 'warning';
+                                                            break;
+                                                        case 'cold':
+                                                            $statusIcon = '❄️';
+                                                            $statusClass = 'info';
+                                                            break;
+                                                        case 'frozen':
+                                                            $statusIcon = '🧊';
+                                                            $statusClass = 'secondary';
+                                                            break;
+                                                        default:
+                                                            $statusIcon = '❓';
+                                                            $statusClass = 'secondary';
+                                                    }
                                                     ?>
-                                                    <?php echo ucfirst($customer['temperature_status']); ?>
+                                                    <span class="badge bg-<?php echo $statusClass; ?>">
+                                                        <?php echo $statusIcon . ' ' . ucfirst(htmlspecialchars($customer['temperature_status'])); ?>
+                                                    </span>
                                                 </td>
                                                 <td>
-                                                    <?php if ($customer['days_remaining'] <= 0): ?>
-                                                    <span class="badge bg-danger">เกินกำหนด</span>
-                                                    <?php else: ?>
-                                                    <span class="badge bg-warning"><?php echo $customer['days_remaining']; ?> วัน</span>
-                                                    <?php endif; ?>
-                                                    <?php if (isset($customer['reason_type'])): ?>
-                                                        <br><small class="text-muted">
-                                                            <?php 
-                                                            switch($customer['reason_type']) {
-                                                                case 'expiry': echo '⏰ ใกล้หมดระยะดูแล'; break;
-                                                                case 'appointment': echo '📅 มีนัดหมาย'; break;
-                                                                default: echo '📋 อื่นๆ'; break;
-                                                            }
-                                                            ?>
-                                                        </small>
-                                                    <?php endif; ?>
+                                                    <?php 
+                                                    $followupDate = new DateTime($customer['next_followup_at']);
+                                                    $today = new DateTime();
+                                                    $diff = $today->diff($followupDate);
+                                                    $daysUntil = $diff->invert ? -$diff->days : $diff->days;
+                                                    
+                                                    if ($daysUntil < 0) {
+                                                        echo '<span class="badge bg-danger">ใกล้หมดเวลา ' . abs($daysUntil) . ' วัน</span>';
+                                                    } elseif ($daysUntil === 0) {
+                                                        echo '<span class="badge bg-warning">นัดหมายวันนี้</span>';
+                                                    } else {
+                                                        echo '<span class="badge bg-info">นัดหมาย ' . $daysUntil . ' วัน</span>';
+                                                    }
+                                                    ?>
                                                 </td>
                                                 <td>
-                                                    <button class="btn btn-sm btn-primary" onclick="viewCustomer(<?php echo $customer['customer_id']; ?>)">
+                                                    <button class="btn btn-sm btn-success" onclick="viewCustomer(<?php echo $customer['customer_id']; ?>)">
                                                         <i class="fas fa-eye me-1"></i>ดู
                                                     </button>
-                                                    <button class="btn btn-sm btn-success" onclick="logCall(<?php echo $customer['customer_id']; ?>)">
+                                                    <button class="btn btn-sm btn-primary" onclick="logCall(<?php echo $customer['customer_id']; ?>)">
                                                         <i class="fas fa-phone me-1"></i>โทร
                                                     </button>
                                                 </td>
@@ -184,6 +206,11 @@ $userId = $_SESSION['user_id'] ?? '';
                                             <?php endforeach; ?>
                                         </tbody>
                                     </table>
+                                </div>
+                                <?php else: ?>
+                                <div class="text-center py-4">
+                                    <i class="fas fa-check-circle fa-2x text-success"></i>
+                                    <p class="mt-2">ไม่มีงานที่ต้องทำวันนี้</p>
                                 </div>
                                 <?php endif; ?>
                             </div>
@@ -243,6 +270,65 @@ $userId = $_SESSION['user_id'] ?? '';
                             <div class="card-body">
                                 <div id="existingCustomersTable">
                                     <!-- Customer table will be loaded here -->
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Call Management Tab -->
+                    <div class="tab-pane fade" id="calls" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h5 class="card-title mb-0">
+                                    <i class="fas fa-phone me-2"></i>การโทรติดตามลูกค้า
+                                </h5>
+                                <div class="btn-group" role="group">
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadCallFollowups('all')">ทั้งหมด</button>
+                                    <button type="button" class="btn btn-sm btn-outline-warning" onclick="loadCallFollowups('overdue')">เกินกำหนด</button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="loadCallFollowups('urgent')">เร่งด่วน</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info" onclick="loadCallFollowups('soon')">เร็วๆ นี้</button>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <!-- Call Statistics -->
+                                <div class="row mb-3">
+                                    <div class="col-md-3">
+                                        <div class="card bg-primary text-white">
+                                            <div class="card-body text-center">
+                                                <h5 id="total-calls">0</h5>
+                                                <small>การโทรทั้งหมด</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card bg-success text-white">
+                                            <div class="card-body text-center">
+                                                <h5 id="answered-calls">0</h5>
+                                                <small>ติดต่อได้</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card bg-warning text-white">
+                                            <div class="card-body text-center">
+                                                <h5 id="need-followup">0</h5>
+                                                <small>ต้องติดตาม</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card bg-danger text-white">
+                                            <div class="card-body text-center">
+                                                <h5 id="overdue-followup">0</h5>
+                                                <small>เกินกำหนด</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Call Follow-up Table -->
+                                <div id="call-followup-table">
+                                    <!-- Call follow-up table will be loaded here -->
                                 </div>
                             </div>
                         </div>

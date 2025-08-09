@@ -212,7 +212,14 @@ class DashboardService {
      */
     private function getFollowUpCustomers($userId) {
         $result = $this->db->fetchOne(
-            "SELECT COUNT(*) as count FROM customers WHERE assigned_to = :user_id AND basket_type = 'follow_up'",
+            "SELECT COUNT(*) as count FROM customers 
+             WHERE assigned_to = :user_id 
+             AND basket_type = 'assigned'
+             AND is_active = 1
+             AND (
+                 customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 7 DAY) OR
+                 next_followup_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 7 DAY)
+             )",
             ['user_id' => $userId]
         );
         return $result['count'] ?? 0;

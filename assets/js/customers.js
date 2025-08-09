@@ -17,8 +17,16 @@ document.addEventListener('DOMContentLoaded', function() {
     // ลูกค้าเก่า: เฉพาะสถานะ customer_status = 'existing' (ใน assigned)
     loadCustomersByBasket('assigned', 'existingCustomersTable', { customer_status: 'existing' });
     
+    // สำหรับ telesales: โหลด call followups อัตโนมัติ
+    if (window.currentUserRole === 'telesales') {
+        loadCallFollowups('all');
+    }
+    
     // Add event listeners
     addEventListeners();
+    
+    // Load call statistics
+    loadCallStats();
 });
 
 /**
@@ -40,6 +48,10 @@ function addEventListeners() {
                 case '#existing':
                     loadCustomersByBasket('assigned', 'existingCustomersTable', { customer_status: 'existing' });
                     break;
+                case '#calls':
+                    loadCallFollowups('all');
+                    loadCallStats();
+                    break;
             }
         });
     });
@@ -50,6 +62,17 @@ function addEventListeners() {
         const element = document.getElementById(id);
         if (element) {
             element.addEventListener('change', function() {
+                applyFilters();
+            });
+        }
+    });
+    
+    // Text filter events (name and phone)
+    const textFilters = ['nameFilter', 'phoneFilter'];
+    textFilters.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            element.addEventListener('input', function() {
                 applyFilters();
             });
         }
@@ -70,10 +93,14 @@ function loadCustomersByBasket(basketType, tableId, extraFilters = {}) {
     const tempFilter = document.getElementById('tempFilter')?.value;
     const gradeFilter = document.getElementById('gradeFilter')?.value;
     const provinceFilter = document.getElementById('provinceFilter')?.value;
+    const nameFilter = document.getElementById('nameFilter')?.value;
+    const phoneFilter = document.getElementById('phoneFilter')?.value;
     
     if (tempFilter) params.append('temperature', tempFilter);
     if (gradeFilter) params.append('grade', gradeFilter);
     if (provinceFilter) params.append('province', provinceFilter);
+    if (nameFilter) params.append('name', nameFilter);
+    if (phoneFilter) params.append('phone', phoneFilter);
     // add extra filters (e.g., customer_status)
     Object.entries(extraFilters).forEach(([k, v]) => {
         if (v !== undefined && v !== null && v !== '') params.append(k, v);
@@ -142,10 +169,8 @@ function renderCustomerTable(customers, tableId, basketType) {
             <table class="table table-hover">
                 <thead>
                      <tr>
-                        <th>
-                            ${basketType === 'distribution' ? '<input type="checkbox" id="selectAll" onchange="toggleSelectAll()">' : ''}
-                        </th>
-                        <th>วันที่ได้รับ</th>
+                        ${basketType === 'distribution' ? '<th><input type="checkbox" id="selectAll" onchange="toggleSelectAll()"></th>' : ''}
+                        ${basketType !== 'followups' ? '<th>วันที่ได้รับ</th>' : ''}
                         <th>ชื่อลูกค้า</th>
                         <th>ผู้รับผิดชอบ</th>
                         <th>จังหวัด</th>
@@ -170,13 +195,11 @@ function renderCustomerTable(customers, tableId, basketType) {
         
         tableHTML += `
             <tr>
-                <td>
-                    ${basketType === 'distribution' ? 
-                        `<input type="checkbox" class="customer-checkbox" value="${customer.customer_id}" onchange="toggleCustomerSelection(${customer.customer_id})">` : 
-                        ''
-                    }
-                </td>
-                <td>${formatDate(customer.created_at)}</td>
+                ${basketType === 'distribution' ? 
+                    `<td><input type="checkbox" class="customer-checkbox" value="${customer.customer_id}" onchange="toggleCustomerSelection(${customer.customer_id})"></td>` : 
+                    ''
+                }
+                ${basketType !== 'followups' ? `<td>${customer.created_at ? formatDate(customer.created_at) : '-'}</td>` : ''}
                 <td>
                     <strong>${escapeHtml(customer.first_name + ' ' + customer.last_name)}</strong>
                     <br>
@@ -219,12 +242,6 @@ function renderCustomerTable(customers, tableId, basketType) {
                         <button class="btn btn-success" onclick="logCall(${customer.customer_id})" title="บันทึกการโทร">
                             <i class="fas fa-phone"></i>
                         </button>
-                        ${basketType === 'assigned' && window.currentUserRole !== 'telesales' ? 
-                            `<button class="btn btn-warning" onclick="recallCustomer(${customer.customer_id})" title="ดึงกลับ">
-                                <i class="fas fa-undo"></i>
-                            </button>` : 
-                            ''
-                        }
                     </div>
                 </td>
             </tr>
@@ -304,6 +321,8 @@ function clearFilters() {
     document.getElementById('tempFilter').value = '';
     document.getElementById('gradeFilter').value = '';
     document.getElementById('provinceFilter').value = '';
+    document.getElementById('nameFilter').value = '';
+    document.getElementById('phoneFilter').value = '';
     applyFilters();
 }
 
@@ -741,4 +760,160 @@ function showSuccess(message) {
 function showError(message) {
     // You can implement a toast or alert system here
     alert('ข้อผิดพลาด: ' + message);
-} 
+}
+
+/**
+ * Load call statistics
+ */
+function loadCallStats() {
+    fetch('api/calls.php?action=get_stats')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('total-calls').textContent = data.stats.total_calls || 0;
+                document.getElementById('answered-calls').textContent = data.stats.answered_calls || 0;
+                document.getElementById('need-followup').textContent = data.stats.need_followup || 0;
+                document.getElementById('overdue-followup').textContent = data.stats.overdue_followup || 0;
+            }
+        })
+        .catch(error => {
+            console.error('Error loading call stats:', error);
+        });
+}
+
+/**
+ * Load call follow-up customers
+ */
+function loadCallFollowups(filter = 'all') {
+    const tableElement = document.getElementById('call-followup-table');
+    if (tableElement) {
+        tableElement.innerHTML = '<div class="text-center py-4"><i class="fas fa-spinner fa-spin fa-2x"></i><p class="mt-2">กำลังโหลดข้อมูล...</p></div>';
+    }
+    
+    fetch(`api/calls.php?action=get_followup_customers&filter=${filter}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                renderCallFollowupTable(data.data);
+            } else {
+                showError('เกิดข้อผิดพลาดในการโหลดข้อมูล: ' + data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+        });
+}
+
+/**
+ * Render call follow-up table
+ */
+function renderCallFollowupTable(customers) {
+    const tableElement = document.getElementById('call-followup-table');
+    
+    if (!customers || customers.length === 0) {
+        tableElement.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-check-circle text-success fa-3x mb-3"></i>
+                <h5>ไม่มีลูกค้าที่ต้องติดตามการโทร</h5>
+                <p class="text-muted">ทุกอย่างเรียบร้อยแล้ว</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let tableHTML = `
+        <div class="table-responsive">
+            <table class="table table-hover">
+                <thead>
+                    <tr>
+                        <th>ลูกค้า</th>
+                        <th>เบอร์โทร</th>
+                        <th>จังหวัด</th>
+                        <th>ผลการโทรล่าสุด</th>
+                        <th>วันที่ติดตาม</th>
+                        <th>ความสำคัญ</th>
+                        <th>สถานะ</th>
+                        <th>การดำเนินการ</th>
+                    </tr>
+                </thead>
+                <tbody>
+    `;
+    
+    customers.forEach(customer => {
+        const urgencyClass = getUrgencyClass(customer.urgency_status);
+        const priorityClass = getPriorityClass(customer.followup_priority);
+        
+        tableHTML += `
+            <tr>
+                <td>
+                    <strong>${escapeHtml(customer.first_name + ' ' + customer.last_name)}</strong>
+                    <br>
+                    <small class="text-muted">${escapeHtml(customer.customer_code || '')}</small>
+                </td>
+                <td>${escapeHtml(customer.phone || '')}</td>
+                <td>${escapeHtml(customer.province || '')}</td>
+                <td>
+                    <span class="badge bg-secondary">${escapeHtml(customer.call_result || 'ไม่ระบุ')}</span>
+                    <br>
+                    <small class="text-muted">${formatDate(customer.last_call_date)}</small>
+                </td>
+                <td>
+                    <span class="${urgencyClass}">${formatDate(customer.next_followup_at)}</span>
+                    ${customer.days_until_followup ? `<br><small class="text-muted">${customer.days_until_followup} วัน</small>` : ''}
+                </td>
+                <td>
+                    <span class="badge ${priorityClass}">${escapeHtml(customer.followup_priority || 'medium')}</span>
+                </td>
+                <td>
+                    <span class="badge bg-warning">รอติดตาม</span>
+                </td>
+                <td>
+                    <div class="btn-group btn-group-sm">
+                        <button class="btn btn-primary" onclick="viewCustomer(${customer.customer_id})" title="ดูรายละเอียด">
+                            <i class="fas fa-eye"></i>
+                        </button>
+                        <button class="btn btn-success" onclick="logCall(${customer.customer_id})" title="บันทึกการโทร">
+                            <i class="fas fa-phone"></i>
+                        </button>
+                    </div>
+                </td>
+            </tr>
+        `;
+    });
+    
+    tableHTML += `
+                </tbody>
+            </table>
+        </div>
+    `;
+    
+    tableElement.innerHTML = tableHTML;
+}
+
+/**
+ * Get urgency class for styling
+ */
+function getUrgencyClass(urgencyStatus) {
+    switch (urgencyStatus) {
+        case 'overdue': return 'text-danger fw-bold';
+        case 'urgent': return 'text-warning fw-bold';
+        case 'soon': return 'text-info';
+        default: return 'text-muted';
+    }
+}
+
+/**
+ * Get priority class for badge styling
+ */
+function getPriorityClass(priority) {
+    switch (priority) {
+        case 'urgent': return 'bg-danger';
+        case 'high': return 'bg-warning';
+        case 'medium': return 'bg-info';
+        case 'low': return 'bg-secondary';
+        default: return 'bg-secondary';
+    }
+}
+
+ 

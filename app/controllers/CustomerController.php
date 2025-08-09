@@ -154,9 +154,10 @@ class CustomerController {
         
         // ดึงคำสั่งซื้อ
         $orders = $this->db->fetchAll(
-            "SELECT o.*, COUNT(oi.item_id) as item_count 
+            "SELECT o.*, COUNT(oi.item_id) as item_count, u.full_name as salesperson_name 
              FROM orders o 
              LEFT JOIN order_items oi ON o.order_id = oi.order_id 
+             LEFT JOIN users u ON o.created_by = u.user_id 
              WHERE o.customer_id = :customer_id 
              GROUP BY o.order_id 
              ORDER BY o.order_date DESC",
@@ -425,6 +426,14 @@ class CustomerController {
             $filters['province'] = $_GET['province'];
         }
         
+        if (!empty($_GET['name'])) {
+            $filters['name'] = $_GET['name'];
+        }
+        
+        if (!empty($_GET['phone'])) {
+            $filters['phone'] = $_GET['phone'];
+        }
+        
         if (!empty($_GET['customer_status'])) {
             $filters['customer_status'] = $_GET['customer_status'];
         }
@@ -480,7 +489,7 @@ class CustomerController {
             }
         }
 
-        $sql = "SELECT c.*, 
+        $sql = "SELECT c.*, u.full_name as assigned_to_name,
                         DATEDIFF(c.customer_time_expiry, NOW()) as days_remaining,
                         DATEDIFF(c.next_followup_at, NOW()) as followup_days,
                         CASE 
@@ -489,6 +498,7 @@ class CustomerController {
                             ELSE 'other'
                         END as reason_type
                 FROM customers c
+                LEFT JOIN users u ON c.assigned_to = u.user_id
                 WHERE $where
                 ORDER BY c.customer_time_expiry ASC, c.next_followup_at ASC";
 

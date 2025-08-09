@@ -152,10 +152,26 @@ class OrderService {
                 $params['customer_id'] = $filters['customer_id'];
             }
             
-            // ตัวกรองตามผู้สร้าง
+            // ตัวกรองตามผู้สร้าง (รองรับทั้งค่าเดี่ยวและอาร์เรย์ของ user_id)
             if (!empty($filters['created_by'])) {
-                $whereConditions[] = 'o.created_by = :created_by';
-                $params['created_by'] = $filters['created_by'];
+                if (is_array($filters['created_by'])) {
+                    $createdByIds = array_values($filters['created_by']);
+                    if (count($createdByIds) > 0) {
+                        $createdByPlaceholders = [];
+                        foreach ($createdByIds as $index => $creatorId) {
+                            $paramName = 'created_by_' . $index;
+                            $createdByPlaceholders[] = ':' . $paramName;
+                            $params[$paramName] = $creatorId;
+                        }
+                        $whereConditions[] = 'o.created_by IN (' . implode(',', $createdByPlaceholders) . ')';
+                    } else {
+                        // กรณีไม่มีทีม ให้ไม่คืนข้อมูล
+                        $whereConditions[] = '1=0';
+                    }
+                } else {
+                    $whereConditions[] = 'o.created_by = :created_by';
+                    $params['created_by'] = $filters['created_by'];
+                }
             }
             
             // ตัวกรองตามสถานะการชำระเงิน
@@ -187,15 +203,34 @@ class OrderService {
                 $params['order_number'] = '%' . $filters['order_number'] . '%';
             }
             
+            // ตัวกรองการค้นหา (เบอร์โทร, ชื่อเล่น, เลขที่คำสั่งซื้อ)
+            if (!empty($filters['search'])) {
+                $searchTerm = '%' . $filters['search'] . '%';
+                $whereConditions[] = '(
+                    o.order_number LIKE :search_order_number OR 
+                    c.phone LIKE :search_phone OR 
+                    c.first_name LIKE :search_first_name OR 
+                    c.last_name LIKE :search_last_name OR 
+                    CONCAT(c.first_name, " ", c.last_name) LIKE :search_full_name
+                )';
+                $params['search_order_number'] = $searchTerm;
+                $params['search_phone'] = $searchTerm;
+                $params['search_first_name'] = $searchTerm;
+                $params['search_last_name'] = $searchTerm;
+                $params['search_full_name'] = $searchTerm;
+            }
+            
             $whereClause = implode(' AND ', $whereConditions);
             
-            // นับจำนวนทั้งหมด
-            $countQuery = "SELECT COUNT(*) as total FROM orders o WHERE {$whereClause}";
+            // นับจำนวนทั้งหมด (ต้อง JOIN customers เพื่อให้เงื่อนไขที่อ้างถึง c.* ทำงานได้)
+            $countQuery = "SELECT COUNT(*) as total FROM orders o LEFT JOIN customers c ON o.customer_id = c.customer_id WHERE {$whereClause}";
             $totalResult = $this->db->fetchOne($countQuery, $params);
             $total = $totalResult['total'];
             
             // คำนวณ offset
             $offset = ($page - 1) * $limit;
+            $limitInt = (int)$limit;
+            $offsetInt = (int)$offset;
             
             // ดึงข้อมูล
             $query = "
@@ -215,11 +250,8 @@ class OrderService {
                 ) as item_counts ON o.order_id = item_counts.order_id
                 WHERE {$whereClause}
                 ORDER BY o.created_at DESC
-                LIMIT :limit OFFSET :offset
+                LIMIT {$limitInt} OFFSET {$offsetInt}
             ";
-            
-            $params['limit'] = $limit;
-            $params['offset'] = $offset;
             
             $orders = $this->db->fetchAll($query, $params);
             
@@ -365,7 +397,7 @@ class OrderService {
             $this->db->update('orders', $updateData, 'order_id = :order_id', ['order_id' => $orderData['order_id']]);
             
             // ลบรายการสินค้าเก่า
-            $this->db->execute(
+            $this->db->query(
                 "DELETE FROM order_items WHERE order_id = :order_id",
                 ['order_id' => $orderData['order_id']]
             );
@@ -477,6 +509,12 @@ class OrderService {
         $this->db->query(
             "UPDATE customers SET total_purchase_amount = total_purchase_amount + :amount WHERE customer_id = :customer_id",
             ['amount' => $amount, 'customer_id' => $customerId]
+        );
+        
+        // อัปเดตสถานะลูกค้าเป็น "existing" (ลูกค้าเก่า) เมื่อมีการขาย
+        $this->db->query(
+            "UPDATE customers SET customer_status = 'existing' WHERE customer_id = :customer_id",
+            ['customer_id' => $customerId]
         );
         
         // อัปเดตเกรดลูกค้า (เฉพาะเมื่อต้องการ)

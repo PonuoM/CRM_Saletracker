@@ -65,6 +65,17 @@ class OrderController {
             $filters['delivery_status'] = $_GET['delivery_status'];
         }
         
+        // รองรับพารามิเตอร์ status จากฟอร์ม โดย map ไปยัง delivery_status
+        if (!empty($_GET['status'])) {
+            $statusInput = $_GET['status'];
+            // Map ค่าจาก UI ให้ตรงกับค่าที่เก็บในฐานข้อมูล
+            $statusMap = [
+                'processing' => 'shipped',
+                'completed' => 'delivered'
+            ];
+            $filters['delivery_status'] = $statusMap[$statusInput] ?? $statusInput;
+        }
+        
         if (!empty($_GET['date_from'])) {
             $filters['date_from'] = $_GET['date_from'];
         }
@@ -75,6 +86,11 @@ class OrderController {
         
         if (!empty($_GET['order_number'])) {
             $filters['order_number'] = $_GET['order_number'];
+        }
+        
+        // ตัวกรองการค้นหา (เบอร์โทร, ชื่อเล่น, เลขที่คำสั่งซื้อ)
+        if (!empty($_GET['search'])) {
+            $filters['search'] = $_GET['search'];
         }
         
         // ดึงข้อมูลคำสั่งซื้อ
@@ -674,7 +690,7 @@ class OrderController {
             ]);
             
         } catch (Exception $e) {
-            if ($this->db->inTransaction()) {
+            if ($this->db->getPdo()->inTransaction()) {
                 $this->db->rollback();
             }
             

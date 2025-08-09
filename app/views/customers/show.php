@@ -160,7 +160,7 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
             <div class="card-header">
                 <ul class="nav nav-tabs card-header-tabs" id="historyTabs" role="tablist">
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link active" id="calls-tab" data-bs-toggle="tab" data-bs-target="#calls" type="button" role="tab" aria-controls="calls" aria-selected="true">
+                        <button class="nav-link active" id="call-history-tab" data-bs-toggle="tab" data-bs-target="#call-history" type="button" role="tab" aria-controls="call-history" aria-selected="true">
                             <i class="fas fa-phone me-1"></i>ประวัติการโทร
                         </button>
                     </li>
@@ -179,11 +179,11 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
             <div class="card-body">
                 <div class="tab-content" id="historyTabsContent">
                     <!-- Call History Tab -->
-                    <div class="tab-pane fade show active" id="calls" role="tabpanel" aria-labelledby="calls-tab">
+                    <div class="tab-pane fade show active" id="call-history" role="tabpanel" aria-labelledby="call-history-tab">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h6 class="mb-0">ประวัติการโทรล่าสุด</h6>
-                            <button class="btn btn-sm btn-success" id="logCallBtn" data-customer-id="<?php echo $customer['customer_id']; ?>">
-                                <i class="fas fa-plus me-1"></i>บันทึกการโทร
+                            <button class="btn btn-sm btn-primary" id="logCallBtn" data-customer-id="<?php echo $customer['customer_id']; ?>">
+                                <i class="fas fa-phone me-1"></i>บันทึกการโทร
                             </button>
                         </div>
                         <?php if (!empty($paginatedCallLogs)): ?>
@@ -276,6 +276,7 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                                         <tr>
                                             <th style="font-size: 14px;">เลขที่</th>
                                             <th style="font-size: 14px;">วันที่</th>
+                                            <th style="font-size: 14px;">ผู้ขาย</th>
                                             <th style="font-size: 14px;">ยอดรวม</th>
                                             <th style="font-size: 14px;">สถานะ</th>
                                         </tr>
@@ -285,23 +286,46 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                                             <tr>
                                                 <td style="font-size: 14px;"><?php echo htmlspecialchars($order['order_number'] ?? 'ORD-' . $order['order_id']); ?></td>
                                                 <td style="font-size: 14px;"><?php echo date('d/m/Y', strtotime($order['order_date'])); ?></td>
+                                                <td style="font-size: 14px;">
+                                                    <?php if (!empty($order['salesperson_name'])): ?>
+                                                        <span class="badge bg-info"><?php echo htmlspecialchars($order['salesperson_name']); ?></span>
+                                                    <?php else: ?>
+                                                        <span class="text-muted">ไม่ระบุ</span>
+                                                    <?php endif; ?>
+                                                </td>
                                                 <td style="font-size: 14px;">฿<?php echo number_format($order['total_amount'], 2); ?></td>
                                                 <td>
                                                     <?php
                                                     $statusText = '';
                                                     $statusClass = '';
-                                                    switch($order['status']) {
+                                                    $orderStatus = $order['payment_status'] ?? $order['status'] ?? $order['order_status'] ?? '';
+                                                    switch($orderStatus) {
+                                                        case 'paid':
+                                                            $statusText = 'ชำระแล้ว';
+                                                            $statusClass = 'success';
+                                                            break;
+                                                        case 'pending':
+                                                            $statusText = 'รอชำระ';
+                                                            $statusClass = 'warning';
+                                                            break;
+                                                        case 'partial':
+                                                            $statusText = 'ชำระบางส่วน';
+                                                            $statusClass = 'info';
+                                                            break;
+                                                        case 'cancelled':
+                                                        case 'canceled':
+                                                            $statusText = 'ยกเลิก';
+                                                            $statusClass = 'danger';
+                                                            break;
                                                         case 'completed':
+                                                        case 'finished':
                                                             $statusText = 'เสร็จสิ้น';
                                                             $statusClass = 'success';
                                                             break;
                                                         case 'processing':
+                                                        case 'in_progress':
                                                             $statusText = 'กำลังดำเนินการ';
                                                             $statusClass = 'primary';
-                                                            break;
-                                                        case 'pending':
-                                                            $statusText = 'รอดำเนินการ';
-                                                            $statusClass = 'warning';
                                                             break;
                                                         default:
                                                             $statusText = 'ไม่ระบุ';

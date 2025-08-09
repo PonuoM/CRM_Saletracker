@@ -222,6 +222,19 @@ class CustomerService {
             $params[] = $filters['province'];
         }
         
+        if (!empty($filters['name'])) {
+            $sql .= " AND (c.first_name LIKE ? OR c.last_name LIKE ? OR CONCAT(c.first_name, ' ', c.last_name) LIKE ?)";
+            $searchTerm = '%' . $filters['name'] . '%';
+            $params[] = $searchTerm;
+            $params[] = $searchTerm;
+            $params[] = $searchTerm;
+        }
+        
+        if (!empty($filters['phone'])) {
+            $sql .= " AND c.phone LIKE ?";
+            $params[] = '%' . $filters['phone'] . '%';
+        }
+        
         if (!empty($filters['customer_status'])) {
             $sql .= " AND c.customer_status = ?";
             $params[] = $filters['customer_status'];
@@ -251,7 +264,7 @@ class CustomerService {
      * @return array รายการลูกค้าที่ต้องติดตาม
      */
     public function getFollowUpCustomers($telesalesId) {
-        $sql = "SELECT c.*, 
+        $sql = "SELECT c.*, u.full_name as assigned_to_name,
                        DATEDIFF(c.customer_time_expiry, NOW()) as days_remaining,
                        DATEDIFF(c.next_followup_at, NOW()) as followup_days,
                        CASE 
@@ -260,6 +273,7 @@ class CustomerService {
                            ELSE 'other'
                        END as reason_type
                 FROM customers c 
+                LEFT JOIN users u ON c.assigned_to = u.user_id
                 WHERE c.assigned_to = :telesales_id 
                 AND c.basket_type = 'assigned'
                 AND c.is_active = 1

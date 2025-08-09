@@ -54,7 +54,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                                 <label for="search" class="form-label">ค้นหา</label>
                                 <input type="text" class="form-control" id="search" name="search" 
                                        value="<?php echo htmlspecialchars($_GET['search'] ?? ''); ?>" 
-                                       placeholder="เลขที่คำสั่งซื้อ, ชื่อลูกค้า">
+                                       placeholder="เลขที่คำสั่งซื้อ, ชื่อลูกค้า, เบอร์โทร, ชื่อเล่น">
                             </div>
                             <div class="col-md-2">
                                 <label for="status" class="form-label">สถานะ</label>

@@ -268,6 +268,81 @@ class CronJobService {
     }
     
     /**
+     * อัปเดตการติดตามการโทร
+     */
+    public function updateCallFollowups() {
+        $this->log("Starting call follow-up update...");
+        
+        try {
+            // ดึงลูกค้าที่ต้องติดตาม
+            $sql = "SELECT 
+                        cl.customer_id,
+                        cl.log_id,
+                        c.assigned_to,
+                        cl.next_followup_at,
+                        cl.followup_priority
+                    FROM call_logs cl
+                    JOIN customers c ON cl.customer_id = c.customer_id
+                    WHERE cl.next_followup_at IS NOT NULL
+                        AND cl.next_followup_at <= DATE_ADD(NOW(), INTERVAL 30 DAY)
+                        AND cl.call_result IN ('not_interested', 'callback', 'interested', 'complaint')
+                        AND NOT EXISTS (
+                            SELECT 1 FROM call_followup_queue cfq 
+                            WHERE cfq.customer_id = cl.customer_id 
+                            AND cfq.status = 'pending'
+                        )";
+            
+            $customers = $this->db->fetchAll($sql);
+            
+            $newQueues = 0;
+            $overdueCount = 0;
+            $urgentCount = 0;
+            
+            foreach ($customers as $customer) {
+                // สร้างคิวการติดตาม
+                $queueData = [
+                    'customer_id' => $customer['customer_id'],
+                    'call_log_id' => $customer['log_id'],
+                    'user_id' => $customer['assigned_to'],
+                    'followup_date' => date('Y-m-d', strtotime($customer['next_followup_at'])),
+                    'priority' => $customer['followup_priority'],
+                    'status' => 'pending',
+                    'created_at' => date('Y-m-d H:i:s')
+                ];
+                
+                $this->db->insert('call_followup_queue', $queueData);
+                $newQueues++;
+                
+                // นับจำนวนเกินกำหนดและเร่งด่วน
+                $followupDate = strtotime($customer['next_followup_at']);
+                $today = time();
+                
+                if ($followupDate <= $today) {
+                    $overdueCount++;
+                } elseif ($followupDate <= strtotime('+3 days')) {
+                    $urgentCount++;
+                }
+            }
+            
+            $this->log("Call follow-up update completed. New queues: {$newQueues}, Overdue: {$overdueCount}, Urgent: {$urgentCount}");
+            
+            return [
+                'success' => true,
+                'new_queues' => $newQueues,
+                'overdue_count' => $overdueCount,
+                'urgent_count' => $urgentCount
+            ];
+            
+        } catch (Exception $e) {
+            $this->log("Error updating call follow-ups: " . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+    
+    /**
      * ทำความสะอาดข้อมูลเก่า (Data Cleanup)
      */
     public function cleanupOldData() {
@@ -339,7 +414,10 @@ class CronJobService {
         // 4. ส่งการแจ้งเตือน
         $results['notifications'] = $this->sendCustomerRecallNotifications();
         
-        // 5. ทำความสะอาดข้อมูล (รันทุกวันอาทิตย์)
+        // 5. อัปเดตการติดตามการโทร
+        $results['call_followup'] = $this->updateCallFollowups();
+        
+        // 6. ทำความสะอาดข้อมูล (รันทุกวันอาทิตย์)
         if (date('w') == 0) { // Sunday
             $results['cleanup'] = $this->cleanupOldData();
         }

@@ -744,4 +744,85 @@ h1, h2, h3, h4, h5, h6 {
     box-shadow: none !important;
     border: 1px solid #000 !important;
   }
-} 
+}
+
+/* Call Management Tab specific styles */
+#calls .card-body {
+  padding: 1rem;
+}
+
+#calls .card-body .row.mb-3 {
+  margin-bottom: 1rem !important;
+}
+
+#calls .card-body .col-md-3 .card {
+  margin-bottom: 0;
+  border: none;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+#calls .card-body .col-md-3 .card .card-body {
+  padding: 0.75rem;
+  text-align: center;
+}
+
+#calls .card-body .col-md-3 .card h5 {
+  font-size: 1.25rem;
+  margin-bottom: 0.25rem;
+  font-weight: 600;
+}
+
+#calls .card-body .col-md-3 .card small {
+  font-size: 0.75rem;
+  opacity: 0.9;
+}
+
+/* Call statistics cards - more subtle colors */
+#calls .card-body .col-md-3 .card.bg-primary {
+  background-color: #e3f2fd !important;
+  color: #1976d2 !important;
+}
+
+#calls .card-body .col-md-3 .card.bg-success {
+  background-color: #e8f5e8 !important;
+  color: #2e7d32 !important;
+}
+
+#calls .card-body .col-md-3 .card.bg-warning {
+  background-color: #fff3e0 !important;
+  color: #f57c00 !important;
+}
+
+#calls .card-body .col-md-3 .card.bg-danger {
+  background-color: #ffebee !important;
+  color: #d32f2f !important;
+}
+
+/* Order Items Table Styling */
+.table-responsive .table th:first-child {
+  width: 25%; /* Product name column */
+}
+
+.table-responsive .table th:nth-child(2) {
+  width: 12%; /* Product code column */
+}
+
+.table-responsive .table th:nth-child(3) {
+  width: 10%; /* Quantity column */
+}
+
+.table-responsive .table th:nth-child(4) {
+  width: 15%; /* Unit price column */
+}
+
+.table-responsive .table th:nth-child(5) {
+  width: 12%; /* Discount column */
+}
+
+.table-responsive .table th:nth-child(6) {
+  width: 15%; /* Total price column */
+}
+
+.table-responsive .table th:nth-child(7) {
+  width: 11%; /* Actions column */
+}

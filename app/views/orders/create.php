@@ -122,12 +122,15 @@ $userId = $_SESSION['user_id'] ?? 0;
 
                             <!-- Products -->
                             <div class="card mb-4">
-                                <div class="card-header">
+                                <div class="card-header d-flex justify-content-between align-items-center">
                                     <h5 class="mb-0">สินค้า</h5>
+                                    <button type="button" class="btn btn-primary btn-sm" onclick="addProduct()">
+                                        <i class="fas fa-plus me-1"></i>เพิ่มสินค้า
+                                    </button>
                                 </div>
                                 <div class="card-body">
                                     <div class="row mb-3">
-                                        <div class="col-md-4">
+                                        <div class="col-md-5">
                                             <label for="product_search" class="form-label">ค้นหาสินค้า</label>
                                             <div class="product-search position-relative">
                                                 <input type="text" class="form-control" id="product_search" 
@@ -138,20 +141,28 @@ $userId = $_SESSION['user_id'] ?? 0;
                                                 </div>
                                             </div>
                                         </div>
-                                        <div class="col-md-3">
+                                        <div class="col-md-2">
                                             <label for="quantity" class="form-label">จำนวน</label>
-                                            <input type="number" class="form-control" id="quantity" name="quantity" 
+                                            <input type="number" class="form-control form-control-sm" id="quantity" name="quantity" 
                                                    value="1" min="1" max="999" required>
                                         </div>
-                                        <div class="col-md-3">
-                                            <label for="discount_percentage" class="form-label">ส่วนลด (%)</label>
-                                            <input type="number" class="form-control" id="discount_percentage" name="discount_percentage" 
-                                                   value="0" min="0" max="100" step="0.01">
+                                        <div class="col-md-2">
+                                            <label for="unit_price" class="form-label">ราคา/หน่วย</label>
+                                            <input type="number" class="form-control form-control-sm" id="unit_price" name="unit_price" 
+                                                   value="0" min="0" step="0.01">
                                         </div>
-                                        <div class="col-md-2 d-flex align-items-end">
-                                            <button type="button" class="btn btn-primary" onclick="addProduct()">
-                                                <i class="fas fa-plus me-1"></i>เพิ่มสินค้า
-                                            </button>
+                                        <div class="col-md-2">
+                                            <label for="discount_amount" class="form-label">ส่วนลด</label>
+                                            <input type="number" class="form-control form-control-sm" id="discount_amount" name="discount_amount" 
+                                                   value="0" min="0" step="0.01">
+                                        </div>
+                                        <div class="col-md-1 d-flex align-items-end">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="is_gift" name="is_gift">
+                                                <label class="form-check-label" for="is_gift" style="font-size: 0.875rem;">
+                                                    แถม
+                                                </label>
+                                            </div>
                                         </div>
                                     </div>
 
@@ -164,6 +175,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                                                     <th>รหัส</th>
                                                     <th class="text-center">จำนวน</th>
                                                     <th class="text-end">ราคาต่อหน่วย</th>
+                                                    <th class="text-end">ส่วนลด</th>
                                                     <th class="text-end">ราคารวม</th>
                                                     <th class="text-center">จัดการ</th>
                                                 </tr>
