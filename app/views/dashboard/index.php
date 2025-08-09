@@ -125,9 +125,24 @@ $role = $_SESSION['role'] ?? 'user';
                 <div class="row mb-4">
                     <?php if ($roleName === 'telesales'): ?>
                         <div class="col-lg-12 mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h5 class="mb-0">ยอดขายรายวัน</h5>
+                                <form method="get" class="d-flex align-items-center" id="monthFilterForm">
+                                    <label for="monthPicker" class="me-2">เดือน:</label>
+                                    <input type="month" id="monthPicker" name="month" class="form-control form-control-sm" value="<?php echo htmlspecialchars($selectedMonth ?? date('Y-m')); ?>" />
+                                </form>
+                            </div>
                             <div class="chart-container">
-                                <h5 class="mb-3">ประสิทธิภาพรายเดือน</h5>
-                                <canvas id="performanceChart" width="400" height="200"></canvas>
+                                <canvas id="dailySalesChart" width="400" height="200"></canvas>
+                            </div>
+                        </div>
+
+                        <div class="col-lg-12 mb-4">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <h5 class="mb-0">คำสั่งซื้อและรายชื่อติดต่อต่อวัน</h5>
+                            </div>
+                            <div class="chart-container">
+                                <canvas id="ordersContactsChart" width="400" height="200"></canvas>
                             </div>
                         </div>
                     <?php else: ?>
@@ -212,63 +227,85 @@ $role = $_SESSION['role'] ?? 'user';
     <script src="assets/js/page-transitions.js"></script>
     <script>
         <?php if ($roleName === 'telesales'): ?>
-        // Performance Chart for Telesales
-        const performanceCtx = document.getElementById('performanceChart').getContext('2d');
-        const performanceChart = new Chart(performanceCtx, {
+        // Daily Sales Chart (Bar)
+        const dailyLabels = <?php echo json_encode($dailyPerformance['labels'] ?? []); ?>;
+        const dailySales = <?php echo json_encode($dailyPerformance['sales'] ?? []); ?>;
+        const dailyContacts = <?php echo json_encode($dailyPerformance['contacts'] ?? []); ?>;
+        const dailyOrders = <?php echo json_encode($dailyPerformance['orders'] ?? []); ?>;
+
+        const dailySalesCtx = document.getElementById('dailySalesChart').getContext('2d');
+        const dailySalesChart = new Chart(dailySalesCtx, {
             type: 'bar',
             data: {
-                labels: <?php echo json_encode(array_column($dashboardData['monthly_performance'] ?? [], 'month')); ?>,
-                datasets: [{
-                    label: 'จำนวนคำสั่งซื้อ',
-                    data: <?php echo json_encode(array_column($dashboardData['monthly_performance'] ?? [], 'orders')); ?>,
-                    backgroundColor: '#1a5f3c',
-                    borderColor: '#1a5f3c',
-                    borderWidth: 1
-                }, {
-                    label: 'ยอดขาย (พันบาท)',
-                    data: <?php echo json_encode(array_map(function($item) { return $item['sales'] / 1000; }, $dashboardData['monthly_performance'] ?? [])); ?>,
-                    backgroundColor: '#38a169',
-                    borderColor: '#38a169',
-                    borderWidth: 1,
-                    yAxisID: 'y1'
-                }]
+                labels: dailyLabels,
+                datasets: [
+                    {
+                        label: 'ยอดขายต่อวัน (บาท)',
+                        data: dailySales,
+                        backgroundColor: 'rgba(56, 161, 105, 0.6)',
+                        borderColor: '#38a169',
+                        borderWidth: 1,
+                    }
+                ]
             },
             options: {
                 responsive: true,
                 maintainAspectRatio: false,
-                plugins: {
-                    legend: {
-                        display: true,
-                        position: 'top'
-                    }
-                },
+                plugins: { legend: { display: true, position: 'top' } },
                 scales: {
-                    y: {
-                        type: 'linear',
-                        display: true,
-                        position: 'left',
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'จำนวนคำสั่งซื้อ'
-                        }
-                    },
-                    y1: {
-                        type: 'linear',
-                        display: true,
-                        position: 'right',
-                        beginAtZero: true,
-                        title: {
-                            display: true,
-                            text: 'ยอดขาย (พันบาท)'
-                        },
-                        grid: {
-                            drawOnChartArea: false,
-                        },
-                    }
+                    y: { beginAtZero: true, title: { display: true, text: 'ยอดขาย (บาท)' } },
+                    x: { title: { display: true, text: 'วันที่ (1-31)' } }
                 }
             }
         });
+
+        // Orders + Contacts Chart (Bar + Line)
+        const ordersContactsCtx = document.getElementById('ordersContactsChart').getContext('2d');
+        const ordersContactsChart = new Chart(ordersContactsCtx, {
+            data: {
+                labels: dailyLabels,
+                datasets: [
+                    {
+                        type: 'bar',
+                        label: 'จำนวนคำสั่งซื้อ',
+                        data: dailyOrders,
+                        backgroundColor: 'rgba(99, 102, 241, 0.6)',
+                        borderColor: '#6366f1',
+                        borderWidth: 1,
+                        yAxisID: 'y',
+                    },
+                    {
+                        type: 'line',
+                        label: 'จำนวนรายชื่อติดต่อ',
+                        data: dailyContacts,
+                        borderColor: '#1a5f3c',
+                        backgroundColor: 'rgba(26, 95, 60, 0.1)',
+                        borderWidth: 2,
+                        fill: false,
+                        tension: 0.3,
+                        yAxisID: 'y1',
+                    }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: { legend: { display: true, position: 'top' } },
+                scales: {
+                    y: { beginAtZero: true, title: { display: true, text: 'จำนวนคำสั่งซื้อ' } },
+                    y1: { beginAtZero: true, position: 'right', grid: { drawOnChartArea: false }, title: { display: true, text: 'จำนวนรายชื่อติดต่อ' } },
+                    x: { title: { display: true, text: 'วันที่ (1-31)' } }
+                }
+            }
+        });
+
+        // Auto-submit month filter on change
+        const monthPicker = document.getElementById('monthPicker');
+        if (monthPicker) {
+            monthPicker.addEventListener('change', () => {
+                document.getElementById('monthFilterForm').submit();
+            });
+        }
         <?php else: ?>
         // Sales Chart
         const salesCtx = document.getElementById('salesChart').getContext('2d');

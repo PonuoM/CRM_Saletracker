@@ -252,6 +252,120 @@ class DashboardService {
         
         return $this->db->fetchAll($sql, ['user_id' => $userId]);
     }
+
+    /**
+     * ดึงข้อมูลประสิทธิภาพรายวันสำหรับเดือนที่เลือก (สำหรับ Telesales)
+     * - แกน X: วันที่ 1 ถึงสิ้นเดือน
+     * - แกน Y (ซ้าย): ยอดขายต่อวัน (net_amount)
+     * - แกน Y (ขวา): จำนวนรายชื่อลูกค้าที่ติดต่อ (distinct customer_id) ต่อวัน
+     */
+    public function getDailyPerformanceForMonth(int $userId, string $yearMonth): array {
+        // Validate input month format YYYY-MM
+        if (!preg_match('/^\d{4}-\d{2}$/', $yearMonth)) {
+            $yearMonth = date('Y-m');
+        }
+
+        $startDate = $yearMonth . '-01';
+        $endDate = date('Y-m-t', strtotime($startDate));
+
+        // Initialize arrays for every day of the month
+        $labels = [];
+        $salesByDay = [];
+        $contactsByDay = [];
+        $period = new DatePeriod(
+            new DateTime($startDate),
+            new DateInterval('P1D'),
+            (new DateTime($endDate))->modify('+1 day')
+        );
+
+        foreach ($period as $date) {
+            $dayLabel = $date->format('j'); // 1..31
+            $labels[] = $dayLabel;
+            $salesByDay[$date->format('Y-m-d')] = 0.0;
+            $contactsByDay[$date->format('Y-m-d')] = 0;
+        }
+
+        // Fetch daily sales (use order_date) for the month
+        $salesRows = $this->db->fetchAll(
+            "SELECT DATE(order_date) as d, SUM(net_amount) as total_sales
+             FROM orders
+             WHERE created_by = :user_id
+               AND order_date BETWEEN :start_date AND :end_date
+             GROUP BY DATE(order_date)",
+            [
+                'user_id' => $userId,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+            ]
+        );
+
+        foreach ($salesRows as $row) {
+            $dayKey = $row['d'];
+            $salesByDay[$dayKey] = (float) ($row['total_sales'] ?? 0);
+        }
+
+        // Fetch daily orders count
+        $ordersRows = $this->db->fetchAll(
+            "SELECT DATE(order_date) as d, COUNT(*) as order_count
+             FROM orders
+             WHERE created_by = :user_id
+               AND order_date BETWEEN :start_date AND :end_date
+             GROUP BY DATE(order_date)",
+            [
+                'user_id' => $userId,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+            ]
+        );
+
+        $ordersByDay = [];
+        foreach ($period as $date) {
+            $ordersByDay[$date->format('Y-m-d')] = 0;
+        }
+        foreach ($ordersRows as $row) {
+            $dayKey = $row['d'];
+            $ordersByDay[$dayKey] = (int) ($row['order_count'] ?? 0);
+        }
+
+        // Fetch daily contacts from call_logs (distinct customers contacted per day)
+        $contactRows = $this->db->fetchAll(
+            "SELECT DATE(created_at) as d, COUNT(DISTINCT customer_id) as contact_count
+             FROM call_logs
+             WHERE user_id = :user_id
+               AND created_at BETWEEN :start_date_time AND :end_date_time
+             GROUP BY DATE(created_at)",
+            [
+                'user_id' => $userId,
+                'start_date_time' => $startDate . ' 00:00:00',
+                'end_date_time' => $endDate . ' 23:59:59',
+            ]
+        );
+
+        foreach ($contactRows as $row) {
+            $dayKey = $row['d'];
+            $contactsByDay[$dayKey] = (int) ($row['contact_count'] ?? 0);
+        }
+
+        // Build ordered arrays aligned with labels
+        $salesSeries = [];
+        $contactsSeries = [];
+        $ordersSeries = [];
+        foreach ($period as $date) {
+            $key = $date->format('Y-m-d');
+            $salesSeries[] = $salesByDay[$key];
+            $contactsSeries[] = $contactsByDay[$key];
+            $ordersSeries[] = $ordersByDay[$key];
+        }
+
+        return [
+            'labels' => $labels,
+            'sales' => $salesSeries,
+            'orders' => $ordersSeries,
+            'contacts' => $contactsSeries,
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+        ];
+    }
     
     // ========== Supervisor Team Methods ==========
     

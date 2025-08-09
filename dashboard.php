@@ -23,6 +23,10 @@ $dashboardService = new DashboardService();
 // Get dashboard data based on user role
 $roleName = $_SESSION['role_name'] ?? '';
 $userId = $_SESSION['user_id'] ?? null;
+// Selected month for dashboards that support filtering (YYYY-MM)
+$selectedMonth = isset($_GET['month']) && preg_match('/^\d{4}-\d{2}$/', $_GET['month'])
+    ? $_GET['month']
+    : date('Y-m');
 
 if ($roleName === 'telesales') {
     $result = $dashboardService->getTelesalesDashboard($userId);
@@ -37,6 +41,8 @@ if ($roleName === 'telesales') {
             'monthly_performance' => []
         ];
     }
+    // Daily performance for selected month (sales per day and contacts per day)
+    $dailyPerformance = $dashboardService->getDailyPerformanceForMonth((int)$userId, $selectedMonth);
 } else {
     $result = $dashboardService->getDashboardData($userId, $roleName);
     if ($result['success']) {
@@ -62,6 +68,14 @@ if ($roleName === 'telesales') {
     $followUpCustomers = $dashboardData['follow_up_customers'] ?? 0;
     $todayOrders = $dashboardData['today_orders'] ?? 0;
     $monthlyPerformance = $dashboardData['monthly_performance'] ?? [];
+    // expose daily performance to the view
+    $dailyPerformance = $dailyPerformance ?? [
+        'labels' => [],
+        'sales' => [],
+        'contacts' => [],
+        'start_date' => null,
+        'end_date' => null,
+    ];
 } else {
     $totalCustomers = $dashboardData['total_customers'] ?? 0;
     $hotCustomers = $dashboardData['hot_customers'] ?? 0;
@@ -72,9 +86,6 @@ if ($roleName === 'telesales') {
     $customerGrades = $dashboardData['customer_grades'] ?? [];
     $orderStatus = $dashboardData['order_status'] ?? [];
 }
-
-// ส่งข้อมูลไปยัง view
-$dashboardData = $dashboardData; // ใช้ตัวแปรเดิมเพื่อความเข้ากันได้
 
 // Include dashboard view
 include APP_VIEWS . 'dashboard/index.php';
