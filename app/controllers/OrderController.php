@@ -94,7 +94,9 @@ class OrderController {
         }
         
         // ดึงข้อมูลคำสั่งซื้อ
-        $result = $this->orderService->getOrders($filters, $page, 20);
+        // เริ่มต้นแสดง 10 แถว (สามารถโหลดเพิ่มแบบ incremental ที่ frontend)
+        $limit = isset($_GET['limit']) ? max(1, (int)$_GET['limit']) : 10;
+        $result = $this->orderService->getOrders($filters, $page, $limit);
         
         if (!$result['success']) {
             $this->showError('เกิดข้อผิดพลาด', $result['message']);
@@ -132,6 +134,43 @@ class OrderController {
         }
         
         include APP_VIEWS . 'orders/index.php';
+    }
+
+    /**
+     * API: คืนรายการคำสั่งซื้อแบบ JSON สำหรับโหลดเพิ่ม (Load more)
+     */
+    public function list() {
+        header('Content-Type: application/json');
+        try {
+            if (!isset($_SESSION['user_id'])) {
+                echo json_encode(['success' => false, 'message' => 'ไม่ได้รับอนุญาต']);
+                return;
+            }
+
+            $roleName = $_SESSION['role_name'] ?? '';
+            $userId = $_SESSION['user_id'];
+            $filters = [];
+
+            if ($roleName === 'telesales') {
+                $filters['created_by'] = $userId;
+            } elseif ($roleName === 'supervisor') {
+                $teamMemberIds = $this->getTeamMemberIds($userId);
+                $filters['created_by'] = !empty($teamMemberIds) ? $teamMemberIds : [-1];
+            }
+
+            // Optional filters from query
+            foreach (['customer_id','payment_status','delivery_status','order_number','search','date_from','date_to'] as $f) {
+                if (!empty($_GET[$f])) { $filters[$f] = $_GET[$f]; }
+            }
+
+            $page = isset($_GET['page']) ? max(1, (int)$_GET['page']) : 1;
+            $limit = isset($_GET['limit']) ? max(1, (int)$_GET['limit']) : 10;
+
+            $result = $this->orderService->getOrders($filters, $page, $limit);
+            echo json_encode($result);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()]);
+        }
     }
     
     /**

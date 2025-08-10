@@ -7,6 +7,7 @@ class OrderManager {
     constructor() {
         this.initializeEventListeners();
         this.loadExistingData();
+        this.initIncrementalLoading();
     }
 
     /**
@@ -69,6 +70,91 @@ class OrderManager {
                 this.loadCustomerData(customerSelect.value);
             }
         }
+    }
+
+    /**
+     * Incremental loading: load 10 more orders each time
+     */
+    initIncrementalLoading() {
+        const loadTop = document.getElementById('loadMoreBtn');
+        const loadBottom = document.getElementById('loadMoreBottomBtn');
+        if (!loadTop && !loadBottom) return;
+
+        // Track current page and limit via URL params
+        const url = new URL(window.location.href);
+        let page = parseInt(url.searchParams.get('page') || '1', 10);
+        let limit = parseInt(url.searchParams.get('limit') || '10', 10);
+
+        const tableBody = document.querySelector('table.table tbody');
+        const onClick = async (e) => {
+            e.preventDefault();
+            page += 1;
+            try {
+                const params = new URLSearchParams(url.searchParams);
+                params.set('action', 'list');
+                params.set('page', String(page));
+                params.set('limit', String(limit));
+                const res = await fetch('orders.php?' + params.toString());
+                const data = await res.json();
+                if (!data.success) {
+                    showAlert('ไม่สามารถโหลดข้อมูลเพิ่มได้', 'error');
+                    return;
+                }
+                const orders = data.orders || [];
+                if (orders.length === 0) {
+                    showAlert('ไม่มีรายการเพิ่มเติม', 'warning');
+                    // rollback page increment
+                    page -= 1;
+                    return;
+                }
+                // Render additional rows
+                const rowsHtml = orders.map(order => this.renderOrderRow(order)).join('');
+                tableBody.insertAdjacentHTML('beforeend', rowsHtml);
+            } catch (err) {
+                console.error(err);
+                showAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
+            }
+        };
+
+        if (loadTop) loadTop.addEventListener('click', onClick);
+        if (loadBottom) loadBottom.addEventListener('click', onClick);
+    }
+
+    renderOrderRow(order) {
+        const roleName = (window.sessionRoleName || '');
+        const userId = (window.sessionUserId || 0);
+        const paymentMethodLabels = {
+            cash: 'เงินสด', transfer: 'โอนเงิน', cod: 'เก็บเงินปลายทาง',
+            receive_before_payment: 'รับสินค้าก่อนชำระ', credit: 'เครดิต', other: 'อื่นๆ'
+        };
+        const paymentMethodLabel = paymentMethodLabels[order.payment_method] || order.payment_method;
+        const badgeClass = ['cod','receive_before_payment'].includes(order.payment_method) ? 'warning' : 'info';
+        const deliveredBadge = order.delivery_status === 'delivered' ? 'success' : (order.delivery_status === 'shipped' ? 'primary' : (order.delivery_status === 'pending' ? 'warning' : 'secondary'));
+        const paidChecked = (order.payment_status === 'paid') ? 'checked' : '';
+        const createdByMatch = (order.created_by == userId);
+        const canEdit = ['supervisor','admin','super_admin'].includes(roleName) || createdByMatch;
+        const orderDate = new Date(order.order_date).toLocaleDateString('th-TH');
+        const itemCount = order.item_count || 0;
+        const totalAmount = parseFloat(order.total_amount || 0).toFixed(2);
+        return `
+        <tr>
+            <td><strong>${order.order_number}</strong></td>
+            <td>${order.customer_name || ''}</td>
+            <td>${orderDate}</td>
+            <td>${itemCount} รายการ</td>
+            <td><strong class="text-success">฿${totalAmount}</strong>${itemCount>0?`<br><small class="text-muted">${itemCount} รายการ</small>`:''}</td>
+            <td><span class="badge bg-${deliveredBadge} text-dark">${order.delivery_status}</span></td>
+            <td><span class="badge bg-${badgeClass} text-dark">${paymentMethodLabel}</span></td>
+            <td>
+                <div class="d-flex align-items-center gap-2">
+                    <a href="orders.php?action=show&id=${order.order_id}" class="btn btn-sm btn-outline-primary" title="ดูรายละเอียด"><i class="fas fa-eye"></i></a>
+                    ${canEdit ? `<a href="orders.php?action=edit&id=${order.order_id}" class="btn btn-sm btn-outline-warning" title="แก้ไข"><i class="fas fa-edit"></i></a>` : ''}
+                    ${canEdit ? `<div class="form-check form-switch ms-1" title="ติ๊กเพื่อทำเครื่องหมายชำระแล้ว">
+                        <input class="form-check-input" type="checkbox" onchange="togglePaid(${order.order_id}, this.checked)" ${paidChecked} />
+                    </div>` : ''}
+                </div>
+            </td>
+        </tr>`;
     }
 
     /**
@@ -701,19 +787,25 @@ function showAlert(message, type = 'info') {
         ${message}
         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
     `;
-    
-    const container = document.querySelector('.main-content') || document.body;
-    container.appendChild(alertDiv);
-    
-    // Scroll to the alert
-    alertDiv.scrollIntoView({ behavior: 'smooth', block: 'end' });
-    
-    // Auto remove after 5 seconds
+
+    // Prefer a dedicated alert container at top on Orders list page
+    const topContainer = document.getElementById('orders-alert-container');
+    if (topContainer) {
+        // clear previous alerts to avoid stacking
+        topContainer.innerHTML = '';
+        topContainer.appendChild(alertDiv);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    } else {
+        const container = document.querySelector('.main-content') || document.body;
+        container.appendChild(alertDiv);
+        alertDiv.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
     setTimeout(() => {
         if (alertDiv.parentNode) {
             alertDiv.remove();
         }
-    }, 5000);
+    }, 4000);
 }
 
 /**
@@ -742,6 +834,28 @@ function deleteOrder(orderId) {
             console.error('Error:', error);
             showAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
         });
+    }
+}
+
+/**
+ * Toggle paid status from list view
+ */
+async function togglePaid(orderId, isChecked) {
+    try {
+        const response = await fetch('orders.php?action=update_status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: orderId, field: 'payment_status', value: isChecked ? 'paid' : 'pending' })
+        });
+        const result = await response.json();
+        if (!result.success) {
+            showAlert('อัปเดตสถานะการชำระเงินไม่สำเร็จ: ' + (result.message || ''), 'error');
+        } else {
+            showAlert('อัปเดตสถานะการชำระเงินสำเร็จ', 'success');
+        }
+    } catch (e) {
+        console.error(e);
+        showAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
     }
 }
 

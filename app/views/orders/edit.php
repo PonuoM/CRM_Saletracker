@@ -201,9 +201,14 @@ $userId = $_SESSION['user_id'] ?? 0;
                                         <strong>ยอดรวม:</strong>
                                         <strong id="net_amount">฿0.00</strong>
                                     </div>
-                                    <button type="submit" class="btn btn-success w-100" id="submitBtn">
-                                        <i class="fas fa-save me-1"></i>บันทึกการแก้ไข
-                                    </button>
+                                    <div class="d-grid gap-2">
+                                        <button type="submit" class="btn btn-success" id="submitBtn">
+                                            <i class="fas fa-save me-1"></i>อัปเดตคำสั่งซื้อ
+                                        </button>
+                                        <button type="button" class="btn btn-outline-danger" onclick="deleteOrder(<?php echo (int)($order['order_id'] ?? 0); ?>)">
+                                            <i class="fas fa-trash me-1"></i>ลบคำสั่งซื้อ
+                                        </button>
+                                    </div>
                                 </div>
                             </div>
                         </div>

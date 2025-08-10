@@ -36,12 +36,16 @@ $userId = $_SESSION['user_id'] ?? 0;
 
             <!-- Main Content -->
             <main class="col-md-9 col-lg-10 main-content page-transition">
+                <div id="orders-alert-container"></div>
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                     <h1 class="h2">จัดการคำสั่งซื้อ</h1>
                     <div class="btn-toolbar mb-2 mb-md-0">
-                        <a href="orders.php?action=create" class="btn btn-primary">
+                        <a href="orders.php?action=create" class="btn btn-primary me-2">
                             <i class="fas fa-plus me-1"></i>สร้างคำสั่งซื้อใหม่
                         </a>
+                        <button id="loadMoreBtn" class="btn btn-outline-primary">
+                            <i class="fas fa-chevron-down me-1"></i>แสดงเพิ่มอีก 10
+                        </button>
                     </div>
                 </div>
 
@@ -154,7 +158,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                                                     </span>
                                                 </td>
                                                 <td>
-                                                    <div class="btn-group" role="group">
+                                                    <div class="d-flex align-items-center gap-2">
                                                         <a href="orders.php?action=show&id=<?php echo $order['order_id']; ?>"
                                                            class="btn btn-sm btn-outline-primary" title="ดูรายละเอียด">
                                                             <i class="fas fa-eye"></i>
@@ -164,10 +168,11 @@ $userId = $_SESSION['user_id'] ?? 0;
                                                            class="btn btn-sm btn-outline-warning" title="แก้ไข">
                                                             <i class="fas fa-edit"></i>
                                                         </a>
-                                                        <button type="button" class="btn btn-sm btn-outline-danger"
-                                                                onclick="deleteOrder(<?php echo $order['order_id']; ?>)" title="ลบ">
-                                                            <i class="fas fa-trash"></i>
-                                                        </button>
+                                                        <div class="form-check form-switch ms-1" title="ติ๊กเพื่อทำเครื่องหมายชำระแล้ว">
+                                                            <input class="form-check-input" type="checkbox"
+                                                                   onchange="togglePaid(<?php echo $order['order_id']; ?>, this.checked)"
+                                                                   <?php echo ($order['payment_status'] ?? '') === 'paid' ? 'checked' : ''; ?> />
+                                                        </div>
                                                         <?php endif; ?>
                                                     </div>
                                                 </td>
@@ -175,6 +180,11 @@ $userId = $_SESSION['user_id'] ?? 0;
                                         <?php endforeach; ?>
                                     </tbody>
                                 </table>
+                                <div class="text-center mt-3">
+                                    <button id="loadMoreBottomBtn" class="btn btn-outline-secondary btn-sm">
+                                        แสดงเพิ่มอีก 10
+                                    </button>
+                                </div>
                             </div>
                         <?php else: ?>
                             <div class="text-center py-4">
@@ -229,6 +239,11 @@ $userId = $_SESSION['user_id'] ?? 0;
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="assets/js/page-transitions.js"></script>
+    <script>
+      // expose session info for JS render function
+      window.sessionRoleName = <?php echo json_encode($roleName); ?>;
+      window.sessionUserId = <?php echo json_encode($userId); ?>;
+    </script>
     <script src="assets/js/orders.js"></script>
 </body>
 </html> 

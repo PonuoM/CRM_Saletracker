@@ -290,6 +290,7 @@ class DashboardService {
             "SELECT DATE(order_date) as d, SUM(net_amount) as total_sales
              FROM orders
              WHERE created_by = :user_id
+               AND payment_status = 'paid'
                AND order_date BETWEEN :start_date AND :end_date
              GROUP BY DATE(order_date)",
             [
@@ -364,6 +365,116 @@ class DashboardService {
             'contacts' => $contactsSeries,
             'start_date' => $startDate,
             'end_date' => $endDate,
+        ];
+    }
+
+    /**
+     * ดึง KPI รายเดือนสำหรับ Telesales ตามเดือนที่เลือก
+     * - ยอดขายประจำเดือน (sum net_amount ของคำสั่งซื้อที่ผู้ใช้สร้าง)
+     * - คำสั่งซื้อประจำเดือน (count คำสั่งซื้อ)
+     * - ยอดขายตามหมวดสินค้า (ปุ๋ยกระสอบใหญ่, ปุ๋ยกระสอบเล็ก, ชีวภัณฑ์)
+     */
+    public function getMonthlyKpisForTelesales(int $userId, string $yearMonth): array {
+        if (!preg_match('/^\d{4}-\d{2}$/', $yearMonth)) {
+            $yearMonth = date('Y-m');
+        }
+
+        $startDate = $yearMonth . '-01';
+        $endDate = date('Y-m-t', strtotime($startDate));
+
+        // Total monthly sales
+        $rowSales = $this->db->fetchOne(
+            "SELECT COALESCE(SUM(net_amount), 0) AS total_sales
+             FROM orders
+             WHERE created_by = :user_id
+               AND payment_status = 'paid'
+               AND order_date BETWEEN :start_date AND :end_date",
+            [
+                'user_id' => $userId,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+            ]
+        );
+
+        // Total monthly orders
+        $rowOrders = $this->db->fetchOne(
+            "SELECT COUNT(*) AS total_orders
+             FROM orders
+             WHERE created_by = :user_id
+               AND order_date BETWEEN :start_date AND :end_date",
+            [
+                'user_id' => $userId,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+            ]
+        );
+
+        // Helper: aggregate category totals (amount, quantity) and most common unit
+        $categoryAgg = function(string $category) use ($userId, $startDate, $endDate) {
+            $row = $this->db->fetchOne(
+                "SELECT 
+                        COALESCE(SUM(oi.total_price), 0) AS total_amount,
+                        COALESCE(SUM(oi.quantity), 0) AS total_quantity
+                 FROM order_items oi
+                 JOIN orders o ON oi.order_id = o.order_id
+                 JOIN products p ON oi.product_id = p.product_id
+                 WHERE o.created_by = :user_id
+                   AND o.payment_status = 'paid'
+                   AND o.order_date BETWEEN :start_date AND :end_date
+                   AND p.category = :category",
+                [
+                    'user_id' => $userId,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                    'category' => $category,
+                ]
+            );
+
+            // Find most common unit in this category for the month
+            $unitRow = $this->db->fetchOne(
+                "SELECT p.unit, COUNT(*) as cnt
+                 FROM order_items oi
+                 JOIN orders o ON oi.order_id = o.order_id
+                 JOIN products p ON oi.product_id = p.product_id
+                 WHERE o.created_by = :user_id
+                   AND o.payment_status = 'paid'
+                   AND o.order_date BETWEEN :start_date AND :end_date
+                   AND p.category = :category
+                 GROUP BY p.unit
+                 ORDER BY cnt DESC
+                 LIMIT 1",
+                [
+                    'user_id' => $userId,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                    'category' => $category,
+                ]
+            );
+
+            return [
+                'amount' => (float) ($row['total_amount'] ?? 0),
+                'quantity' => (int) ($row['total_quantity'] ?? 0),
+                'unit' => $unitRow['unit'] ?? 'หน่วย',
+            ];
+        };
+
+        $big = $categoryAgg('ปุ๋ยกระสอบใหญ่');
+        $small = $categoryAgg('ปุ๋ยกระสอบเล็ก');
+        $bio = $categoryAgg('ชีวภัณฑ์');
+
+        return [
+            'month' => $yearMonth,
+            'total_sales' => (float) ($rowSales['total_sales'] ?? 0),
+            'total_orders' => (int) ($rowOrders['total_orders'] ?? 0),
+            'sales_big_sack' => $big['amount'],
+            'sales_big_sack_quantity' => $big['quantity'],
+            'sales_big_sack_unit' => $big['unit'],
+            'sales_small_sack' => $small['amount'],
+            'sales_small_sack_quantity' => $small['quantity'],
+            'sales_small_sack_unit' => $small['unit'],
+            'sales_bio' => $bio['amount'],
+            'sales_bio_quantity' => $bio['quantity'],
+            'sales_bio_unit' => $bio['unit'],
         ];
     }
     

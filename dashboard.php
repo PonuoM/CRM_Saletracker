@@ -43,6 +43,8 @@ if ($roleName === 'telesales') {
     }
     // Daily performance for selected month (sales per day and contacts per day)
     $dailyPerformance = $dashboardService->getDailyPerformanceForMonth((int)$userId, $selectedMonth);
+    // Monthly KPIs for selected month
+    $monthlyKpis = $dashboardService->getMonthlyKpisForTelesales((int)$userId, $selectedMonth);
 } else {
     $result = $dashboardService->getDashboardData($userId, $roleName);
     if ($result['success']) {

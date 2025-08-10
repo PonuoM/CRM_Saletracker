@@ -479,7 +479,7 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
-  padding: 2rem;
+  padding: 1.25rem;
   text-align: center;
   transition: var(--transition);
   box-shadow: var(--shadow-sm);
@@ -501,7 +501,7 @@ h1, h2, h3, h4, h5, h6 {
 }
 
 .kpi-card .kpi-value {
-  font-size: 2.25rem;
+  font-size: 1.6rem;
   font-weight: 700;
   color: var(--primary-color);
   margin-bottom: 0.75rem;
@@ -527,15 +527,15 @@ h1, h2, h3, h4, h5, h6 {
   background: var(--card-bg);
   border: 1px solid var(--border-color);
   border-radius: var(--border-radius);
-  padding: 2rem;
+  padding: 1rem;
   box-shadow: var(--shadow-sm);
-  height: 400px; /* Fixed height to prevent infinite growth */
+  height: 320px; /* reduce to fit above the fold */
   overflow: hidden; /* Prevent content overflow */
 }
 
 /* Chart canvas specific styles */
 .chart-container canvas {
-  max-height: 350px !important; /* Ensure chart doesn't exceed container */
+  max-height: 280px !important; /* Ensure chart doesn't exceed container */
   width: 100% !important;
 }
 

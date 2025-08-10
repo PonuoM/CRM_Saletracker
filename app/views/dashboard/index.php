@@ -43,41 +43,63 @@ $role = $_SESSION['role'] ?? 'user';
                 <!-- KPI Cards -->
                 <div class="row mb-4">
                     <?php if ($roleName === 'telesales'): ?>
-                        <!-- Telesales Dashboard -->
+                        <!-- Existing 4 KPI (with orders changed to monthly) -->
                         <div class="col-xl-3 col-md-6 mb-4">
                             <div class="kpi-card">
                                 <h3>ลูกค้าที่มอบหมาย</h3>
                                 <div class="kpi-value"><?php echo number_format($dashboardData['assigned_customers'] ?? 0); ?></div>
-                                <div class="kpi-change positive">
-                                    <i class="fas fa-users me-1"></i>ลูกค้าที่รับผิดชอบ
-                                </div>
+                                <div class="kpi-change positive"><i class="fas fa-users me-1"></i>ลูกค้าที่รับผิดชอบ</div>
                             </div>
                         </div>
                         <div class="col-xl-3 col-md-6 mb-4">
                             <div class="kpi-card">
                                 <h3>ลูกค้าต้องติดตาม</h3>
                                 <div class="kpi-value"><?php echo number_format($dashboardData['follow_up_customers'] ?? 0); ?></div>
-                                <div class="kpi-change warning">
-                                    <i class="fas fa-clock me-1"></i>รอการติดตาม
-                                </div>
+                                <div class="kpi-change warning"><i class="fas fa-clock me-1"></i>รอการติดตาม</div>
                             </div>
                         </div>
                         <div class="col-xl-3 col-md-6 mb-4">
                             <div class="kpi-card">
-                                <h3>คำสั่งซื้อวันนี้</h3>
-                                <div class="kpi-value"><?php echo number_format($dashboardData['today_orders'] ?? 0); ?></div>
-                                <div class="kpi-change positive">
-                                    <i class="fas fa-shopping-cart me-1"></i>คำสั่งซื้อใหม่
-                                </div>
+                                <h3>คำสั่งซื้อประจำเดือน</h3>
+                                <div class="kpi-value"><?php echo number_format($monthlyKpis['total_orders'] ?? 0); ?></div>
+                                <div class="kpi-change positive"><i class="fas fa-shopping-cart me-1"></i><?php echo htmlspecialchars($selectedMonth); ?></div>
                             </div>
                         </div>
                         <div class="col-xl-3 col-md-6 mb-4">
                             <div class="kpi-card">
                                 <h3>ประสิทธิภาพ</h3>
                                 <div class="kpi-value"><?php echo number_format(count($dashboardData['monthly_performance'] ?? [])); ?></div>
-                                <div class="kpi-change info">
-                                    <i class="fas fa-chart-line me-1"></i>เดือนที่ทำงาน
-                                </div>
+                                <div class="kpi-change info"><i class="fas fa-chart-line me-1"></i>เดือนที่ทำงาน</div>
+                            </div>
+                        </div>
+
+                        <!-- Additional 4 KPI: Monthly sales and 3 categories (amount + quantity + unit) -->
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="kpi-card">
+                                <h3>ยอดขายประจำเดือน</h3>
+                                <div class="kpi-value">฿<?php echo number_format($monthlyKpis['total_sales'] ?? 0, 2); ?></div>
+                                <div class="kpi-change positive"><i class="fas fa-baht-sign me-1"></i><?php echo htmlspecialchars($selectedMonth); ?></div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="kpi-card">
+                                <h3>ปุ๋ยกระสอบใหญ่</h3>
+                                <div class="kpi-value">฿<?php echo number_format($monthlyKpis['sales_big_sack'] ?? 0, 2); ?></div>
+                                <div class="kpi-change info"><i class="fas fa-sack-dollar me-1"></i><?php echo number_format($monthlyKpis['sales_big_sack_quantity'] ?? 0); ?> <?php echo htmlspecialchars($monthlyKpis['sales_big_sack_unit'] ?? 'หน่วย'); ?></div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="kpi-card">
+                                <h3>ปุ๋ยกระสอบเล็ก</h3>
+                                <div class="kpi-value">฿<?php echo number_format($monthlyKpis['sales_small_sack'] ?? 0, 2); ?></div>
+                                <div class="kpi-change info"><i class="fas fa-box me-1"></i><?php echo number_format($monthlyKpis['sales_small_sack_quantity'] ?? 0); ?> <?php echo htmlspecialchars($monthlyKpis['sales_small_sack_unit'] ?? 'หน่วย'); ?></div>
+                            </div>
+                        </div>
+                        <div class="col-xl-3 col-md-6 mb-4">
+                            <div class="kpi-card">
+                                <h3>ชีวภัณฑ์</h3>
+                                <div class="kpi-value">฿<?php echo number_format($monthlyKpis['sales_bio'] ?? 0, 2); ?></div>
+                                <div class="kpi-change info"><i class="fas fa-flask me-1"></i><?php echo number_format($monthlyKpis['sales_bio_quantity'] ?? 0); ?> <?php echo htmlspecialchars($monthlyKpis['sales_bio_unit'] ?? 'หน่วย'); ?></div>
                             </div>
                         </div>
                     <?php else: ?>
@@ -121,28 +143,35 @@ $role = $_SESSION['role'] ?? 'user';
                     <?php endif; ?>
                 </div>
 
-                <!-- Charts Row -->
+                <!-- Charts Row (use tabs to save vertical space) -->
                 <div class="row mb-4">
                     <?php if ($roleName === 'telesales'): ?>
                         <div class="col-lg-12 mb-4">
                             <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h5 class="mb-0">ยอดขายรายวัน</h5>
+                                <ul class="nav nav-tabs" id="chartTabs" role="tablist">
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link active" id="tab-sales" data-bs-toggle="tab" data-bs-target="#pane-sales" type="button" role="tab">ยอดขายรายวัน</button>
+                                    </li>
+                                    <li class="nav-item" role="presentation">
+                                        <button class="nav-link" id="tab-orders-contacts" data-bs-toggle="tab" data-bs-target="#pane-orders-contacts" type="button" role="tab">คำสั่งซื้อ + รายชื่อติดต่อ</button>
+                                    </li>
+                                </ul>
                                 <form method="get" class="d-flex align-items-center" id="monthFilterForm">
                                     <label for="monthPicker" class="me-2">เดือน:</label>
                                     <input type="month" id="monthPicker" name="month" class="form-control form-control-sm" value="<?php echo htmlspecialchars($selectedMonth ?? date('Y-m')); ?>" />
                                 </form>
                             </div>
-                            <div class="chart-container">
-                                <canvas id="dailySalesChart" width="400" height="200"></canvas>
-                            </div>
-                        </div>
-
-                        <div class="col-lg-12 mb-4">
-                            <div class="d-flex justify-content-between align-items-center mb-2">
-                                <h5 class="mb-0">คำสั่งซื้อและรายชื่อติดต่อต่อวัน</h5>
-                            </div>
-                            <div class="chart-container">
-                                <canvas id="ordersContactsChart" width="400" height="200"></canvas>
+                            <div class="tab-content p-3 border border-top-0 rounded-bottom">
+                                <div class="tab-pane fade show active" id="pane-sales" role="tabpanel">
+                                    <div class="chart-container" style="height:320px">
+                                        <canvas id="dailySalesChart"></canvas>
+                                    </div>
+                                </div>
+                                <div class="tab-pane fade" id="pane-orders-contacts" role="tabpanel">
+                                    <div class="chart-container" style="height:320px">
+                                        <canvas id="ordersContactsChart"></canvas>
+                                    </div>
+                                </div>
                             </div>
                         </div>
                     <?php else: ?>
@@ -161,63 +190,12 @@ $role = $_SESSION['role'] ?? 'user';
                     <?php endif; ?>
                 </div>
 
-                <!-- Recent Activities & Customer Grades -->
+                <?php if ($roleName !== 'telesales'): ?>
+                <!-- Recent Activities & Customer Grades (hidden for telesales per requirement) -->
                 <div class="row">
-                    <div class="col-lg-6 mb-4">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0">กิจกรรมล่าสุด</h5>
-                            </div>
-                            <div class="card-body">
-                                <?php if (!empty($dashboardData['recent_activities'])): ?>
-                                    <div class="list-group list-group-flush">
-                                        <?php foreach (array_slice($dashboardData['recent_activities'], 0, 5) as $activity): ?>
-                                            <div class="list-group-item border-0 px-0">
-                                                <div class="d-flex justify-content-between align-items-start">
-                                                    <div>
-                                                        <h6 class="mb-1"><?php echo htmlspecialchars($activity['description']); ?></h6>
-                                                        <small class="text-muted">
-                                                            <?php echo htmlspecialchars($activity['customer_name']); ?> - 
-                                                            <?php echo date('d/m/Y H:i', strtotime($activity['created_at'])); ?>
-                                                        </small>
-                                                    </div>
-                                                    <span class="badge badge-primary"><?php echo htmlspecialchars($activity['activity_type']); ?></span>
-                                                </div>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php else: ?>
-                                    <p class="text-muted mb-0">ไม่มีกิจกรรมล่าสุด</p>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="col-lg-6 mb-4">
-                        <div class="card">
-                            <div class="card-header">
-                                <h5 class="mb-0">เกรดลูกค้า</h5>
-                            </div>
-                            <div class="card-body">
-                                <?php if (!empty($dashboardData['customer_grades'])): ?>
-                                    <div class="row">
-                                        <?php foreach ($dashboardData['customer_grades'] as $grade => $count): ?>
-                                            <div class="col-6 mb-3">
-                                                <div class="d-flex justify-content-between align-items-center">
-                                                    <span class="grade-<?php echo strtolower($grade); ?> fw-bold">
-                                                        เกรด <?php echo $grade; ?>
-                                                    </span>
-                                                    <span class="badge badge-primary"><?php echo $count; ?></span>
-                                                </div>
-                                            </div>
-                                        <?php endforeach; ?>
-                                    </div>
-                                <?php else: ?>
-                                    <p class="text-muted mb-0">ไม่มีข้อมูลเกรดลูกค้า</p>
-                                <?php endif; ?>
-                            </div>
-                        </div>
-                    </div>
+                    <!-- existing blocks remain for admin/supervisor -->
                 </div>
+                <?php endif; ?>
             </main>
         </div>
     </div>

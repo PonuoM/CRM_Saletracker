@@ -81,6 +81,11 @@ try {
         case 'export':
             $orderController->export();
             break;
+
+        case 'list':
+            // Return JSON list for incremental loading
+            $orderController->list();
+            break;
             
         case 'get_products':
             $orderController->getProducts();
