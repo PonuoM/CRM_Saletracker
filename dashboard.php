@@ -23,12 +23,18 @@ $dashboardService = new DashboardService();
 // Get dashboard data based on user role
 $roleName = $_SESSION['role_name'] ?? '';
 $userId = $_SESSION['user_id'] ?? null;
+
+// Redirect supervisor to dedicated dashboard
+if ($roleName === 'supervisor') {
+    header('Location: dashboard_supervisor.php');
+    exit;
+}
 // Selected month for dashboards that support filtering (YYYY-MM)
 $selectedMonth = isset($_GET['month']) && preg_match('/^\d{4}-\d{2}$/', $_GET['month'])
     ? $_GET['month']
     : date('Y-m');
 
-if ($roleName === 'telesales') {
+if ($roleName === 'telesales' || $roleName === 'supervisor') {
     $result = $dashboardService->getTelesalesDashboard($userId);
     if ($result['success']) {
         $dashboardData = $result['data'];
@@ -67,7 +73,7 @@ if ($roleName === 'telesales') {
 }
 
 // Extract data for the view
-if ($roleName === 'telesales') {
+if ($roleName === 'telesales' || $roleName === 'supervisor') {
     $assignedCustomers = $dashboardData['assigned_customers'] ?? 0;
     $followUpCustomers = $dashboardData['follow_up_customers'] ?? 0;
     $todayOrders = $dashboardData['today_orders'] ?? 0;
@@ -80,6 +86,18 @@ if ($roleName === 'telesales') {
         'start_date' => null,
         'end_date' => null,
     ];
+
+    // Ensure monthlyKpis is available
+    $monthlyKpis = $monthlyKpis ?? [
+        'total_orders' => 0,
+        'total_sales' => 0,
+        'total_contacts' => 0,
+        'conversion_rate' => 0
+    ];
+
+    // Ensure monthlyOrders is available
+    $monthlyOrders = $monthlyOrders ?? 0;
+
 } else {
     $totalCustomers = $dashboardData['total_customers'] ?? 0;
     $hotCustomers = $dashboardData['hot_customers'] ?? 0;

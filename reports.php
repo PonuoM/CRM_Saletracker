@@ -71,6 +71,15 @@ try {
     $error = $e->getMessage();
 }
 
-// แสดงหน้า reports
+// Set page title and prepare content for layout
+$pageTitle = 'รายงาน - CRM SalesTracker';
+$currentPage = 'reports';
+
+// Capture reports content
+ob_start();
 include __DIR__ . '/app/views/reports/index.php';
-?> 
+$content = ob_get_clean();
+
+// Use main layout
+include __DIR__ . '/app/views/layouts/main.php';
+?>

@@ -24,32 +24,83 @@ if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
     exit;
 }
 
+// Debug mode - check if debug parameter is set
+$debug = isset($_GET['debug']) && $_GET['debug'] === '1';
+
+if ($debug) {
+    // Debug session information
+    error_log("Workflow API Debug - Session data: " . print_r($_SESSION, true));
+    error_log("Workflow API Debug - User ID: " . ($_SESSION['user_id'] ?? 'not set'));
+    error_log("Workflow API Debug - Role: " . ($_SESSION['role_name'] ?? 'not set'));
+}
+
 // ตรวจสอบการยืนยันตัวตน
 if (!isset($_SESSION['user_id'])) {
+    if ($debug) {
+        echo json_encode([
+            'error' => 'Unauthorized',
+            'debug' => [
+                'session_id' => session_id(),
+                'session_data' => $_SESSION,
+                'message' => 'No user_id in session'
+            ]
+        ]);
+    } else {
+        echo json_encode(['error' => 'Unauthorized']);
+    }
     http_response_code(401);
-    echo json_encode(['error' => 'Unauthorized']);
     exit;
 }
 
 // ตรวจสอบสิทธิ์ (เฉพาะ Admin และ Supervisor)
 $allowedRoles = ['admin', 'supervisor', 'super_admin'];
 if (!in_array($_SESSION['role_name'] ?? '', $allowedRoles)) {
+    if ($debug) {
+        echo json_encode([
+            'error' => 'Forbidden - Insufficient permissions',
+            'debug' => [
+                'user_role' => $_SESSION['role_name'] ?? 'not set',
+                'allowed_roles' => $allowedRoles,
+                'session_data' => $_SESSION
+            ]
+        ]);
+    } else {
+        echo json_encode(['error' => 'Forbidden - Insufficient permissions']);
+    }
     http_response_code(403);
-    echo json_encode(['error' => 'Forbidden - Insufficient permissions']);
     exit;
 }
 
 try {
     $workflowService = new WorkflowService();
-    
+
     // Get action from query string
     $action = $_GET['action'] ?? '';
-    
+
+    if ($debug) {
+        error_log("Workflow API Debug - Action: " . $action);
+    }
+
     switch ($action) {
         case 'stats':
             // ดึงสถิติ Workflow
             $stats = $workflowService->getWorkflowStats();
-            echo json_encode(['success' => true, 'data' => $stats]);
+
+            if ($debug) {
+                error_log("Workflow API Debug - Stats result: " . print_r($stats, true));
+                echo json_encode([
+                    'success' => true,
+                    'data' => $stats,
+                    'debug' => [
+                        'action' => $action,
+                        'user_id' => $_SESSION['user_id'],
+                        'role' => $_SESSION['role_name'],
+                        'timestamp' => date('Y-m-d H:i:s')
+                    ]
+                ]);
+            } else {
+                echo json_encode(['success' => true, 'data' => $stats]);
+            }
             break;
             
         case 'new_customer_timeout':

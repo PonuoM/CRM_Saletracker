@@ -13,7 +13,7 @@ $role = $_SESSION['role'] ?? 'user';
     <h1 class="h2">แดชบอร์ด</h1>
 </div>
 
-<?php if ($_SESSION['role_name'] === 'telesales'): ?>
+<?php if ($_SESSION['role_name'] === 'telesales' || $_SESSION['role_name'] === 'supervisor'): ?>
     <!-- Telesales Dashboard -->
     <div class="row mb-3">
         <div class="col-md-4">
@@ -71,7 +71,7 @@ $role = $_SESSION['role'] ?? 'user';
                     <div class="d-flex justify-content-between">
                         <div>
                             <h6 class="card-title text-muted small">คำสั่งซื้อประจำเดือน</h6>
-                            <h4 class="mb-0 text-success"><?php echo number_format($monthlyOrders ?? 0); ?></h4>
+                            <h4 class="mb-0 text-success"><?php echo number_format($monthlyKpis['total_orders'] ?? 0); ?></h4>
                         </div>
                         <div class="align-self-center">
                             <i class="fas fa-shopping-cart fa-lg text-success opacity-75"></i>

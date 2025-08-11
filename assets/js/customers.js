@@ -11,14 +11,15 @@ let currentBasketType = 'distribution';
 document.addEventListener('DOMContentLoaded', function() {
     // Load initial data
     // ลูกค้าใหม่: แสดงตามสถานะ customer_status = 'new'
-    loadCustomersByBasket('all', 'newCustomersTable', { customer_status: 'new' });
+    const basketType = (window.currentUserRole === 'telesales' || window.currentUserRole === 'supervisor') ? 'assigned' : 'all';
+    loadCustomersByBasket(basketType, 'newCustomersTable', { customer_status: 'new' });
     // ติดตาม: ใช้ API เฉพาะ followups เพื่อดึงลูกค้าที่มีนัด/ครบกำหนด
     loadFollowups('followupCustomersTable');
     // ลูกค้าเก่า: เฉพาะสถานะ customer_status = 'existing' (ใน assigned)
     loadCustomersByBasket('assigned', 'existingCustomersTable', { customer_status: 'existing' });
-    
-    // สำหรับ telesales: โหลด call followups อัตโนมัติ
-    if (window.currentUserRole === 'telesales') {
+
+    // สำหรับ telesales และ supervisor: โหลด call followups อัตโนมัติ
+    if (window.currentUserRole === 'telesales' || window.currentUserRole === 'supervisor') {
         loadCallFollowups('all');
     }
     
@@ -40,7 +41,8 @@ function addEventListeners() {
             const target = e.target.getAttribute('data-bs-target');
             switch(target) {
                 case '#new':
-                    loadCustomersByBasket('all', 'newCustomersTable', { customer_status: 'new' });
+                    const basketType = (window.currentUserRole === 'telesales' || window.currentUserRole === 'supervisor') ? 'assigned' : 'all';
+                    loadCustomersByBasket(basketType, 'newCustomersTable', { customer_status: 'new' });
                     break;
                 case '#followup':
                     loadFollowups('followupCustomersTable');

@@ -1,32 +1,16 @@
-<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>รายงาน - CRM Sales Tracker</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="https://cdn.datatables.net/1.11.5/css/dataTables.bootstrap5.min.css" rel="stylesheet">
-    <link href="assets/css/app.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-</head>
-<body>
-    <div class="container-fluid">
-        <div class="row">
-            <!-- Sidebar -->
-            <?php include __DIR__ . '/../components/sidebar.php'; ?>
-            
-            <!-- Main Content -->
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 page-transition">
-                <!-- Header -->
-                <?php include __DIR__ . '/../components/header.php'; ?>
-                
-                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                    <h1 class="h2" style="font-family: 'Sukhumvit Set', sans-serif;">
-                        <i class="fas fa-chart-bar me-2"></i>
-                        รายงาน
-                    </h1>
-                </div>
+<?php
+/**
+ * Reports Index
+ * หน้ารายงาน
+ */
+?>
+
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2" style="font-family: 'Sukhumvit Set', sans-serif;">
+        <i class="fas fa-chart-bar me-2"></i>
+        รายงาน
+    </h1>
+</div>
 
                 <?php if (isset($error)): ?>
                     <div class="alert alert-danger" role="alert">
@@ -239,8 +223,6 @@
             }
         });
     </script>
-</body>
-</html>
 
 <?php
 function getStatusColor($status) {
@@ -275,4 +257,4 @@ function getGradeColor($grade) {
         default: return 'secondary';
     }
 }
-?> 
+?>

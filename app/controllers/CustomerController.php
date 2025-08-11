@@ -42,19 +42,10 @@ class CustomerController {
                 // Admin เห็นลูกค้าทั้งหมด
                 $customers = $this->customerService->getCustomersByBasket('distribution');
                 break;
-                
+
             case 'supervisor':
-                // Supervisor เห็นเฉพาะลูกค้าของทีมตัวเอง
-                $teamCustomerIds = $this->getTeamCustomerIds($userId);
-                if (!empty($teamCustomerIds)) {
-                    $customers = $this->customerService->getCustomersByBasket('assigned', ['assigned_to' => $teamCustomerIds]);
-                } else {
-                    $customers = [];
-                }
-                break;
-                
             case 'telesales':
-                // Telesales เห็นเฉพาะลูกค้าที่ได้รับมอบหมาย
+                // Supervisor และ Telesales เห็นเฉพาะลูกค้าที่ได้รับมอบหมายให้ตัวเอง
                 $customers = $this->customerService->getCustomersByBasket('assigned', ['assigned_to' => $userId]);
                 $followUpCustomers = $this->customerService->getFollowUpCustomers($userId);
                 break;
@@ -120,16 +111,9 @@ class CustomerController {
         }
         
         // ตรวจสอบสิทธิ์การเข้าถึง
-        if ($roleName === 'telesales' && $customer['assigned_to'] != $userId) {
+        if (($roleName === 'telesales' || $roleName === 'supervisor') && $customer['assigned_to'] != $userId) {
             $this->showError('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์เข้าถึงข้อมูลลูกค้ารายนี้');
             return;
-        } elseif ($roleName === 'supervisor') {
-            // Supervisor ตรวจสอบว่าลูกค้าอยู่ในทีมตัวเองหรือไม่
-            $teamMemberIds = $this->getTeamCustomerIds($userId);
-            if (!in_array($customer['assigned_to'], $teamMemberIds)) {
-                $this->showError('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์เข้าถึงข้อมูลลูกค้ารายนี้');
-                return;
-            }
         }
         
         // ดึงประวัติการโทร
@@ -431,9 +415,9 @@ class CustomerController {
             $filters['customer_status'] = $_GET['customer_status'];
         }
         
-        // สำหรับ Telesales เห็นเฉพาะลูกค้าที่ได้รับมอบหมาย
+        // สำหรับ Telesales และ Supervisor เห็นเฉพาะลูกค้าที่ได้รับมอบหมายให้ตัวเอง
         $roleName = $_SESSION['role_name'] ?? '';
-        if ($roleName === 'telesales') {
+        if ($roleName === 'telesales' || $roleName === 'supervisor') {
             $filters['assigned_to'] = $_SESSION['user_id'];
         }
         
@@ -470,16 +454,9 @@ class CustomerController {
         $params = [];
         $where = "c.is_active = 1 AND (c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 7 DAY) OR c.next_followup_at <= NOW())";
 
-        if ($roleName === 'supervisor') {
-            $teamIds = $this->getTeamCustomerIds($userId);
-            if (!empty($teamIds)) {
-                $placeholders = str_repeat('?,', count($teamIds) - 1) . '?';
-                $where .= " AND c.assigned_to IN ($placeholders)";
-                $params = array_merge($params, $teamIds);
-            } else {
-                echo json_encode(['success' => true, 'data' => []]);
-                return;
-            }
+        if ($roleName === 'supervisor' || $roleName === 'telesales') {
+            $where .= " AND c.assigned_to = ?";
+            $params[] = $userId;
         }
 
         $sql = "SELECT c.*, u.full_name as assigned_to_name,
@@ -548,21 +525,13 @@ class CustomerController {
                     return;
                 }
             } elseif ($roleName === 'supervisor') {
-                // Supervisor ตรวจสอบว่าลูกค้าอยู่ในทีมตัวเองหรือไม่
-                $teamMemberIds = $this->getTeamCustomerIds($userId);
-                if (!empty($teamMemberIds)) {
-                    $placeholders = str_repeat('?,', count($teamMemberIds) - 1) . '?';
-                    $assignedCustomer = $this->db->fetchOne(
-                        "SELECT customer_id FROM customers WHERE customer_id = ? AND assigned_to IN ($placeholders)",
-                        array_merge([$customerId], $teamMemberIds)
-                    );
-                    
-                    if (!$assignedCustomer) {
-                        header('Content-Type: application/json');
-                        echo json_encode(['success' => false, 'message' => 'ไม่มีสิทธิ์เข้าถึงข้อมูลลูกค้ารายนี้']);
-                        return;
-                    }
-                } else {
+                // Supervisor ตรวจสอบว่าลูกค้าได้รับมอบหมายให้ตัวเองหรือไม่
+                $assignedCustomer = $this->db->fetchOne(
+                    "SELECT customer_id FROM customers WHERE customer_id = ? AND assigned_to = ?",
+                    [$customerId, $userId]
+                );
+
+                if (!$assignedCustomer) {
                     header('Content-Type: application/json');
                     echo json_encode(['success' => false, 'message' => 'ไม่มีสิทธิ์เข้าถึงข้อมูลลูกค้ารายนี้']);
                     return;
@@ -913,5 +882,6 @@ class CustomerController {
     private function showError($title, $message) {
         include APP_VIEWS . 'errors/error.php';
     }
+
 }
 ?> 

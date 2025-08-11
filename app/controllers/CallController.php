@@ -130,11 +130,9 @@ class CallController {
         
         $userId = $_SESSION['user_id'];
         $roleName = $_SESSION['role_name'];
-        
-        // สำหรับ supervisor ให้ดึงทั้งหมด
-        if ($roleName === 'supervisor') {
-            $userId = null;
-        }
+
+        // ทั้ง supervisor และ telesales ดูเฉพาะข้อมูลของตัวเอง
+        // (supervisor จัดการทีมผ่านหน้าอื่น)
         
         $filters = [
             'urgency' => $_GET['urgency'] ?? null,

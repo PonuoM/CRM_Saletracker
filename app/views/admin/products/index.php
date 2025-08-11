@@ -3,47 +3,27 @@
  * Product Management - List Products
  * แสดงรายการสินค้าทั้งหมด
  */
-
-$user = $_SESSION['user'] ?? null;
 ?>
 
-<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>จัดการสินค้า - CRM SalesTracker</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="assets/css/app.css" rel="stylesheet">
-</head>
-<body>
-    <?php include __DIR__ . '/../../components/header.php'; ?>
-    
-    <div class="container-fluid">
-        <div class="row">
-            <?php include __DIR__ . '/../../components/sidebar.php'; ?>
-            
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 page-transition">
-                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                    <h1 class="h2">
-                        <i class="fas fa-box me-2"></i>
-                        จัดการสินค้า
-                    </h1>
-                    <div class="btn-toolbar mb-2 mb-md-0">
-                        <div class="btn-group me-2">
-                            <a href="admin.php?action=products&subaction=create" class="btn btn-primary">
-                                <i class="fas fa-plus me-2"></i>เพิ่มสินค้าใหม่
-                            </a>
-                            <a href="admin.php?action=products&subaction=import" class="btn btn-info">
-                                <i class="fas fa-upload me-2"></i>นำเข้า
-                            </a>
-                            <a href="admin.php?action=products&subaction=export" class="btn btn-success">
-                                <i class="fas fa-download me-2"></i>ส่งออก
-                            </a>
-                        </div>
-                    </div>
-                </div>
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="fas fa-box me-2"></i>
+        จัดการสินค้า
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="admin.php?action=products&subaction=create" class="btn btn-primary">
+                <i class="fas fa-plus me-2"></i>เพิ่มสินค้าใหม่
+            </a>
+            <a href="admin.php?action=products&subaction=import" class="btn btn-info">
+                <i class="fas fa-upload me-2"></i>นำเข้า
+            </a>
+            <a href="admin.php?action=products&subaction=export" class="btn btn-success">
+                <i class="fas fa-download me-2"></i>ส่งออก
+            </a>
+        </div>
+    </div>
+</div>
 
                 <!-- Alert Messages -->
                 <?php if (isset($_GET['message'])): ?>
@@ -229,27 +209,15 @@ $user = $_SESSION['user'] ?? null;
                         </div>
                     </div>
                 </div>
-            </main>
-        </div>
-    </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
-    <script src="assets/js/page-transitions.js"></script>
-    <script src="assets/js/sidebar.js"></script>
-    
-    <script>
-        $(document).ready(function() {
-            $('#productsTable').DataTable({
-                language: {
-                    url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/th.json'
-                },
-                pageLength: 25,
-                order: [[0, 'desc']]
-            });
-        });
-    </script>
-</body>
-</html> 
+<script>
+$(document).ready(function() {
+    $('#productsTable').DataTable({
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/th.json'
+        },
+        pageLength: 25,
+        order: [[0, 'desc']]
+    });
+});
+</script>

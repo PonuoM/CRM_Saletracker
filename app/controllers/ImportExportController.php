@@ -43,8 +43,18 @@ class ImportExportController {
         usort($backupFiles, function($a, $b) {
             return strtotime($b['date']) - strtotime($a['date']);
         });
-        
+
+        // Set page title and prepare content for layout
+        $pageTitle = 'นำเข้า/ส่งออกข้อมูล - CRM SalesTracker';
+        $currentPage = 'import-export';
+
+        // Capture import-export content
+        ob_start();
         include __DIR__ . '/../views/import-export/index.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
     
     /**

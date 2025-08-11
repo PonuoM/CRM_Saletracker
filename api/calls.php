@@ -121,7 +121,7 @@ function getFollowupCustomers($db) {
             $params = [];
             
             // กรองตาม user role
-            if ($roleName === 'telesales') {
+            if ($roleName === 'telesales' || $roleName === 'supervisor') {
                 $sql .= " AND assigned_to = ?";
                 $params[] = $userId;
             }
@@ -202,7 +202,7 @@ function getFollowupCustomers($db) {
             $params = [];
             
             // กรองตาม user role
-            if ($roleName === 'telesales') {
+            if ($roleName === 'telesales' || $roleName === 'supervisor') {
                 $sql .= " AND c.assigned_to = ?";
                 $params[] = $userId;
             }

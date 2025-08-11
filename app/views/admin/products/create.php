@@ -1,31 +1,4 @@
-<?php
-/**
- * Product Management - Create New Product
- * หน้าเพิ่มสินค้าใหม่
- */
 
-$user = $_SESSION['user'] ?? null;
-$error = $error ?? '';
-?>
-
-<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>เพิ่มสินค้าใหม่ - CRM SalesTracker</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="assets/css/app.css" rel="stylesheet">
-</head>
-<body>
-    <?php include __DIR__ . '/../../components/header.php'; ?>
-    
-    <div class="container-fluid">
-        <div class="row">
-            <?php include __DIR__ . '/../../components/sidebar.php'; ?>
-            
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 page-transition">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                     <h1 class="h2">
                         <i class="fas fa-plus me-2"></i>
@@ -201,65 +174,4 @@ $error = $error ?? '';
                         </form>
                     </div>
                 </div>
-            </main>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="assets/js/page-transitions.js"></script>
-    <script src="assets/js/sidebar.js"></script>
-    
-    <script>
-        $(document).ready(function() {
-            // Calculate profit when prices change
-            function calculateProfit() {
-                const costPrice = parseFloat($('#cost_price').val()) || 0;
-                const sellingPrice = parseFloat($('#selling_price').val()) || 0;
-                
-                const profitPerUnit = sellingPrice - costPrice;
-                const profitMargin = costPrice > 0 ? (profitPerUnit / costPrice) * 100 : 0;
-                
-                $('#profit_per_unit').text('฿' + profitPerUnit.toFixed(2));
-                $('#profit_margin').text(profitMargin.toFixed(1) + '%');
-                
-                // Color coding
-                if (profitPerUnit > 0) {
-                    $('#profit_per_unit').removeClass('text-danger').addClass('text-success');
-                } else {
-                    $('#profit_per_unit').removeClass('text-success').addClass('text-danger');
-                }
-            }
             
-            $('#cost_price, #selling_price').on('input', calculateProfit);
-            
-            // Initial calculation
-            calculateProfit();
-            
-            // Form validation
-            $('#productForm').on('submit', function(e) {
-                const costPrice = parseFloat($('#cost_price').val()) || 0;
-                const sellingPrice = parseFloat($('#selling_price').val()) || 0;
-                
-                if (sellingPrice < costPrice) {
-                    e.preventDefault();
-                    alert('ราคาขายไม่ควรต่ำกว่าต้นทุน');
-                    return false;
-                }
-                
-                if ($('#product_code').val().trim() === '') {
-                    e.preventDefault();
-                    alert('กรุณากรอกรหัสสินค้า');
-                    return false;
-                }
-                
-                if ($('#product_name').val().trim() === '') {
-                    e.preventDefault();
-                    alert('กรุณากรอกชื่อสินค้า');
-                    return false;
-                }
-            });
-        });
-    </script>
-</body>
-</html>

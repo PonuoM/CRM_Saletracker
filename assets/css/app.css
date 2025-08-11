@@ -731,6 +731,24 @@ h1, h2, h3, h4, h5, h6 {
   font-family: 'Sukhumvit Set', sans-serif;
 }
 
+/* Sticky header only for specific tables that need it */
+.table.sticky-header thead th {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+/* Fix for sidebar transition affecting sticky headers */
+.main-content {
+  position: relative;
+  z-index: 1;
+}
+
+.table-responsive {
+  position: relative;
+  z-index: 2;
+}
+
 .table tbody tr {
   transition: var(--transition);
 }
@@ -1437,4 +1455,9 @@ h1, h2, h3, h4, h5, h6 {
   .activity-empty {
     padding: 2rem 1rem;
   }
+}
+
+/* Additional Text Colors */
+.text-purple {
+  color: #6f42c1 !important;
 }

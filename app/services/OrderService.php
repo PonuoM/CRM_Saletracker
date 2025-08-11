@@ -207,10 +207,10 @@ class OrderService {
             if (!empty($filters['search'])) {
                 $searchTerm = '%' . $filters['search'] . '%';
                 $whereConditions[] = '(
-                    o.order_number LIKE :search_order_number OR 
-                    c.phone LIKE :search_phone OR 
-                    c.first_name LIKE :search_first_name OR 
-                    c.last_name LIKE :search_last_name OR 
+                    o.order_number LIKE :search_order_number OR
+                    c.phone LIKE :search_phone OR
+                    c.first_name LIKE :search_first_name OR
+                    c.last_name LIKE :search_last_name OR
                     CONCAT(c.first_name, " ", c.last_name) LIKE :search_full_name
                 )';
                 $params['search_order_number'] = $searchTerm;
@@ -218,6 +218,18 @@ class OrderService {
                 $params['search_first_name'] = $searchTerm;
                 $params['search_last_name'] = $searchTerm;
                 $params['search_full_name'] = $searchTerm;
+            }
+
+            // ตัวกรองเฉพาะคำสั่งซื้อที่ชำระเงินแล้ว
+            if (!empty($filters['paid_only']) && $filters['paid_only'] === '1') {
+                $whereConditions[] = 'o.payment_status = :paid_status';
+                $params['paid_status'] = 'paid';
+            }
+
+            // ตัวกรองเฉพาะคำสั่งซื้อที่ยังไม่ชำระเงิน
+            if (!empty($filters['unpaid_only']) && $filters['unpaid_only'] === '1') {
+                $whereConditions[] = 'o.payment_status = :unpaid_status';
+                $params['unpaid_status'] = 'pending';
             }
             
             $whereClause = implode(' AND ', $whereConditions);

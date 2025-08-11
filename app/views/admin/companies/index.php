@@ -1,30 +1,4 @@
-<?php
-/**
- * Company Management - List Companies
- * แสดงรายการบริษัททั้งหมด
- */
 
-$user = $_SESSION['user'] ?? null;
-?>
-
-<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>จัดการบริษัท - CRM SalesTracker</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="assets/css/app.css" rel="stylesheet">
-</head>
-<body>
-    <?php include __DIR__ . '/../components/header.php'; ?>
-    
-    <div class="container-fluid">
-        <div class="row">
-            <?php include __DIR__ . '/../components/sidebar.php'; ?>
-            
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 page-transition">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                     <h1 class="h2">
                         <i class="fas fa-building me-2"></i>
@@ -57,9 +31,7 @@ $user = $_SESSION['user'] ?? null;
                         ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
-                <?php endif; ?>
-
-                <?php if (isset($_GET['error'])): ?>
+                <?php endif;  if (isset($_GET['error'])): ?>
                     <div class="alert alert-danger alert-dismissible fade show" role="alert">
                         <?php
                         $error = $_GET['error'];
@@ -129,15 +101,13 @@ $user = $_SESSION['user'] ?? null;
                                                 </td>
                                                 <td>
                                                     <?php if ($company['phone']): ?>
-                                                        <i class="fas fa-phone me-1"></i><?php echo htmlspecialchars($company['phone']); ?>
-                                                    <?php else: ?>
+                                                        <i class="fas fa-phone me-1"></i><?php echo htmlspecialchars($company['phone']);  else: ?>
                                                         <span class="text-muted">-</span>
                                                     <?php endif; ?>
                                                 </td>
                                                 <td>
                                                     <?php if ($company['email']): ?>
-                                                        <i class="fas fa-envelope me-1"></i><?php echo htmlspecialchars($company['email']); ?>
-                                                    <?php else: ?>
+                                                        <i class="fas fa-envelope me-1"></i><?php echo htmlspecialchars($company['email']);  else: ?>
                                                         <span class="text-muted">-</span>
                                                     <?php endif; ?>
                                                 </td>
@@ -173,47 +143,4 @@ $user = $_SESSION['user'] ?? null;
                         <?php endif; ?>
                     </div>
                 </div>
-            </main>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script>
-        // Page transition animation
-        $(document).ready(function() {
-            // Add fade-in animation to main content
-            $('.page-transition').addClass('fadeIn');
             
-            // Smooth page transitions for all links
-            $('a[href*="admin.php"]').on('click', function(e) {
-                const href = $(this).attr('href');
-                if (href && !href.includes('#')) {
-                    e.preventDefault();
-                    
-                    // Add fade-out animation
-                    $('.page-transition').css({
-                        'opacity': '0',
-                        'transform': 'translateY(-10px)',
-                        'transition': 'all 0.2s ease-out'
-                    });
-                    
-                    // Navigate after animation
-                    setTimeout(function() {
-                        window.location.href = href;
-                    }, 200);
-                }
-            });
-            
-            // Smooth transitions for form submissions
-            $('form').on('submit', function() {
-                $('.page-transition').css({
-                    'opacity': '0',
-                    'transform': 'translateY(-10px)',
-                    'transition': 'all 0.2s ease-out'
-                });
-            });
-        });
-    </script>
-</body>
-</html>

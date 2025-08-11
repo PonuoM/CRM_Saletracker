@@ -259,22 +259,22 @@ class CustomerService {
     }
     
     /**
-     * ดึงลูกค้าที่ต้องติดตาม (Do section สำหรับ Telesales)
-     * @param int $telesalesId ID ของ Telesales
+     * ดึงลูกค้าที่ต้องติดตาม (Do section สำหรับ Telesales และ Supervisor)
+     * @param int $userId ID ของ Telesales หรือ Supervisor
      * @return array รายการลูกค้าที่ต้องติดตาม
      */
-    public function getFollowUpCustomers($telesalesId) {
+    public function getFollowUpCustomers($userId) {
         $sql = "SELECT c.*, u.full_name as assigned_to_name,
                        DATEDIFF(c.customer_time_expiry, NOW()) as days_remaining,
                        DATEDIFF(c.next_followup_at, NOW()) as followup_days,
-                       CASE 
+                       CASE
                            WHEN c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 7 DAY) THEN 'expiry'
                            WHEN c.next_followup_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 7 DAY) THEN 'appointment'
                            ELSE 'other'
                        END as reason_type
-                FROM customers c 
+                FROM customers c
                 LEFT JOIN users u ON c.assigned_to = u.user_id
-                WHERE c.assigned_to = :telesales_id 
+                WHERE c.assigned_to = :user_id
                 AND c.basket_type = 'assigned'
                 AND c.is_active = 1
                 AND (
@@ -282,8 +282,8 @@ class CustomerService {
                     c.next_followup_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 7 DAY)
                 )
                 ORDER BY c.customer_time_expiry ASC, c.next_followup_at ASC";
-        
-        return $this->db->fetchAll($sql, ['telesales_id' => $telesalesId]);
+
+        return $this->db->fetchAll($sql, ['user_id' => $userId]);
     }
     
     /**

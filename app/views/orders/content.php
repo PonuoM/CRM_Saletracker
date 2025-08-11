@@ -76,12 +76,21 @@ $userId = $_SESSION['user_id'] ?? 0;
     <div class="col-md-12">
         <div class="card">
             <div class="card-body">
-                <div class="form-check form-switch">
-                    <input class="form-check-input" type="checkbox" id="paidOnlyToggle">
-                    <label class="form-check-label" for="paidOnlyToggle">
-                        <i class="fas fa-money-check-alt me-1"></i>
-                        แสดงเฉพาะคำสั่งซื้อที่ชำระเงินแล้ว
-                    </label>
+                <div class="d-flex gap-4">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="paidOnlyToggle">
+                        <label class="form-check-label" for="paidOnlyToggle">
+                            <i class="fas fa-money-check-alt me-1"></i>
+                            แสดงเฉพาะคำสั่งซื้อที่ชำระเงินแล้ว
+                        </label>
+                    </div>
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="unpaidOnlyToggle">
+                        <label class="form-check-label" for="unpaidOnlyToggle">
+                            <i class="fas fa-exclamation-triangle me-1"></i>
+                            แสดงเฉพาะคำสั่งซื้อที่ยังไม่ชำระเงิน
+                        </label>
+                    </div>
                 </div>
             </div>
         </div>
@@ -99,7 +108,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                 <span class="badge bg-primary" id="orderCount">0 รายการ</span>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive">
+                <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
                     <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
@@ -181,6 +190,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Paid only toggle
     document.getElementById('paidOnlyToggle').addEventListener('change', function() {
+        // ถ้าเลือก paid only ให้ยกเลิก unpaid only
+        if (this.checked) {
+            document.getElementById('unpaidOnlyToggle').checked = false;
+        }
+        currentPage = 1;
+        hasMoreData = true;
+        loadOrders(true);
+    });
+
+    // Unpaid only toggle
+    document.getElementById('unpaidOnlyToggle').addEventListener('change', function() {
+        // ถ้าเลือก unpaid only ให้ยกเลิก paid only
+        if (this.checked) {
+            document.getElementById('paidOnlyToggle').checked = false;
+        }
         currentPage = 1;
         hasMoreData = true;
         loadOrders(true);
@@ -208,11 +232,13 @@ document.addEventListener('DOMContentLoaded', function() {
         // Collect filter data
         const formData = new FormData(document.getElementById('filterForm'));
         const paidOnly = document.getElementById('paidOnlyToggle').checked;
-        
+        const unpaidOnly = document.getElementById('unpaidOnlyToggle').checked;
+
         const params = new URLSearchParams();
         params.append('page', currentPage);
         params.append('limit', 10); // โหลด 10 รายการต่อครั้ง
         params.append('paid_only', paidOnly ? '1' : '0');
+        params.append('unpaid_only', unpaidOnly ? '1' : '0');
 
         for (let [key, value] of formData.entries()) {
             if (value) params.append(key, value);

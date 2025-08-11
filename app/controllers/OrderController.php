@@ -169,7 +169,7 @@ class OrderController {
             }
 
             // Optional filters from query
-            foreach (['customer_id','payment_status','delivery_status','order_number','search','date_from','date_to'] as $f) {
+            foreach (['customer_id','payment_status','delivery_status','order_number','search','date_from','date_to','paid_only','unpaid_only'] as $f) {
                 if (!empty($_GET[$f])) { $filters[$f] = $_GET[$f]; }
             }
 

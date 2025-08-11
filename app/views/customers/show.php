@@ -144,6 +144,10 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                         <small class="text-muted">การโทร</small>
                     </div>
                     <div class="col-6 mb-3">
+                        <div class="h4 text-purple"><?php echo count($appointments ?? []); ?></div>
+                        <small class="text-muted">นัดหมาย</small>
+                    </div>
+                    <div class="col-6 mb-3">
                         <div class="h4 text-warning"><?php echo count($activities); ?></div>
                         <small class="text-muted">กิจกรรม</small>
                     </div>
@@ -187,9 +191,9 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                             </button>
                         </div>
                         <?php if (!empty($paginatedCallLogs)): ?>
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
+                            <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                                <table class="table table-hover table-sm">
+                                    <thead class="table-light sticky-top">
                                         <tr>
                                             <th style="font-size: 14px;">วันที่</th>
                                             <th style="font-size: 14px;">ผู้โทร</th>
@@ -200,19 +204,27 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                                     <tbody>
                                         <?php foreach ($paginatedCallLogs as $log): ?>
                                             <tr>
-                                                <td><?php echo date('d/m/Y H:i', strtotime($log['created_at'])); ?></td>
-                                                <td><?php echo htmlspecialchars($log['user_name'] ?? 'ไม่ระบุ'); ?></td>
-                                                <td>
+                                                <td style="font-size: 13px;"><?php echo date('d/m/Y H:i', strtotime($log['created_at'])); ?></td>
+                                                <td style="font-size: 13px;"><?php echo htmlspecialchars($log['user_name'] ?? 'ไม่ระบุ'); ?></td>
+                                                <td style="font-size: 13px;">
                                                     <span class="badge bg-<?php echo $log['call_status'] === 'answered' ? 'success' : ($log['call_status'] === 'no_answer' ? 'danger' : 'warning'); ?>">
                                                         <?php echo $log['call_status'] === 'answered' ? 'รับสาย' : ($log['call_status'] === 'no_answer' ? 'ไม่รับสาย' : 'สายไม่ว่าง'); ?>
                                                     </span>
                                                 </td>
-                                                <td><?php echo htmlspecialchars($log['call_result'] ?? 'ไม่ระบุ'); ?></td>
+                                                <td style="font-size: 13px;"><?php echo htmlspecialchars($log['call_result'] ?? 'ไม่ระบุ'); ?></td>
                                             </tr>
                                         <?php endforeach; ?>
                                     </tbody>
                                 </table>
                             </div>
+                            <?php if (count($paginatedCallLogs) > 4): ?>
+                                <div class="text-center mt-2">
+                                    <small class="text-muted">
+                                        <i class="fas fa-arrow-down me-1"></i>
+                                        เลื่อนลงเพื่อดูข้อมูลเพิ่มเติม (<?php echo count($paginatedCallLogs); ?> รายการ)
+                                    </small>
+                                </div>
+                            <?php endif; ?>
                             
                             <!-- Pagination for Call Logs -->
                             <?php if ($totalCallLogPages > 1): ?>
@@ -270,9 +282,9 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                             </button>
                         </div>
                         <?php if (!empty($paginatedOrders)): ?>
-                            <div class="table-responsive">
-                                <table class="table table-hover">
-                                    <thead>
+                            <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                                <table class="table table-hover table-sm">
+                                    <thead class="table-light sticky-top">
                                         <tr>
                                             <th style="font-size: 14px;">เลขที่</th>
                                             <th style="font-size: 14px;">วันที่</th>
@@ -389,7 +401,7 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
     </div>
     <div class="card-body p-0">
         <?php if (!empty($activities)): ?>
-            <div class="activity-timeline-container">
+            <div class="activity-timeline-container" style="max-height: 300px; overflow-y: auto;">
                 <div class="activity-timeline" id="activityTimeline">
                     <?php foreach ($activities as $index => $activity): ?>
                         <div class="activity-item">

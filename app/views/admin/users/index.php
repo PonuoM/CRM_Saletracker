@@ -3,45 +3,25 @@
  * User Management - List Users
  * แสดงรายการผู้ใช้ทั้งหมด
  */
-
-$user = $_SESSION['user'] ?? null;
 ?>
 
-<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>จัดการผู้ใช้ - CRM SalesTracker</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="assets/css/app.css" rel="stylesheet">
-</head>
-<body>
-    <?php include __DIR__ . '/../../components/header.php'; ?>
-    
-    <div class="container-fluid">
-        <div class="row">
-            <?php include __DIR__ . '/../../components/sidebar.php'; ?>
-            
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 page-transition">
-                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                    <h1 class="h2">
-                        <i class="fas fa-users me-2"></i>
-                        จัดการผู้ใช้
-                    </h1>
-                    <div class="btn-toolbar mb-2 mb-md-0">
-                        <a href="admin.php" class="btn btn-secondary me-2">
-                            <i class="fas fa-arrow-left me-2"></i>ย้อนกลับ
-                        </a>
-                        <a href="admin.php?action=users&subaction=create" class="btn btn-primary me-2">
-                            <i class="fas fa-user-plus me-2"></i>เพิ่มผู้ใช้ใหม่
-                        </a>
-                        <a href="admin.php?action=companies" class="btn btn-info">
-                            <i class="fas fa-building me-2"></i>จัดการบริษัท
-                        </a>
-                    </div>
-                </div>
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="fas fa-users me-2"></i>
+        จัดการผู้ใช้
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <a href="admin.php" class="btn btn-secondary me-2">
+            <i class="fas fa-arrow-left me-2"></i>ย้อนกลับ
+        </a>
+        <a href="admin.php?action=users&subaction=create" class="btn btn-primary me-2">
+            <i class="fas fa-user-plus me-2"></i>เพิ่มผู้ใช้ใหม่
+        </a>
+        <a href="admin.php?action=companies" class="btn btn-info">
+            <i class="fas fa-building me-2"></i>จัดการบริษัท
+        </a>
+    </div>
+</div>
 
                 <!-- Alert Messages -->
                 <?php if (isset($_GET['message'])): ?>
@@ -159,59 +139,16 @@ $user = $_SESSION['user'] ?? null;
                         </div>
                     </div>
                 </div>
-            </main>
-        </div>
-    </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
-    <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
-    <script src="assets/js/sidebar.js"></script>
-    
-    <script>
-        $(document).ready(function() {
-            // Add fade-in animation to main content
-            $('.page-transition').addClass('fadeIn');
-            
-            // Initialize DataTable
-            $('#usersTable').DataTable({
-                language: {
-                    url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/th.json'
-                },
-                pageLength: 25,
-                order: [[0, 'desc']]
-            });
-            
-            // Smooth page transitions for all links
-            $('a[href*="admin.php"]').on('click', function(e) {
-                const href = $(this).attr('href');
-                if (href && !href.includes('#')) {
-                    e.preventDefault();
-                    
-                    // Add fade-out animation
-                    $('.page-transition').css({
-                        'opacity': '0',
-                        'transform': 'translateY(-10px)',
-                        'transition': 'all 0.2s ease-out'
-                    });
-                    
-                    // Navigate after animation
-                    setTimeout(function() {
-                        window.location.href = href;
-                    }, 200);
-                }
-            });
-            
-            // Smooth transitions for form submissions
-            $('form').on('submit', function() {
-                $('.page-transition').css({
-                    'opacity': '0',
-                    'transform': 'translateY(-10px)',
-                    'transition': 'all 0.2s ease-out'
-                });
-            });
-        });
-    </script>
-</body>
-</html> 
+<script>
+$(document).ready(function() {
+    // Initialize DataTable
+    $('#usersTable').DataTable({
+        language: {
+            url: '//cdn.datatables.net/plug-ins/1.11.5/i18n/th.json'
+        },
+        pageLength: 25,
+        order: [[0, 'desc']]
+    });
+});
+</script>

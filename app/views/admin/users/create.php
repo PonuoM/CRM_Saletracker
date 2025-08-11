@@ -1,30 +1,4 @@
-<?php
-/**
- * User Management - Create User
- * สร้างผู้ใช้ใหม่
- */
 
-$user = $_SESSION['user'] ?? null;
-?>
-
-<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>สร้างผู้ใช้ใหม่ - CRM SalesTracker</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="assets/css/app.css" rel="stylesheet">
-</head>
-<body>
-    <?php include __DIR__ . '/../../components/header.php'; ?>
-    
-    <div class="container-fluid">
-        <div class="row">
-            <?php include __DIR__ . '/../../components/sidebar.php'; ?>
-            
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4">
                 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
                     <h1 class="h2">
                         <i class="fas fa-user-plus me-2"></i>
@@ -165,44 +139,4 @@ $user = $_SESSION['user'] ?? null;
                         </form>
                     </div>
                 </div>
-            </main>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="assets/js/sidebar.js"></script>
-    
-    <script>
-        // Password strength validation
-        document.getElementById('password').addEventListener('input', function() {
-            const password = this.value;
-            const strength = {
-                length: password.length >= 6,
-                hasNumber: /\d/.test(password),
-                hasLetter: /[a-zA-Z]/.test(password)
-            };
             
-            let strengthText = '';
-            let strengthClass = 'text-danger';
-            
-            if (strength.length && strength.hasNumber && strength.hasLetter) {
-                strengthText = 'รหัสผ่านแข็งแกร่ง';
-                strengthClass = 'text-success';
-            } else if (strength.length && (strength.hasNumber || strength.hasLetter)) {
-                strengthText = 'รหัสผ่านปานกลาง';
-                strengthClass = 'text-warning';
-            } else if (strength.length) {
-                strengthText = 'รหัสผ่านอ่อน';
-                strengthClass = 'text-danger';
-            }
-            
-            // Update strength indicator
-            const strengthIndicator = document.getElementById('password-strength');
-            if (strengthIndicator) {
-                strengthIndicator.textContent = strengthText;
-                strengthIndicator.className = strengthClass;
-            }
-        });
-    </script>
-</body>
-</html> 

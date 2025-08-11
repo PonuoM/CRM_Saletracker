@@ -24,7 +24,7 @@ $userId = $_SESSION['user_id'] ?? '';
 
                 <!-- Tabs Navigation -->
                 <ul class="nav nav-tabs" id="customerTabs" role="tablist">
-                    <?php if ($roleName === 'telesales'): ?>
+                    <?php if ($roleName === 'telesales' || $roleName === 'supervisor'): ?>
                     <li class="nav-item" role="presentation">
                         <button class="nav-link active" id="do-tab" data-bs-toggle="tab" data-bs-target="#do" type="button" role="tab">
                             <i class="fas fa-tasks me-1"></i>Do
@@ -33,7 +33,7 @@ $userId = $_SESSION['user_id'] ?? '';
                     </li>
                     <?php endif; ?>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link <?php echo ($roleName !== 'telesales') ? 'active' : ''; ?>" id="new-tab" data-bs-toggle="tab" data-bs-target="#new" type="button" role="tab">
+                        <button class="nav-link <?php echo ($roleName !== 'telesales' && $roleName !== 'supervisor') ? 'active' : ''; ?>" id="new-tab" data-bs-toggle="tab" data-bs-target="#new" type="button" role="tab">
                             <i class="fas fa-user-plus me-1"></i>ลูกค้าใหม่
                         </button>
                     </li>
@@ -117,7 +117,7 @@ $userId = $_SESSION['user_id'] ?? '';
                 <!-- Tab Content -->
                 <div class="tab-content" id="customerTabContent">
                     <!-- Do Tab (Telesales only) -->
-                    <?php if ($roleName === 'telesales'): ?>
+                    <?php if ($roleName === 'telesales' || $roleName === 'supervisor'): ?>
                     <div class="tab-pane fade show active" id="do" role="tabpanel">
                         <div class="card">
                             <div class="card-header">
@@ -219,7 +219,7 @@ $userId = $_SESSION['user_id'] ?? '';
                     <?php endif; ?>
 
                     <!-- New Customers Tab -->
-                    <div class="tab-pane fade <?php echo ($roleName !== 'telesales') ? 'show active' : ''; ?>" id="new" role="tabpanel">
+                    <div class="tab-pane fade <?php echo ($roleName !== 'telesales' && $roleName !== 'supervisor') ? 'show active' : ''; ?>" id="new" role="tabpanel">
                         <div class="card">
                             <div class="card-header d-flex justify-content-between align-items-center">
                                 <h5 class="card-title mb-0">

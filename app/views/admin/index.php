@@ -3,50 +3,30 @@
  * Admin Dashboard
  * หน้าหลักสำหรับ Admin
  */
-
-$user = $_SESSION['user'] ?? null;
 ?>
 
-<!DOCTYPE html>
-<html lang="th">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Admin Dashboard - CRM SalesTracker</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
-    <link href="assets/css/app.css" rel="stylesheet">
-</head>
-<body>
-    <?php include __DIR__ . '/../components/header.php'; ?>
-    
-    <div class="container-fluid">
-        <div class="row">
-            <?php include __DIR__ . '/../components/sidebar.php'; ?>
-            
-            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 page-transition">
-                <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                    <h1 class="h2">
-                        <i class="fas fa-cogs me-2"></i>
-                        Admin Dashboard
-                    </h1>
-                    <div class="btn-toolbar mb-2 mb-md-0">
-                        <div class="btn-group me-2">
-                            <a href="admin.php?action=users" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-users me-1"></i>จัดการผู้ใช้
-                            </a>
-                            <a href="admin.php?action=companies" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-building me-1"></i>จัดการบริษัท
-                            </a>
-                            <a href="admin.php?action=products" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-box me-1"></i>จัดการสินค้า
-                            </a>
-                            <a href="admin.php?action=settings" class="btn btn-sm btn-outline-primary">
-                                <i class="fas fa-cog me-1"></i>ตั้งค่าระบบ
-                            </a>
-                        </div>
-                    </div>
-                </div>
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">
+        <i class="fas fa-cogs me-2"></i>
+        Admin Dashboard
+    </h1>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <a href="admin.php?action=users" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-users me-1"></i>จัดการผู้ใช้
+            </a>
+            <a href="admin.php?action=companies" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-building me-1"></i>จัดการบริษัท
+            </a>
+            <a href="admin.php?action=products" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-box me-1"></i>จัดการสินค้า
+            </a>
+            <a href="admin.php?action=settings" class="btn btn-sm btn-outline-primary">
+                <i class="fas fa-cog me-1"></i>ตั้งค่าระบบ
+            </a>
+        </div>
+    </div>
+</div>
 
                 <!-- KPI Cards -->
                 <div class="row mb-4">
@@ -249,15 +229,3 @@ $user = $_SESSION['user'] ?? null;
                                 </div>
                             </div>
                         </div>
-                    </div>
-                </div>
-            </main>
-        </div>
-    </div>
-
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="assets/js/page-transitions.js"></script>
-    <script src="assets/js/sidebar.js"></script>
-</body>
-</html> 

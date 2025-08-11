@@ -30,7 +30,7 @@ $userId = $_SESSION['user_id'] ?? 0;
         <h6 class="sidebar-section-title">เมนูหลัก</h6>
         <ul class="nav flex-column sidebar-nav">
             <li class="nav-item">
-                <a class="nav-link <?php echo ($currentPage === 'dashboard') ? 'active' : ''; ?>" href="dashboard.php" data-tooltip="แดชบอร์ด">
+                <a class="nav-link <?php echo ($currentPage === 'dashboard') ? 'active' : ''; ?>" href="<?php echo ($_SESSION['role_name'] === 'supervisor') ? 'dashboard_supervisor.php' : 'dashboard.php'; ?>" data-tooltip="แดชบอร์ด">
                     <i class="fas fa-tachometer-alt nav-icon"></i>
                     <span class="nav-text">แดชบอร์ด</span>
                 </a>

@@ -439,7 +439,7 @@ class AdminController {
      */
     public function settings() {
         $this->checkAdminPermission();
-        
+
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $settings = [
                 'customer_grade_a_plus' => $_POST['customer_grade_a_plus'] ?? 50000,
@@ -450,9 +450,9 @@ class AdminController {
                 'existing_customer_recall_days' => $_POST['existing_customer_recall_days'] ?? 90,
                 'waiting_basket_days' => $_POST['waiting_basket_days'] ?? 30
             ];
-            
+
             $result = $this->updateSystemSettings($settings);
-            
+
             if ($result['success']) {
                 header('Location: admin.php?action=settings&message=settings_updated');
                 exit;
@@ -460,9 +460,21 @@ class AdminController {
                 $error = $result['message'];
             }
         }
-        
+
         $settings = $this->getSystemSettings();
+
+        // Set page title and prepare content for layout
+        $pageTitle = 'ตั้งค่าระบบ - CRM SalesTracker';
+        $currentPage = 'admin';
+        $currentAction = 'settings';
+
+        // Capture settings content
+        ob_start();
         include __DIR__ . '/../views/admin/settings.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
 
     /**
@@ -474,26 +486,36 @@ class AdminController {
             header('Location: login.php');
             exit;
         }
-        
+
         // ตรวจสอบสิทธิ์ (เฉพาะ Admin และ Supervisor)
         $allowedRoles = ['admin', 'supervisor', 'super_admin'];
         if (!in_array($_SESSION['role_name'] ?? '', $allowedRoles)) {
             header('Location: dashboard.php');
             exit;
         }
-        
+
         // Load WorkflowService
         require_once __DIR__ . '/../services/WorkflowService.php';
         $workflowService = new WorkflowService();
-        
+
         // ดึงสถิติ
         $stats = $workflowService->getWorkflowStats();
-        
+
         // ส่งข้อมูลไปยัง view
         $_SESSION['workflow_stats'] = $stats;
-        
-        // แสดงหน้า
+
+        // Set page title and prepare content for layout
+        $pageTitle = 'Workflow Management - CRM SalesTracker';
+        $currentPage = 'admin';
+        $currentAction = 'workflow';
+
+        // Capture workflow content
+        ob_start();
         include __DIR__ . '/../views/admin/workflow.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
     
     // ==================== HELPER METHODS ====================
@@ -980,15 +1002,26 @@ class AdminController {
             header('Location: login.php');
             exit;
         }
-        
+
         // ตรวจสอบสิทธิ์
         $roleName = $_SESSION['role_name'] ?? '';
         if (!in_array($roleName, ['admin', 'supervisor', 'super_admin'])) {
             header('Location: index.php');
             exit;
         }
-        
+
+        // Set page title and prepare content for layout
+        $pageTitle = 'ระบบแจกลูกค้า - CRM SalesTracker';
+        $currentPage = 'admin';
+        $currentAction = 'customer_distribution';
+
+        // Capture customer distribution content
+        ob_start();
         include __DIR__ . '/../views/admin/customer_distribution.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
 }
 ?> 
