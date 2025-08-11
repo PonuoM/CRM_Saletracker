@@ -358,11 +358,64 @@ class DashboardService {
             $ordersSeries[] = $ordersByDay[$key];
         }
 
+        // Fetch daily sales by category
+        $categorySalesRows = $this->db->fetchAll(
+            "SELECT DATE(o.order_date) as d, p.category, SUM(oi.total_price) as category_sales
+             FROM orders o
+             JOIN order_items oi ON o.order_id = oi.order_id
+             JOIN products p ON oi.product_id = p.product_id
+             WHERE o.created_by = :user_id
+               AND o.payment_status = 'paid'
+               AND o.order_date BETWEEN :start_date AND :end_date
+             GROUP BY DATE(o.order_date), p.category",
+            [
+                'user_id' => $userId,
+                'start_date' => $startDate,
+                'end_date' => $endDate,
+            ]
+        );
+
+        // Initialize category arrays
+        $categories = ['ปุ๋ยกระสอบใหญ่', 'ปุ๋ยกระสอบเล็ก', 'ชีวภัณฑ์', 'ของแถม'];
+        $categorySalesByDay = [];
+
+        foreach ($categories as $category) {
+            $categorySalesByDay[$category] = [];
+            foreach ($period as $date) {
+                $categorySalesByDay[$category][$date->format('Y-m-d')] = 0.0;
+            }
+        }
+
+        // Fill category sales data
+        foreach ($categorySalesRows as $row) {
+            $dayKey = $row['d'];
+            $category = $row['category'];
+            if (in_array($category, $categories)) {
+                $categorySalesByDay[$category][$dayKey] = (float) ($row['category_sales'] ?? 0);
+            }
+        }
+
+        // Build category series arrays
+        $categorySeries = [];
+        foreach ($categories as $category) {
+            $series = [];
+            foreach ($period as $date) {
+                $key = $date->format('Y-m-d');
+                $series[] = $categorySalesByDay[$category][$key];
+            }
+            $categorySeries[$category] = $series;
+        }
+
         return [
             'labels' => $labels,
             'sales' => $salesSeries,
             'orders' => $ordersSeries,
             'contacts' => $contactsSeries,
+            // Category sales for stack column chart
+            'fertilizer_large' => $categorySeries['ปุ๋ยกระสอบใหญ่'],
+            'fertilizer_small' => $categorySeries['ปุ๋ยกระสอบเล็ก'],
+            'bio_products' => $categorySeries['ชีวภัณฑ์'],
+            'freebies' => $categorySeries['ของแถม'],
             'start_date' => $startDate,
             'end_date' => $endDate,
         ];
@@ -461,20 +514,28 @@ class DashboardService {
         $big = $categoryAgg('ปุ๋ยกระสอบใหญ่');
         $small = $categoryAgg('ปุ๋ยกระสอบเล็ก');
         $bio = $categoryAgg('ชีวภัณฑ์');
+        $freebies = $categoryAgg('ของแถม');
 
         return [
             'month' => $yearMonth,
             'total_sales' => (float) ($rowSales['total_sales'] ?? 0),
             'total_orders' => (int) ($rowOrders['total_orders'] ?? 0),
-            'sales_big_sack' => $big['amount'],
-            'sales_big_sack_quantity' => $big['quantity'],
-            'sales_big_sack_unit' => $big['unit'],
-            'sales_small_sack' => $small['amount'],
-            'sales_small_sack_quantity' => $small['quantity'],
-            'sales_small_sack_unit' => $small['unit'],
-            'sales_bio' => $bio['amount'],
-            'sales_bio_quantity' => $bio['quantity'],
-            'sales_bio_unit' => $bio['unit'],
+            // ปุ๋ยกระสอบใหญ่
+            'fertilizer_large_sales' => $big['amount'],
+            'fertilizer_large_qty' => $big['quantity'],
+            'fertilizer_large_unit' => $big['unit'],
+            // ปุ๋ยกระสอบเล็ก
+            'fertilizer_small_sales' => $small['amount'],
+            'fertilizer_small_qty' => $small['quantity'],
+            'fertilizer_small_unit' => $small['unit'],
+            // ชีวภัณฑ์
+            'bio_products_sales' => $bio['amount'],
+            'bio_products_qty' => $bio['quantity'],
+            'bio_products_unit' => $bio['unit'],
+            // ของแถม
+            'freebies_sales' => $freebies['amount'],
+            'freebies_qty' => $freebies['quantity'],
+            'freebies_unit' => $freebies['unit'],
         ];
     }
     

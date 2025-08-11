@@ -45,6 +45,8 @@ if ($roleName === 'telesales') {
     $dailyPerformance = $dashboardService->getDailyPerformanceForMonth((int)$userId, $selectedMonth);
     // Monthly KPIs for selected month
     $monthlyKpis = $dashboardService->getMonthlyKpisForTelesales((int)$userId, $selectedMonth);
+    // Monthly orders count
+    $monthlyOrders = $monthlyKpis['total_orders'] ?? 0;
 } else {
     $result = $dashboardService->getDashboardData($userId, $roleName);
     if ($result['success']) {
@@ -89,6 +91,15 @@ if ($roleName === 'telesales') {
     $orderStatus = $dashboardData['order_status'] ?? [];
 }
 
-// Include dashboard view
-include APP_VIEWS . 'dashboard/index.php';
-?> 
+// Set page title and prepare content for layout
+$pageTitle = 'แดชบอร์ด - CRM SalesTracker';
+$currentPage = 'dashboard';
+
+// Capture dashboard content
+ob_start();
+include APP_VIEWS . 'dashboard/content.php';
+$content = ob_get_clean();
+
+// Use main layout
+include APP_VIEWS . 'layouts/main.php';
+?>

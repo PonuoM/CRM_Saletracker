@@ -380,26 +380,75 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
 <!-- Recent Activities -->
 <div class="card">
     <div class="card-header">
-        <h5 class="mb-0">กิจกรรมล่าสุด</h5>
+        <h5 class="mb-0">
+            <i class="fas fa-history me-2"></i>กิจกรรมล่าสุด
+            <?php if (count($activities) > 0): ?>
+                <span class="badge bg-secondary ms-2"><?php echo count($activities); ?></span>
+            <?php endif; ?>
+        </h5>
     </div>
-    <div class="card-body">
+    <div class="card-body p-0">
         <?php if (!empty($activities)): ?>
-            <div class="timeline">
-                <?php foreach (array_slice($activities, 0, 10) as $activity): ?>
-                    <div class="timeline-item">
-                        <div class="timeline-marker"></div>
-                        <div class="timeline-content">
-                            <div class="d-flex justify-content-between">
-                                <strong><?php echo htmlspecialchars($activity['user_name'] ?? 'ไม่ระบุ'); ?></strong>
-                                <small class="text-muted"><?php echo date('d/m/Y H:i', strtotime($activity['created_at'])); ?></small>
+            <div class="activity-timeline-container">
+                <div class="activity-timeline" id="activityTimeline">
+                    <?php foreach ($activities as $index => $activity): ?>
+                        <div class="activity-item">
+                            <div class="activity-icon">
+                                <i class="<?php echo $activity['icon'] ?? 'fas fa-info-circle'; ?> text-<?php echo $activity['color'] ?? 'secondary'; ?>"></i>
                             </div>
-                            <p class="mb-0"><?php echo htmlspecialchars($activity['activity_description']); ?></p>
+                            <div class="activity-content">
+                                <div class="activity-header">
+                                    <div class="activity-meta">
+                                        <span class="activity-user">
+                                            <i class="fas fa-user me-1"></i>
+                                            <?php echo htmlspecialchars($activity['user_name'] ?? 'ระบบ'); ?>
+                                        </span>
+                                        <span class="activity-time">
+                                            <i class="fas fa-clock me-1"></i>
+                                            <?php
+                                            // คำนวณเวลาที่ผ่านมา
+                                            $time = time() - strtotime($activity['created_at']);
+                                            if ($time < 60) {
+                                                $timeAgo = 'เมื่อสักครู่';
+                                            } elseif ($time < 3600) {
+                                                $timeAgo = floor($time / 60) . ' นาทีที่แล้ว';
+                                            } elseif ($time < 86400) {
+                                                $timeAgo = floor($time / 3600) . ' ชั่วโมงที่แล้ว';
+                                            } elseif ($time < 2592000) {
+                                                $timeAgo = floor($time / 86400) . ' วันที่แล้ว';
+                                            } elseif ($time < 31536000) {
+                                                $timeAgo = floor($time / 2592000) . ' เดือนที่แล้ว';
+                                            } else {
+                                                $timeAgo = floor($time / 31536000) . ' ปีที่แล้ว';
+                                            }
+                                            echo $timeAgo . ' (' . date('d/m/Y H:i', strtotime($activity['created_at'])) . ')';
+                                            ?>
+                                        </span>
+                                    </div>
+                                </div>
+                                <div class="activity-description">
+                                    <?php echo htmlspecialchars($activity['activity_description']); ?>
+                                </div>
+                            </div>
                         </div>
+                    <?php endforeach; ?>
+                </div>
+
+                <?php if (count($activities) > 10): ?>
+                    <div class="activity-footer">
+                        <small class="text-muted">
+                            <i class="fas fa-info-circle me-1"></i>
+                            แสดง <?php echo count($activities); ?> กิจกรรมทั้งหมด - เลื่อนเพื่อดูเพิ่มเติม
+                        </small>
                     </div>
-                <?php endforeach; ?>
+                <?php endif; ?>
             </div>
         <?php else: ?>
-            <p class="text-muted text-center mb-0">ไม่มีกิจกรรม</p>
+            <div class="activity-empty">
+                <i class="fas fa-inbox fa-3x text-muted mb-3"></i>
+                <p class="text-muted mb-0">ยังไม่มีกิจกรรม</p>
+                <small class="text-muted">กิจกรรมต่างๆ เช่น การโทร การนัดหมาย คำสั่งซื้อ จะแสดงที่นี่</small>
+            </div>
         <?php endif; ?>
     </div>
 </div>
@@ -472,4 +521,37 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
             </div>
         </div>
     </div>
-</div> 
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Activity Timeline Scroll Enhancement
+    const timelineContainer = document.querySelector('.activity-timeline-container');
+
+    if (timelineContainer) {
+        // เพิ่ม smooth scrolling behavior
+        timelineContainer.style.scrollBehavior = 'smooth';
+
+        // เพิ่ม fade effect เมื่อ scroll ถึงด้านบนหรือล่าง
+        timelineContainer.addEventListener('scroll', function() {
+            const scrollTop = this.scrollTop;
+            const scrollHeight = this.scrollHeight;
+            const clientHeight = this.clientHeight;
+
+            // เพิ่ม shadow เมื่อ scroll
+            if (scrollTop > 0) {
+                this.style.boxShadow = 'inset 0 7px 9px -7px rgba(0,0,0,0.1)';
+            } else {
+                this.style.boxShadow = 'none';
+            }
+
+            // เพิ่ม shadow ด้านล่างเมื่อยังไม่ scroll ถึงล่างสุด
+            if (scrollTop + clientHeight < scrollHeight - 5) {
+                this.style.borderBottom = '1px solid #e9ecef';
+            } else {
+                this.style.borderBottom = 'none';
+            }
+        });
+    }
+});
+</script>

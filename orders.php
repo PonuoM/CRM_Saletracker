@@ -77,7 +77,11 @@ try {
         case 'update_status':
             $orderController->updateStatus();
             break;
-            
+
+        case 'update_payment':
+            $orderController->updatePaymentStatus();
+            break;
+
         case 'export':
             $orderController->export();
             break;

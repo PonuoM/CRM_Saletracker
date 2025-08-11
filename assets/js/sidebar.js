@@ -1,18 +1,58 @@
 /**
- * Sidebar JavaScript
- * จัดการ sidebar functionality และ navigation
+ * Dynamic Sidebar JavaScript
+ * จัดการ sidebar functionality, pin/unpin, และ localStorage
  */
 
 document.addEventListener('DOMContentLoaded', function() {
-    // Sidebar toggle functionality
-    const sidebarToggle = document.querySelector('.sidebar-toggle');
-    const sidebar = document.querySelector('.sidebar');
-    const mainContent = document.querySelector('main');
-    
-    if (sidebarToggle && sidebar && mainContent) {
-        sidebarToggle.addEventListener('click', function() {
-            sidebar.classList.toggle('collapsed');
-            mainContent.classList.toggle('expanded');
+    const sidebar = document.getElementById('mainSidebar');
+    const mainContent = document.querySelector('.main-content');
+    const pinBtn = document.getElementById('sidebarPinBtn');
+
+    // ตรวจสอบสถานะจาก localStorage
+    const isPinned = localStorage.getItem('sidebarPinned') === 'true';
+    const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+
+    // ตั้งค่าเริ่มต้น
+    if (isPinned) {
+        sidebar.classList.add('pinned');
+        pinBtn.classList.add('pinned');
+        pinBtn.title = 'ยกเลิกปักหมุด';
+        mainContent.classList.remove('sidebar-mini');
+    } else if (isCollapsed) {
+        sidebar.classList.add('mini');
+        mainContent.classList.add('sidebar-mini');
+        pinBtn.classList.remove('pinned');
+        pinBtn.title = 'ปักหมุด Sidebar';
+    } else {
+        // Default: mini mode
+        sidebar.classList.add('mini');
+        mainContent.classList.add('sidebar-mini');
+    }
+
+    // Pin/Unpin functionality
+    if (pinBtn) {
+        pinBtn.addEventListener('click', function() {
+            const isCurrentlyPinned = sidebar.classList.contains('pinned');
+
+            if (isCurrentlyPinned) {
+                // Unpin - กลับไปโหมด mini
+                sidebar.classList.remove('pinned');
+                sidebar.classList.add('mini');
+                mainContent.classList.add('sidebar-mini');
+                pinBtn.classList.remove('pinned');
+                pinBtn.title = 'ปักหมุด Sidebar';
+                localStorage.setItem('sidebarPinned', 'false');
+                localStorage.setItem('sidebarCollapsed', 'true');
+            } else {
+                // Pin - ขยายและปักหมุด
+                sidebar.classList.remove('mini');
+                sidebar.classList.add('pinned');
+                mainContent.classList.remove('sidebar-mini');
+                pinBtn.classList.add('pinned');
+                pinBtn.title = 'ยกเลิกปักหมุด';
+                localStorage.setItem('sidebarPinned', 'true');
+                localStorage.setItem('sidebarCollapsed', 'false');
+            }
         });
     }
     
@@ -62,19 +102,62 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Mobile sidebar toggle
-    const mobileToggle = document.querySelector('.mobile-sidebar-toggle');
+    const mobileToggle = document.getElementById('mobileSidebarToggle');
     if (mobileToggle && sidebar) {
         mobileToggle.addEventListener('click', function() {
             sidebar.classList.toggle('show-mobile');
         });
     }
-    
+
     // Close mobile sidebar when clicking outside
     document.addEventListener('click', function(e) {
         if (sidebar && sidebar.classList.contains('show-mobile')) {
-            if (!sidebar.contains(e.target) && !mobileToggle.contains(e.target)) {
+            if (!sidebar.contains(e.target) && !mobileToggle?.contains(e.target)) {
                 sidebar.classList.remove('show-mobile');
             }
+        }
+    });
+
+    // Hover effects for mini mode (desktop only)
+    if (window.innerWidth > 768) {
+        let hoverTimeout;
+
+        sidebar.addEventListener('mouseenter', function() {
+            if (this.classList.contains('mini') && !this.classList.contains('pinned')) {
+                clearTimeout(hoverTimeout);
+                this.style.width = '250px';
+            }
+        });
+
+        sidebar.addEventListener('mouseleave', function() {
+            if (this.classList.contains('mini') && !this.classList.contains('pinned')) {
+                hoverTimeout = setTimeout(() => {
+                    this.style.width = '70px';
+                }, 300);
+            }
+        });
+    }
+
+    // Window resize handler
+    window.addEventListener('resize', function() {
+        if (window.innerWidth <= 768) {
+            // Mobile mode
+            sidebar.classList.remove('mini', 'pinned');
+            mainContent.classList.remove('sidebar-mini');
+            sidebar.style.width = '';
+        } else {
+            // Desktop mode - restore saved state
+            const isPinned = localStorage.getItem('sidebarPinned') === 'true';
+            if (isPinned) {
+                sidebar.classList.add('pinned');
+                sidebar.classList.remove('mini');
+                mainContent.classList.remove('sidebar-mini');
+            } else {
+                sidebar.classList.add('mini');
+                sidebar.classList.remove('pinned');
+                mainContent.classList.add('sidebar-mini');
+            }
+            sidebar.classList.remove('show-mobile');
         }
     });
 });

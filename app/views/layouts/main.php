@@ -4,28 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $pageTitle ?? 'CRM SalesTracker'; ?></title>
+
+    <!-- Font Preloading to prevent FOUT -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Sukhumvit+Set:wght@300;400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sukhumvit+Set:wght@300;400;500;600;700&display=swap"></noscript>
+
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/app.css" rel="stylesheet">
 </head>
-<body class="<?php echo $bodyClass ?? ''; ?>">
+<body class="<?php echo $bodyClass ?? ''; ?> fonts-loading">
     <!-- Include Header Component -->
     <?php include APP_VIEWS . 'components/header.php'; ?>
 
-    <div class="container-fluid">
-        <div class="row">
-            <!-- Include Sidebar Component -->
-            <?php include APP_VIEWS . 'components/sidebar.php'; ?>
+    <!-- Mobile Sidebar Toggle -->
+    <button class="mobile-sidebar-toggle d-md-none" id="mobileSidebarToggle">
+        <i class="fas fa-bars"></i>
+    </button>
 
-            <!-- Main Content (grid sums to 12 with sidebar: 2 + 10) -->
-            <main class="col-md-9 col-lg-10 main-content">
-                <?php echo $content ?? ''; ?>
-            </main>
-        </div>
+    <div class="container-fluid p-0">
+        <!-- Include Sidebar Component -->
+        <?php include APP_VIEWS . 'components/sidebar.php'; ?>
+
+        <!-- Main Content -->
+        <main class="main-content">
+            <?php echo $content ?? ''; ?>
+        </main>
     </div>
 
     <!-- Scripts -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="assets/js/sidebar.js"></script>
     <?php if (isset($bodyClass) && $bodyClass === 'customer-page-body'): ?>
         <script src="assets/js/customers.js"></script>
     <?php endif; ?>
@@ -153,6 +164,47 @@
                 console.error('Unhandled promise rejection:', event.reason);
             });
         });
+
+        // FOUT Prevention Script
+        (function() {
+            'use strict';
+
+            // Check if Font Loading API is supported
+            if ('fonts' in document) {
+                // Use Font Loading API
+                document.fonts.ready.then(function() {
+                    console.log('✓ Fonts loaded successfully');
+                    document.body.classList.remove('fonts-loading');
+                    document.body.classList.add('fonts-loaded');
+                });
+
+                // Fallback timeout (in case fonts fail to load)
+                setTimeout(function() {
+                    if (document.body.classList.contains('fonts-loading')) {
+                        console.log('⚠ Font loading timeout - using fallback');
+                        document.body.classList.remove('fonts-loading');
+                        document.body.classList.add('fonts-fallback');
+                    }
+                }, 3000);
+
+            } else {
+                // Fallback for browsers without Font Loading API
+                console.log('⚠ Font Loading API not supported - using fallback');
+                setTimeout(function() {
+                    document.body.classList.remove('fonts-loading');
+                    document.body.classList.add('fonts-fallback');
+                }, 100);
+            }
+
+            // Additional check for Sukhumvit Set specifically
+            if ('fonts' in document) {
+                document.fonts.load('400 16px "Sukhumvit Set"').then(function() {
+                    console.log('✓ Sukhumvit Set loaded');
+                }).catch(function() {
+                    console.log('⚠ Sukhumvit Set failed to load');
+                });
+            }
+        })();
     </script>
 </body>
 </html> 

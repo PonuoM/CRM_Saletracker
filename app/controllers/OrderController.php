@@ -133,7 +133,17 @@ class OrderController {
             );
         }
         
-        include APP_VIEWS . 'orders/index.php';
+        // Set page title and prepare content for layout
+        $pageTitle = 'จัดการคำสั่งซื้อ - CRM SalesTracker';
+        $currentPage = 'orders';
+
+        // Capture orders content
+        ob_start();
+        include APP_VIEWS . 'orders/content.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include APP_VIEWS . 'layouts/main.php';
     }
 
     /**
@@ -680,7 +690,79 @@ class OrderController {
         header('Content-Type: application/json');
         echo json_encode($result);
     }
-    
+
+    /**
+     * อัปเดตสถานะการชำระเงิน
+     */
+    public function updatePaymentStatus() {
+        header('Content-Type: application/json');
+
+        try {
+            // ตรวจสอบการยืนยันตัวตน
+            if (!isset($_SESSION['user_id'])) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'ไม่ได้รับอนุญาต'
+                ]);
+                return;
+            }
+
+            // รับข้อมูลจาก JSON
+            $input = json_decode(file_get_contents('php://input'), true);
+
+            if (!$input || !isset($input['order_id']) || !isset($input['payment_status'])) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'ข้อมูลไม่ครบถ้วน'
+                ]);
+                return;
+            }
+
+            $orderId = (int)$input['order_id'];
+            $paymentStatus = $input['payment_status'];
+
+            // ตรวจสอบค่าที่ได้รับ
+            if (!in_array($paymentStatus, ['pending', 'paid', 'partial', 'cancelled'])) {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'สถานะการชำระเงินไม่ถูกต้อง'
+                ]);
+                return;
+            }
+
+            // อัปเดตสถานะการชำระเงิน
+            $pdo = $this->db->getPdo();
+            $stmt = $pdo->prepare("
+                UPDATE orders
+                SET payment_status = ?, updated_at = NOW()
+                WHERE order_id = ?
+            ");
+
+            $result = $stmt->execute([$paymentStatus, $orderId]);
+
+            if ($result && $stmt->rowCount() > 0) {
+                echo json_encode([
+                    'success' => true,
+                    'message' => 'อัปเดตสถานะการชำระเงินสำเร็จ'
+                ]);
+            } else {
+                echo json_encode([
+                    'success' => false,
+                    'message' => 'ไม่พบคำสั่งซื้อหรือไม่มีการเปลี่ยนแปลง'
+                ]);
+            }
+
+        } catch (Exception $e) {
+            error_log('UpdatePaymentStatus Error: ' . $e->getMessage());
+            error_log('UpdatePaymentStatus Trace: ' . $e->getTraceAsString());
+
+            echo json_encode([
+                'success' => false,
+                'message' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()
+            ]);
+        }
+    }
+
     /**
      * ลบคำสั่งซื้อ
      */

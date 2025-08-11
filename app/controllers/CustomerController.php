@@ -142,15 +142,8 @@ class CustomerController {
             ['customer_id' => $customerId]
         );
         
-        // ดึงกิจกรรมลูกค้า
-        $activities = $this->db->fetchAll(
-            "SELECT ca.*, u.full_name as user_name 
-             FROM customer_activities ca 
-             LEFT JOIN users u ON ca.user_id = u.user_id 
-             WHERE ca.customer_id = :customer_id 
-             ORDER BY ca.created_at DESC",
-            ['customer_id' => $customerId]
-        );
+        // ดึงกิจกรรมลูกค้าแบบรวม (จากหลายแหล่ง)
+        $activities = $this->getCombinedCustomerActivities($customerId);
         
         // ดึงคำสั่งซื้อ
         $orders = $this->db->fetchAll(
@@ -629,6 +622,291 @@ class CustomerController {
         return $teamCustomerIds;
     }
     
+    /**
+     * รวมกิจกรรมลูกค้าจากหลายแหล่งข้อมูล
+     */
+    private function getCombinedCustomerActivities($customerId) {
+        $activities = [];
+
+        try {
+            // 1. ดึงข้อมูลการโทร (call_logs)
+            $callLogs = $this->db->fetchAll(
+                "SELECT
+                    cl.log_id,
+                    cl.call_status,
+                    cl.call_result,
+                    cl.notes,
+                    cl.created_at,
+                    u.full_name as user_name,
+                    'call' as activity_type
+                FROM call_logs cl
+                LEFT JOIN users u ON cl.user_id = u.user_id
+                WHERE cl.customer_id = :customer_id",
+                ['customer_id' => $customerId]
+            );
+
+            foreach ($callLogs as $log) {
+                $statusText = $this->getCallStatusText($log['call_status']);
+                $resultText = $this->getCallResultText($log['call_result']);
+
+                $description = "โทรหาลูกค้า ({$statusText})";
+                if ($resultText) {
+                    $description .= " - {$resultText}";
+                }
+                if ($log['notes']) {
+                    $description .= " หมายเหตุ: " . $log['notes'];
+                }
+
+                $activities[] = [
+                    'id' => 'call_' . $log['log_id'],
+                    'activity_type' => 'call',
+                    'activity_description' => $description,
+                    'user_name' => $log['user_name'],
+                    'created_at' => $log['created_at'],
+                    'icon' => 'fas fa-phone',
+                    'color' => $log['call_status'] === 'answered' ? 'success' : 'warning'
+                ];
+            }
+
+            // 2. ดึงข้อมูลการนัดหมาย (appointments)
+            $appointments = $this->db->fetchAll(
+                "SELECT
+                    a.appointment_id,
+                    a.appointment_date,
+                    a.appointment_type,
+                    a.appointment_status,
+                    a.notes,
+                    a.created_at,
+                    u.full_name as user_name,
+                    'appointment' as activity_type
+                FROM appointments a
+                LEFT JOIN users u ON a.user_id = u.user_id
+                WHERE a.customer_id = :customer_id",
+                ['customer_id' => $customerId]
+            );
+
+            foreach ($appointments as $appointment) {
+                $statusText = $this->getAppointmentStatusText($appointment['appointment_status']);
+                $typeText = $this->getAppointmentTypeText($appointment['appointment_type']);
+
+                $description = "นัดหมาย{$typeText} ({$statusText}) วันที่ " .
+                              date('d/m/Y H:i', strtotime($appointment['appointment_date']));
+
+                if ($appointment['notes']) {
+                    $description .= " หมายเหตุ: " . $appointment['notes'];
+                }
+
+                $activities[] = [
+                    'id' => 'appointment_' . $appointment['appointment_id'],
+                    'activity_type' => 'appointment',
+                    'activity_description' => $description,
+                    'user_name' => $appointment['user_name'],
+                    'created_at' => $appointment['created_at'],
+                    'icon' => 'fas fa-calendar',
+                    'color' => $appointment['appointment_status'] === 'completed' ? 'success' : 'info'
+                ];
+            }
+
+            // 3. ดึงข้อมูลคำสั่งซื้อ (orders)
+            $orders = $this->db->fetchAll(
+                "SELECT
+                    o.order_id,
+                    o.order_number,
+                    o.net_amount,
+                    o.payment_status,
+                    o.created_at,
+                    u.full_name as user_name,
+                    'order' as activity_type
+                FROM orders o
+                LEFT JOIN users u ON o.created_by = u.user_id
+                WHERE o.customer_id = :customer_id",
+                ['customer_id' => $customerId]
+            );
+
+            foreach ($orders as $order) {
+                $statusText = $this->getPaymentStatusText($order['payment_status']);
+                $amount = number_format($order['net_amount'], 2);
+
+                $description = "สร้างคำสั่งซื้อใหม่ หมายเลข {$order['order_number']} " .
+                              "ยอดสุทธิ ฿{$amount} ({$statusText})";
+
+                $activities[] = [
+                    'id' => 'order_' . $order['order_id'],
+                    'activity_type' => 'order',
+                    'activity_description' => $description,
+                    'user_name' => $order['user_name'],
+                    'created_at' => $order['created_at'],
+                    'icon' => 'fas fa-shopping-cart',
+                    'color' => $order['payment_status'] === 'paid' ? 'success' : 'warning'
+                ];
+            }
+
+            // 4. ดึงข้อมูลกิจกรรมอื่นๆ (customer_activities)
+            $customerActivities = $this->db->fetchAll(
+                "SELECT
+                    ca.activity_id,
+                    ca.activity_type,
+                    ca.activity_description,
+                    ca.created_at,
+                    u.full_name as user_name
+                FROM customer_activities ca
+                LEFT JOIN users u ON ca.user_id = u.user_id
+                WHERE ca.customer_id = :customer_id",
+                ['customer_id' => $customerId]
+            );
+
+            foreach ($customerActivities as $activity) {
+                $activities[] = [
+                    'id' => 'activity_' . $activity['activity_id'],
+                    'activity_type' => $activity['activity_type'],
+                    'activity_description' => $activity['activity_description'],
+                    'user_name' => $activity['user_name'],
+                    'created_at' => $activity['created_at'],
+                    'icon' => $this->getActivityIcon($activity['activity_type']),
+                    'color' => $this->getActivityColor($activity['activity_type'])
+                ];
+            }
+
+        } catch (Exception $e) {
+            // ถ้ามีข้อผิดพลาด ให้ส่งกลับ array ว่าง
+            error_log("Error fetching combined activities: " . $e->getMessage());
+            return [];
+        }
+
+        // เรียงลำดับตามเวลา (ใหม่สุดก่อน)
+        usort($activities, function($a, $b) {
+            return strtotime($b['created_at']) - strtotime($a['created_at']);
+        });
+
+        return $activities;
+    }
+
+    /**
+     * แปลงสถานะการโทรเป็นข้อความภาษาไทย
+     */
+    private function getCallStatusText($status) {
+        switch ($status) {
+            case 'answered': return 'รับสาย';
+            case 'no_answer': return 'ไม่รับสาย';
+            case 'busy': return 'สายไม่ว่าง';
+            case 'invalid': return 'เบอร์ไม่ถูกต้อง';
+            default: return 'ไม่ระบุ';
+        }
+    }
+
+    /**
+     * แปลงผลการโทรเป็นข้อความภาษาไทย
+     */
+    private function getCallResultText($result) {
+        if (!$result) return '';
+        switch ($result) {
+            case 'interested': return 'สนใจ';
+            case 'not_interested': return 'ไม่สนใจ';
+            case 'callback': return 'โทรกลับ';
+            case 'order': return 'สั่งซื้อ';
+            case 'complaint': return 'ร้องเรียน';
+            default: return $result;
+        }
+    }
+
+    /**
+     * แปลงสถานะการนัดหมายเป็นข้อความภาษาไทย
+     */
+    private function getAppointmentStatusText($status) {
+        switch ($status) {
+            case 'scheduled': return 'กำหนดการ';
+            case 'confirmed': return 'ยืนยันแล้ว';
+            case 'completed': return 'เสร็จสิ้น';
+            case 'cancelled': return 'ยกเลิก';
+            case 'no_show': return 'ไม่มาตามนัด';
+            default: return 'ไม่ระบุ';
+        }
+    }
+
+    /**
+     * แปลงประเภทการนัดหมายเป็นข้อความภาษาไทย
+     */
+    private function getAppointmentTypeText($type) {
+        switch ($type) {
+            case 'call': return 'โทรศัพท์';
+            case 'visit': return 'เยี่ยมชม';
+            case 'meeting': return 'ประชุม';
+            case 'demo': return 'สาธิต';
+            default: return '';
+        }
+    }
+
+    /**
+     * แปลงสถานะการชำระเงินเป็นข้อความภาษาไทย
+     */
+    private function getPaymentStatusText($status) {
+        switch ($status) {
+            case 'paid': return 'ชำระแล้ว';
+            case 'pending': return 'รอชำระ';
+            case 'partial': return 'ชำระบางส่วน';
+            case 'cancelled': return 'ยกเลิก';
+            default: return 'ไม่ระบุ';
+        }
+    }
+
+    /**
+     * ดึงไอคอนตามประเภทกิจกรรม
+     */
+    private function getActivityIcon($activityType) {
+        switch ($activityType) {
+            case 'call': return 'fas fa-phone';
+            case 'appointment': return 'fas fa-calendar';
+            case 'order': return 'fas fa-shopping-cart';
+            case 'status_change': return 'fas fa-exchange-alt';
+            case 'assignment': return 'fas fa-user-plus';
+            case 'note': return 'fas fa-sticky-note';
+            case 'recall': return 'fas fa-undo';
+            default: return 'fas fa-info-circle';
+        }
+    }
+
+    /**
+     * ดึงสีตามประเภทกิจกรรม
+     */
+    private function getActivityColor($activityType) {
+        switch ($activityType) {
+            case 'call': return 'primary';
+            case 'appointment': return 'info';
+            case 'order': return 'success';
+            case 'status_change': return 'warning';
+            case 'assignment': return 'secondary';
+            case 'note': return 'light';
+            case 'recall': return 'danger';
+            default: return 'secondary';
+        }
+    }
+
+    /**
+     * คำนวณเวลาที่ผ่านมาเป็นภาษาไทย
+     */
+    private function getTimeAgo($datetime) {
+        $time = time() - strtotime($datetime);
+
+        if ($time < 60) {
+            return 'เมื่อสักครู่';
+        } elseif ($time < 3600) {
+            $minutes = floor($time / 60);
+            return $minutes . ' นาทีที่แล้ว';
+        } elseif ($time < 86400) {
+            $hours = floor($time / 3600);
+            return $hours . ' ชั่วโมงที่แล้ว';
+        } elseif ($time < 2592000) {
+            $days = floor($time / 86400);
+            return $days . ' วันที่แล้ว';
+        } elseif ($time < 31536000) {
+            $months = floor($time / 2592000);
+            return $months . ' เดือนที่แล้ว';
+        } else {
+            $years = floor($time / 31536000);
+            return $years . ' ปีที่แล้ว';
+        }
+    }
+
     /**
      * แสดงหน้าข้อผิดพลาด
      */

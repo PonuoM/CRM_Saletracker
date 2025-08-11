@@ -66,7 +66,17 @@ class AdminController {
         // ดึงข้อมูลการตั้งค่าระบบ
         $settings = $this->getSystemSettings();
         
+        // Set page title and prepare content for layout
+        $pageTitle = 'Admin Dashboard - CRM SalesTracker';
+        $currentPage = 'admin';
+
+        // Capture admin content
+        ob_start();
         include __DIR__ . '/../views/admin/index.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
     
     /**
@@ -101,7 +111,18 @@ class AdminController {
         $roles = $this->getAllRoles();
         $companies = $this->getAllCompanies();
         
+        // Set page title and prepare content for layout
+        $pageTitle = 'จัดการผู้ใช้ - CRM SalesTracker';
+        $currentPage = 'admin';
+        $currentAction = 'users';
+
+        // Capture users content
+        ob_start();
         include __DIR__ . '/../views/admin/users/index.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
     
     /**
@@ -233,7 +254,18 @@ class AdminController {
         $products = $this->getAllProducts();
         $categories = $this->getProductCategories();
         
+        // Set page title and prepare content for layout
+        $pageTitle = 'จัดการสินค้า - CRM SalesTracker';
+        $currentPage = 'admin';
+        $currentAction = 'products';
+
+        // Capture products content
+        ob_start();
         include __DIR__ . '/../views/admin/products/index.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
     
     /**
@@ -583,7 +615,18 @@ class AdminController {
      */
     private function listCompanies() {
         $companies = $this->getAllCompanies();
+        // Set page title and prepare content for layout
+        $pageTitle = 'จัดการบริษัท - CRM SalesTracker';
+        $currentPage = 'admin';
+        $currentAction = 'companies';
+
+        // Capture companies content
+        ob_start();
         include __DIR__ . '/../views/admin/companies/index.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
     
     /**
