@@ -59,8 +59,8 @@ try {
             ORDER BY month DESC";
     $stats['monthly_orders'] = $db->fetchAll($sql);
 
-    // เกรดลูกค้า
-    $sql = "SELECT grade, COUNT(*) as count FROM customers GROUP BY grade ORDER BY grade";
+    // เกรดลูกค้า (ใช้คอลัมน์ customer_grade)
+    $sql = "SELECT customer_grade AS grade, COUNT(*) as count FROM customers GROUP BY customer_grade ORDER BY customer_grade";
     $stats['customer_grades'] = $db->fetchAll($sql);
 
     // สถานะคำสั่งซื้อ

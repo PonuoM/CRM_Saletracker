@@ -51,6 +51,8 @@ try {
                             echo "Found {$result['recall_count']} customers";
                         } elseif (isset($result['notification_count'])) {
                             echo "Sent {$result['notification_count']} notifications";
+                        } elseif (isset($result['new_customers_recalled'])) {
+                            echo "New recalled: {$result['new_customers_recalled']}, Existing recalled: {$result['existing_customers_recalled']}, Moved to distribution: {$result['moved_to_distribution']}";
                         } elseif (isset($result['cleanup_results'])) {
                             $cleanup = $result['cleanup_results'];
                             echo "Cleaned up: {$cleanup['deleted_logs']} logs, {$cleanup['deleted_notifications']} notifications, {$cleanup['deleted_backups']} backups";

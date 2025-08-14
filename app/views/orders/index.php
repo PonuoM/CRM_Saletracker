@@ -97,8 +97,8 @@ $userId = $_SESSION['user_id'] ?? 0;
                     <div class="card-header d-flex justify-content-between align-items-center">
                         <h5 class="mb-0">รายการคำสั่งซื้อ</h5>
                         <div>
-                            <a href="orders.php?action=export" class="btn btn-outline-primary btn-sm">
-                                <i class="fas fa-download me-1"></i>ส่งออก
+                            <a href="orders.php?action=create&guest=1" class="btn btn-primary btn-sm">
+                                <i class="fas fa-user-plus me-1"></i>สร้างคำสั่งซื้อ (ลูกค้าใหม่)
                             </a>
                         </div>
                     </div>
@@ -112,6 +112,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                                             <th>ลูกค้า</th>
                                             <th>วันที่</th>
                                             <th>จำนวนรายการ</th>
+                                            <th>จำนวน (ชิ้น)</th>
                                             <th>ยอดรวม</th>
                                             <th>สถานะ</th>
                                             <th>การชำระเงิน</th>
@@ -127,6 +128,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                                                 <td><?php echo htmlspecialchars($order['customer_name']); ?></td>
                                                 <td><?php echo date('d/m/Y', strtotime($order['order_date'])); ?></td>
                                                 <td><?php echo $order['item_count'] ?? 0; ?> รายการ</td>
+                                                <td><?php echo (int)($order['total_quantity'] ?? 0); ?></td>
                                                 <td>
                                                     <strong class="text-success">
                                                         ฿<?php echo number_format($order['total_amount'], 2); ?>
@@ -136,9 +138,33 @@ $userId = $_SESSION['user_id'] ?? 0;
                                                     <?php endif; ?>
                                                 </td>
                                                 <td>
-                                                    <span class="badge bg-<?php echo $order['delivery_status'] === 'delivered' ? 'success' : ($order['delivery_status'] === 'shipped' ? 'primary' : ($order['delivery_status'] === 'pending' ? 'warning' : 'secondary')); ?> text-dark">
-                                                        <?php echo htmlspecialchars($order['delivery_status']); ?>
-                                                    </span>
+                                                    <?php if (in_array($roleName, ['supervisor', 'admin', 'super_admin']) || ($order['created_by'] ?? null) == $userId): ?>
+                                                        <?php
+                                                            $delMap = ['pending'=>'รอดำเนินการ','confirmed'=>'ยืนยันแล้ว','shipped'=>'จัดส่งแล้ว','delivered'=>'ส่งมอบแล้ว','cancelled'=>'ยกเลิก'];
+                                                            $delColor = [
+                                                                'pending' => 'warning',
+                                                                'confirmed' => 'info',
+                                                                'shipped' => 'primary',
+                                                                'delivered' => 'success',
+                                                                'cancelled' => 'danger'
+                                                            ][$order['delivery_status'] ?? 'pending'];
+                                                            $currDel = $order['delivery_status'] ?? 'pending';
+                                                        ?>
+                                                        <div class="dropdown dropup d-inline-block">
+                                                            <button id="status-badge-<?php echo (int)$order['order_id']; ?>" class="badge bg-<?php echo $delColor; ?> text-dark dropdown-toggle border-0" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-container="body" aria-expanded="false">
+                                                                <?php echo htmlspecialchars($delMap[$currDel]); ?>
+                                                            </button>
+                                                            <ul class="dropdown-menu">
+                                                                <?php foreach (['pending'=>'รอดำเนินการ','confirmed'=>'ยืนยันแล้ว','shipped'=>'จัดส่งแล้ว','delivered'=>'ส่งมอบแล้ว','cancelled'=>'ยกเลิก'] as $val=>$label): ?>
+                                                                    <li><a class="dropdown-item" href="#" onclick="updateDeliveryStatusInline(<?php echo (int)$order['order_id']; ?>, '<?php echo $val; ?>'); return false;"><?php echo $label; ?></a></li>
+                                                                <?php endforeach; ?>
+                                                            </ul>
+                                                        </div>
+                                                    <?php else: ?>
+                                                        <span class="badge bg-<?php echo $order['delivery_status'] === 'shipped' ? 'primary' : ($order['delivery_status'] === 'pending' ? 'warning' : ($order['delivery_status'] === 'confirmed' ? 'info' : ($order['delivery_status'] === 'delivered' ? 'success' : 'secondary'))); ?> text-dark">
+                                                            <?php echo htmlspecialchars($order['delivery_status']); ?>
+                                                        </span>
+                                                    <?php endif; ?>
                                                 </td>
                                                 <td>
                                                     <?php
@@ -153,9 +179,34 @@ $userId = $_SESSION['user_id'] ?? 0;
                                                     $paymentMethodLabel = $paymentMethodLabels[$order['payment_method']] ?? $order['payment_method'];
                                                     $badgeClass = in_array($order['payment_method'], ['cod', 'receive_before_payment']) ? 'warning' : 'info';
                                                     ?>
-                                                    <span class="badge bg-<?php echo $badgeClass; ?> text-dark">
-                                                        <?php echo htmlspecialchars($paymentMethodLabel); ?>
-                                                    </span>
+                                                    <div class="d-flex align-items-center gap-2">
+                                                        <span class="badge bg-<?php echo $badgeClass; ?> text-dark">
+                                                            <?php echo htmlspecialchars($paymentMethodLabel); ?>
+                                                        </span>
+                                                        <?php if (in_array($roleName, ['supervisor', 'admin', 'super_admin']) || ($order['created_by'] ?? null) == $userId): ?>
+                                                            <?php
+                                                                $payMap = ['pending'=>'รอชำระ','paid'=>'ชำระแล้ว','partial'=>'ชำระบางส่วน','cancelled'=>'ยกเลิก','returned'=>'ตีกลับ'];
+                                                                $payColor = [
+                                                                    'pending' => 'warning',
+                                                                    'paid' => 'success',
+                                                                    'partial' => 'info',
+                                                                    'cancelled' => 'danger',
+                                                                    'returned' => 'secondary'
+                                                                ][$order['payment_status'] ?? 'pending'];
+                                                                $currPay = $order['payment_status'] ?? 'pending';
+                                                            ?>
+                                                            <div class="dropdown dropup d-inline-block">
+                                                                <button id="payment-badge-<?php echo (int)$order['order_id']; ?>" class="badge bg-<?php echo $payColor; ?> text-dark dropdown-toggle border-0" data-bs-toggle="dropdown" data-bs-boundary="viewport" data-bs-container="body" aria-expanded="false">
+                                                                    <?php echo htmlspecialchars($payMap[$currPay]); ?>
+                                                                </button>
+                                                                <ul class="dropdown-menu">
+                                                                    <?php foreach (['pending'=>'รอชำระ','paid'=>'ชำระแล้ว','partial'=>'ชำระบางส่วน','cancelled'=>'ยกเลิก','returned'=>'ตีกลับ'] as $val=>$label): ?>
+                                                                        <li><a class="dropdown-item" href="#" onclick="updatePaymentStatusInline(<?php echo (int)$order['order_id']; ?>, '<?php echo $val; ?>'); return false;"><?php echo $label; ?></a></li>
+                                                                    <?php endforeach; ?>
+                                                                </ul>
+                                                            </div>
+                                                        <?php endif; ?>
+                                                    </div>
                                                 </td>
                                                 <td>
                                                     <div class="d-flex align-items-center gap-2">
@@ -168,11 +219,6 @@ $userId = $_SESSION['user_id'] ?? 0;
                                                            class="btn btn-sm btn-outline-warning" title="แก้ไข">
                                                             <i class="fas fa-edit"></i>
                                                         </a>
-                                                        <div class="form-check form-switch ms-1" title="ติ๊กเพื่อทำเครื่องหมายชำระแล้ว">
-                                                            <input class="form-check-input" type="checkbox"
-                                                                   onchange="togglePaid(<?php echo $order['order_id']; ?>, this.checked)"
-                                                                   <?php echo ($order['payment_status'] ?? '') === 'paid' ? 'checked' : ''; ?> />
-                                                        </div>
                                                         <?php endif; ?>
                                                     </div>
                                                 </td>

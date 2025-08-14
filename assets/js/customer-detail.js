@@ -10,18 +10,30 @@ let currentCustomerId = null;
 window.logCall = function(customerId) {
     console.log('logCall function called with customer ID:', customerId);
     currentCustomerId = customerId;
-    
     try {
-        // Set customer ID in hidden field
-        const customerIdField = document.getElementById('callCustomerId');
-        if (customerIdField) {
-            customerIdField.value = customerId;
+        // Ensure existing backdrops are cleared to avoid blocking UI
+        document.querySelectorAll('.modal-backdrop').forEach(b => b.remove());
+
+        const modalEl = document.getElementById('logCallModal');
+        if (!modalEl) {
+            console.error('logCallModal not found in DOM');
+            alert('ไม่พบฟอร์มบันทึกการโทรในหน้านี้');
+            return;
         }
-        
-        // Show modal
-        const modal = new bootstrap.Modal(document.getElementById('logCallModal'));
+
+        // Move modal under body to avoid transform/overflow clipping
+        if (modalEl.parentElement !== document.body) {
+            document.body.appendChild(modalEl);
+        }
+
+        // Bind values and reset form
+        const customerIdField = document.getElementById('callCustomerId');
+        if (customerIdField) customerIdField.value = customerId;
+        const form = document.getElementById('logCallForm');
+        if (form) form.reset();
+
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl, { backdrop: true, keyboard: true, focus: true });
         modal.show();
-        
         console.log('Log call modal opened successfully');
     } catch (error) {
         console.error('Error opening log call modal:', error);
@@ -377,17 +389,23 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('Unhandled promise rejection:', event.reason);
     });
     
-    // Load appointments when page loads (if appointments tab is active or requested)
+    // Respect ?tab= to activate the requested tab (call-history | appointments | orders)
     const activeTab = document.querySelector('#historyTabs .nav-link.active');
     const urlParams = new URLSearchParams(window.location.search);
     const requestedTab = urlParams.get('tab');
-    
+
+    if (requestedTab) {
+        const btn = document.querySelector(`[data-bs-target="#${requestedTab}"]`);
+        if (btn) {
+            const t = new bootstrap.Tab(btn);
+            t.show();
+        }
+    }
+
+    // Load appointments data lazily
     if ((activeTab && activeTab.id === 'appointments-tab') || requestedTab === 'appointments') {
-        console.log('Appointments tab is active or requested on page load, loading appointments...');
         loadAppointments();
     } else {
-        // Pre-load appointments data even if tab is not active
-        console.log('Pre-loading appointments data...');
         setTimeout(loadAppointments, 500);
     }
 });

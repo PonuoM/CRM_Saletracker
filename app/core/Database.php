@@ -110,6 +110,19 @@ class Database {
     }
     
     /**
+     * Execute a non-select SQL statement and return affected rows
+     */
+    public function execute($sql, $params = []) {
+        try {
+            $stmt = $this->pdo->prepare($sql);
+            $stmt->execute($params);
+            return $stmt->rowCount();
+        } catch (PDOException $e) {
+            throw new Exception("Execution failed: " . $e->getMessage());
+        }
+    }
+    
+    /**
      * Update data
      */
     public function update($table, $data, $where, $whereParams = []) {

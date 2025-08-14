@@ -7,9 +7,34 @@
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2" style="font-family: 'Sukhumvit Set', sans-serif;">
-        <i class="fas fa-chart-bar me-2"></i>
-        รายงาน
+        <i class="fas fa-tachometer-alt me-2"></i>
+        <?php echo ($currentPage === 'dashboard') ? 'แดชบอร์ด' : 'รายงาน'; ?>
     </h1>
+    <?php if ($currentPage === 'dashboard'): ?>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <select id="monthFilter" class="form-select form-select-sm" style="width: 150px;">
+                <option value="">ทั้งหมด</option>
+                <?php
+                for ($i = 1; $i <= 12; $i++) {
+                    $monthValue = date('Y') . '-' . str_pad($i, 2, '0', STR_PAD_LEFT);
+                    $monthName = [
+                        '01' => 'มกราคม', '02' => 'กุมภาพันธ์', '03' => 'มีนาคม', '04' => 'เมษายน',
+                        '05' => 'พฤษภาคม', '06' => 'มิถุนายน', '07' => 'กรกฎาคม', '08' => 'สิงหาคม',
+                        '09' => 'กันยายน', '10' => 'ตุลาคม', '11' => 'พฤศจิกายน', '12' => 'ธันวาคม'
+                    ][str_pad($i, 2, '0', STR_PAD_LEFT)];
+                    echo "<option value='$monthValue'>$monthName " . date('Y') . "</option>";
+                }
+                ?>
+            </select>
+        </div>
+        <div class="btn-group me-2">
+            <a href="reports.php" class="btn btn-sm btn-outline-secondary">
+                <i class="fas fa-chart-bar me-1"></i>รายงานแบบเต็ม
+            </a>
+        </div>
+    </div>
+    <?php endif; ?>
 </div>
 
                 <?php if (isset($error)): ?>
@@ -109,16 +134,36 @@
                                                 <th>เปอร์เซ็นต์</th>
                                             </tr>
                                         </thead>
-                                        <tbody>
-                                            <?php foreach ($stats['order_statuses'] as $status): ?>
+                                        <tbody id="orderStatusTable">
+                                            <?php
+                                            // สถานะทั้งหมดที่ต้องแสดง
+                                            $allStatuses = [
+                                                'pending' => 'รอดำเนินการ',
+                                                'processing' => 'กำลังดำเนินการ',
+                                                'shipped' => 'จัดส่งแล้ว',
+                                                'delivered' => 'จัดส่งสำเร็จ',
+                                                'cancelled' => 'ยกเลิก'
+                                            ];
+
+                                            $existingStatuses = [];
+                                            if (!empty($stats['order_statuses'])) {
+                                                foreach ($stats['order_statuses'] as $status) {
+                                                    $existingStatuses[$status['delivery_status']] = $status['count'];
+                                                }
+                                            }
+
+                                            foreach ($allStatuses as $statusKey => $statusName):
+                                                $count = $existingStatuses[$statusKey] ?? 0;
+                                                $percentage = $stats['total_orders'] > 0 ? ($count / $stats['total_orders']) * 100 : 0;
+                                            ?>
                                                 <tr>
                                                     <td>
-                                                        <span class="badge bg-<?php echo getStatusColor($status['delivery_status']); ?>">
-                                                            <?php echo getStatusText($status['delivery_status']); ?>
-                                                        </span>
+                                                        <strong style="color: <?php echo getStatusDarkColor($statusKey); ?>;">
+                                                            <?php echo $statusName; ?>
+                                                        </strong>
                                                     </td>
-                                                    <td><?php echo number_format($status['count']); ?></td>
-                                                    <td><?php echo $stats['total_orders'] > 0 ? number_format(($status['count'] / $stats['total_orders']) * 100, 1) : '0'; ?>%</td>
+                                                    <td><?php echo number_format($count); ?></td>
+                                                    <td><?php echo number_format($percentage, 1); ?>%</td>
                                                 </tr>
                                             <?php endforeach; ?>
                                         </tbody>
@@ -172,12 +217,13 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.11.5/js/dataTables.bootstrap5.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="assets/js/page-transitions.js"></script>
 
     <script>
         // กราฟคำสั่งซื้อรายเดือน
-        const monthlyOrdersCtx = document.getElementById('monthlyOrdersChart').getContext('2d');
-        new Chart(monthlyOrdersCtx, {
+        const monthlyOrdersCtx = document.getElementById('monthlyOrdersChart')?.getContext('2d');
+        if (monthlyOrdersCtx) new Chart(monthlyOrdersCtx, {
             type: 'line',
             data: {
                 labels: <?php echo json_encode(array_column($stats['monthly_orders'], 'month')); ?>,
@@ -201,8 +247,8 @@
         });
 
         // กราฟเกรดลูกค้า
-        const customerGradesCtx = document.getElementById('customerGradesChart').getContext('2d');
-        new Chart(customerGradesCtx, {
+        const customerGradesCtx = document.getElementById('customerGradesChart')?.getContext('2d');
+        if (customerGradesCtx) new Chart(customerGradesCtx, {
             type: 'doughnut',
             data: {
                 labels: <?php echo json_encode(array_column($stats['customer_grades'], 'grade')); ?>,
@@ -222,17 +268,83 @@
                 maintainAspectRatio: false
             }
         });
+
+        // ตัวกรองเดือน (สำหรับ Dashboard)
+        <?php if ($currentPage === 'dashboard'): ?>
+        document.getElementById('monthFilter')?.addEventListener('change', function() {
+            const selectedMonth = this.value;
+            filterByMonth(selectedMonth);
+        });
+
+        function filterByMonth(month) {
+            // แสดง loading
+            showLoading();
+
+            // เรียก API เพื่อดึงข้อมูลตามเดือน
+            fetch(`dashboard.php?ajax=1&month=${month}`)
+                .then(response => response.json())
+                .then(data => {
+                    updateKPICards(data);
+                    updateCharts(data);
+                    updateTables(data);
+                    hideLoading();
+                })
+                .catch(error => {
+                    console.error('Error:', error);
+                    hideLoading();
+                });
+        }
+
+        function updateKPICards(data) {
+            // อัปเดต KPI cards
+            document.querySelector('.kpi-card:nth-child(1) .kpi-value').textContent = data.total_customers.toLocaleString();
+            document.querySelector('.kpi-card:nth-child(2) .kpi-value').textContent = data.total_orders.toLocaleString();
+            document.querySelector('.kpi-card:nth-child(3) .kpi-value').textContent = '฿' + data.total_revenue.toLocaleString();
+
+            const avgOrder = data.total_orders > 0 ? data.total_revenue / data.total_orders : 0;
+            document.querySelector('.kpi-card:nth-child(4) .kpi-value').textContent = '฿' + avgOrder.toLocaleString();
+        }
+
+        function updateCharts(data) {
+            // อัปเดตกราฟ (จะเพิ่มในอนาคต)
+        }
+
+        function updateTables(data) {
+            // อัปเดตตาราง (จะเพิ่มในอนาคต)
+        }
+
+        function showLoading() {
+            // แสดง loading indicator
+            document.body.style.cursor = 'wait';
+        }
+
+        function hideLoading() {
+            // ซ่อน loading indicator
+            document.body.style.cursor = 'default';
+        }
+        <?php endif; ?>
     </script>
 
 <?php
 function getStatusColor($status) {
     switch ($status) {
         case 'pending': return 'warning';
-        case 'processing': return 'info';
+        case 'processing': return 'info'; // not used in schema, kept for compatibility
         case 'shipped': return 'primary';
         case 'delivered': return 'success';
         case 'cancelled': return 'danger';
         default: return 'secondary';
+    }
+}
+
+function getStatusDarkColor($status) {
+    switch ($status) {
+        case 'pending': return '#856404';      // สีเหลืองเข้ม
+        case 'processing': return '#0c5460';   // สีฟ้าเข้ม
+        case 'shipped': return '#004085';      // สีน้ำเงินเข้ม
+        case 'delivered': return '#155724';    // สีเขียวเข้ม
+        case 'cancelled': return '#721c24';    // สีแดงเข้ม
+        default: return '#495057';             // สีเทาเข้ม
     }
 }
 
@@ -246,7 +358,11 @@ function getStatusText($status) {
         default: return $status;
     }
 }
+?>
 
+
+
+<?php
 function getGradeColor($grade) {
     switch ($grade) {
         case 'A+': return 'success';

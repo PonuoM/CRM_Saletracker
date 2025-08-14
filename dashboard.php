@@ -16,10 +16,6 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// Load dashboard data
-require_once APP_ROOT . '/app/services/DashboardService.php';
-$dashboardService = new DashboardService();
-
 // Get dashboard data based on user role
 $roleName = $_SESSION['role_name'] ?? '';
 $userId = $_SESSION['user_id'] ?? null;
@@ -29,6 +25,125 @@ if ($roleName === 'supervisor') {
     header('Location: dashboard_supervisor.php');
     exit;
 }
+
+// For admin and super_admin, use reports-style dashboard
+if (in_array($roleName, ['admin', 'super_admin'])) {
+    // Load required services for reports
+    require_once __DIR__ . '/app/core/Database.php';
+
+    $db = new Database();
+
+    // Handle AJAX requests for month filtering
+    if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
+        $selectedMonth = $_GET['month'] ?? '';
+
+        // ดึงข้อมูลตามเดือนที่เลือก
+        $monthStats = [
+            'total_customers' => 0,
+            'total_orders' => 0,
+            'total_revenue' => 0
+        ];
+
+        try {
+            if ($selectedMonth) {
+                // ข้อมูลตามเดือนที่เลือก
+                $sql = "SELECT COUNT(*) as count, SUM(total_amount) as total FROM orders WHERE DATE_FORMAT(created_at, '%Y-%m') = ?";
+                $result = $db->fetchOne($sql, [$selectedMonth]);
+                $monthStats['total_orders'] = $result['count'];
+                $monthStats['total_revenue'] = $result['total'] ?? 0;
+
+                // ลูกค้าทั้งหมด (ไม่เปลี่ยนตามเดือน)
+                $sql = "SELECT COUNT(*) as count FROM customers";
+                $result = $db->fetchOne($sql);
+                $monthStats['total_customers'] = $result['count'];
+            } else {
+                // ข้อมูลทั้งหมด
+                $sql = "SELECT COUNT(*) as count FROM customers";
+                $result = $db->fetchOne($sql);
+                $monthStats['total_customers'] = $result['count'];
+
+                $sql = "SELECT COUNT(*) as count, SUM(total_amount) as total FROM orders";
+                $result = $db->fetchOne($sql);
+                $monthStats['total_orders'] = $result['count'];
+                $monthStats['total_revenue'] = $result['total'] ?? 0;
+            }
+        } catch (Exception $e) {
+            // ใช้ค่าเริ่มต้นในกรณีเกิด error
+        }
+
+        header('Content-Type: application/json');
+        echo json_encode($monthStats);
+        exit;
+    }
+
+    // ดึงข้อมูลสำหรับ dashboard (แบบ reports)
+    $stats = [
+        'total_customers' => 0,
+        'total_orders' => 0,
+        'total_revenue' => 0,
+        'monthly_orders' => [],
+        'customer_grades' => [],
+        'order_statuses' => []
+    ];
+
+    try {
+        // สถิติลูกค้า
+        $sql = "SELECT COUNT(*) as count FROM customers";
+        $result = $db->fetchOne($sql);
+        $stats['total_customers'] = $result['count'];
+
+        // สถิติคำสั่งซื้อ
+        $sql = "SELECT COUNT(*) as count, SUM(total_amount) as total FROM orders";
+        $result = $db->fetchOne($sql);
+        $stats['total_orders'] = $result['count'];
+        $stats['total_revenue'] = $result['total'] ?? 0;
+
+        // คำสั่งซื้อรายเดือน
+        $sql = "SELECT DATE_FORMAT(created_at, '%Y-%m') as month, COUNT(*) as count, SUM(total_amount) as total
+                FROM orders
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+                GROUP BY month
+                ORDER BY month DESC";
+        $stats['monthly_orders'] = $db->fetchAll($sql);
+
+        // เกรดลูกค้า
+        $sql = "SELECT customer_grade AS grade, COUNT(*) as count FROM customers GROUP BY customer_grade ORDER BY customer_grade";
+        $stats['customer_grades'] = $db->fetchAll($sql);
+
+        // สถานะคำสั่งซื้อ
+        $sql = "SELECT delivery_status, COUNT(*) as count FROM orders GROUP BY delivery_status";
+        $stats['order_statuses'] = $db->fetchAll($sql);
+
+    } catch (Exception $e) {
+        $error = $e->getMessage();
+        // กำหนดค่าเริ่มต้นในกรณีที่เกิด error
+        $stats = [
+            'total_customers' => 0,
+            'total_orders' => 0,
+            'total_revenue' => 0,
+            'monthly_orders' => [],
+            'customer_grades' => [],
+            'order_statuses' => []
+        ];
+    }
+
+    // Set page title and prepare content for layout
+    $pageTitle = 'แดชบอร์ด - Customer Sales';
+    $currentPage = 'dashboard';
+
+    // Capture reports content for admin dashboard
+    ob_start();
+    include __DIR__ . '/app/views/reports/index.php';
+    $content = ob_get_clean();
+
+    // Use main layout
+    include __DIR__ . '/app/views/layouts/main.php';
+    exit;
+}
+
+// For other roles, use original dashboard service
+require_once APP_ROOT . '/app/services/DashboardService.php';
+$dashboardService = new DashboardService();
 // Selected month for dashboards that support filtering (YYYY-MM)
 $selectedMonth = isset($_GET['month']) && preg_match('/^\d{4}-\d{2}$/', $_GET['month'])
     ? $_GET['month']
@@ -110,7 +225,7 @@ if ($roleName === 'telesales' || $roleName === 'supervisor') {
 }
 
 // Set page title and prepare content for layout
-$pageTitle = 'แดชบอร์ด - CRM SalesTracker';
+$pageTitle = 'แดชบอร์ด - Customer Sales';
 $currentPage = 'dashboard';
 
 // Capture dashboard content

@@ -310,6 +310,115 @@ function displayDistributionResults(results) {
 }
 
 /**
+ * Distribute customers to selected telesales
+ */
+function distributeCustomers() {
+    const telesalesSelect = document.getElementById('distributionTelesales');
+    const quantityInput = document.getElementById('distributionQuantity');
+    const prioritySelect = document.getElementById('distributionPriority');
+
+    if (!telesalesSelect || !quantityInput || !prioritySelect) {
+        showError('ไม่พบฟอร์มการแจกลูกค้า');
+        return;
+    }
+
+    const selectedOptions = Array.from(telesalesSelect.selectedOptions);
+    const quantity = parseInt(quantityInput.value);
+    const priority = prioritySelect.value;
+
+    if (selectedOptions.length === 0) {
+        showError('กรุณาเลือก Telesales ก่อน');
+        return;
+    }
+
+    if (!quantity || quantity < 1) {
+        showError('กรุณาระบุจำนวนลูกค้าที่ต้องการ');
+        return;
+    }
+
+    if (!confirm(`คุณต้องการแจกลูกค้า ${quantity} คนให้ Telesales ที่เลือกหรือไม่?`)) {
+        return;
+    }
+
+    // Disable form during processing
+    const submitBtn = document.querySelector('#distributionForm button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>กำลังแจกลูกค้า...';
+    submitBtn.disabled = true;
+
+    const telesalesIds = selectedOptions.map(option => parseInt(option.value));
+
+    fetch('api/customer-distribution.php?action=distribute', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            quantity: quantity,
+            priority: priority,
+            telesales_ids: telesalesIds
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        return response.json();
+    })
+    .then(data => {
+        if (data.success) {
+            showSuccess(`แจกลูกค้า ${data.results.total_distributed} คนสำเร็จ`);
+            displayDistributionResults(data.results);
+            loadDistributionData(); // Refresh data
+        } else {
+            showError('เกิดข้อผิดพลาด: ' + (data.message || 'ไม่ทราบสาเหตุ'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showError('เกิดข้อผิดพลาดในการเชื่อมต่อ: ' + error.message);
+    })
+    .finally(() => {
+        // Re-enable form
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+}
+
+/**
+ * Display distribution results
+ */
+function displayDistributionResults(results) {
+    const container = document.getElementById('distributionResults');
+    if (!container) return;
+
+    let html = '<div class="alert alert-success">';
+    html += `<h5><i class="fas fa-check-circle me-2"></i>แจกลูกค้าสำเร็จ</h5>`;
+    html += `<p>แจกลูกค้า ${results.total_distributed} คนให้ Telesales ${results.telesales_count} คน</p>`;
+    html += '</div>';
+
+    if (results.distribution_details && results.distribution_details.length > 0) {
+        html += '<div class="table-responsive mt-3">';
+        html += '<table class="table table-sm table-bordered">';
+        html += '<thead><tr><th>Telesales</th><th>จำนวนลูกค้า</th><th>Hot</th><th>Warm</th><th>Cold</th></tr></thead><tbody>';
+
+        results.distribution_details.forEach(detail => {
+            html += '<tr>';
+            html += `<td><strong>${escapeHtml(detail.telesales_name)}</strong></td>`;
+            html += `<td class="text-center">${detail.customer_count}</td>`;
+            html += `<td class="text-center"><span class="badge bg-danger">${detail.hot_count}</span></td>`;
+            html += `<td class="text-center"><span class="badge bg-warning">${detail.warm_count}</span></td>`;
+            html += `<td class="text-center"><span class="badge bg-info">${detail.cold_count}</span></td>`;
+            html += '</tr>';
+        });
+
+        html += '</tbody></table></div>';
+    }
+
+    container.innerHTML = html;
+}
+
+/**
  * Refresh distribution statistics
  */
 function refreshDistributionStats() {

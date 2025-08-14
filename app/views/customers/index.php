@@ -54,65 +54,7 @@ $userId = $_SESSION['user_id'] ?? '';
                     </li>
                 </ul>
 
-                <!-- Filters (match orders page styling) -->
-                <div class="row mt-3 mb-3">
-                    <div class="col-md-12">
-                        <div class="card">
-                            <div class="card-body">
-                                <form class="row g-3" onsubmit="event.preventDefault(); applyFilters();">
-                                    <div class="col-md-2">
-                                        <label for="nameFilter" class="form-label">ชื่อ</label>
-                                        <input type="text" class="form-control" id="nameFilter" placeholder="ค้นหาชื่อลูกค้า">
-                                    </div>
-                                    <div class="col-md-2">
-                                        <label for="phoneFilter" class="form-label">เบอร์โทร</label>
-                                        <input type="text" class="form-control" id="phoneFilter" placeholder="ค้นหาเบอร์โทร">
-                                    </div>
-                                    <div class="col-md-2">
-                                        <label for="tempFilter" class="form-label">สถานะ</label>
-                                        <select class="form-select" id="tempFilter">
-                                            <option value="">สถานะทั้งหมด</option>
-                                            <option value="hot">🔥 Hot</option>
-                                            <option value="warm">🌤️ Warm</option>
-                                            <option value="cold">❄️ Cold</option>
-                                            <option value="frozen">🧊 Frozen</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <label for="gradeFilter" class="form-label">เกรด</label>
-                                        <select class="form-select" id="gradeFilter">
-                                            <option value="">เกรดทั้งหมด</option>
-                                            <option value="A+">A+</option>
-                                            <option value="A">A</option>
-                                            <option value="B">B</option>
-                                            <option value="C">C</option>
-                                            <option value="D">D</option>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-2">
-                                        <label for="provinceFilter" class="form-label">จังหวัด</label>
-                                        <select class="form-select" id="provinceFilter">
-                                            <option value="">จังหวัดทั้งหมด</option>
-                                            <?php foreach ($provinces as $province): ?>
-                                            <option value="<?php echo htmlspecialchars($province['province']); ?>">
-                                                <?php echo htmlspecialchars($province['province']); ?>
-                                            </option>
-                                            <?php endforeach; ?>
-                                        </select>
-                                    </div>
-                                    <div class="col-md-2 d-flex align-items-end">
-                                        <button type="submit" class="btn btn-primary me-2">
-                                            <i class="fas fa-filter me-1"></i>กรอง
-                                        </button>
-                                        <button type="button" class="btn btn-outline-secondary" onclick="clearFilters()">
-                                            <i class="fas fa-times me-1"></i>ล้าง
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </div>
+                <!-- Global filters removed; each tab now has its own compact header filters -->
 
                 <!-- Tab Content -->
                 <div class="tab-content" id="customerTabContent">
@@ -120,28 +62,73 @@ $userId = $_SESSION['user_id'] ?? '';
                     <?php if ($roleName === 'telesales' || $roleName === 'supervisor'): ?>
                     <div class="tab-pane fade show active" id="do" role="tabpanel">
                         <div class="card">
-                            <div class="card-header">
+                            <div class="card-header d-flex justify-content-between align-items-center">
                                 <h5 class="card-title mb-0">
                                     <i class="fas fa-tasks me-2"></i>สิ่งที่ต้องทำวันนี้
                                 </h5>
+                                <form class="d-flex gap-2 flex-wrap" onsubmit="event.preventDefault(); applyFilters();">
+                                    <input type="text" class="form-control form-control-sm" style="width: 160px;" id="nameFilter_do" placeholder="ชื่อลูกค้า">
+                                    <input type="text" class="form-control form-control-sm" style="width: 140px;" id="phoneFilter_do" placeholder="เบอร์โทร">
+                                    <select class="form-select form-select-sm" style="width: 120px;" id="tempFilter_do">
+                                        <option value="">สถานะ</option>
+                                        <option value="hot">Hot</option>
+                                        <option value="warm">Warm</option>
+                                        <option value="cold">Cold</option>
+                                        <option value="frozen">Frozen</option>
+                                    </select>
+                                    <select class="form-select form-select-sm" style="width: 100px;" id="gradeFilter_do">
+                                        <option value="">เกรด</option>
+                                        <option value="A+">A+</option>
+                                        <option value="A">A</option>
+                                        <option value="B">B</option>
+                                        <option value="C">C</option>
+                                        <option value="D">D</option>
+                                    </select>
+                                    <select class="form-select form-select-sm" style="width: 140px;" id="provinceFilter_do">
+                                        <option value="">จังหวัด</option>
+                                        <?php foreach ($provinces as $province): ?>
+                                        <option value="<?php echo htmlspecialchars($province['province']); ?>"><?php echo htmlspecialchars($province['province']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTabFilters('do')"><i class="fas fa-times"></i></button>
+                                </form>
                             </div>
                             <div class="card-body">
                                 <?php if (!empty($followUpCustomers)): ?>
                                 <div class="table-responsive">
-                                    <table class="table table-striped table-hover">
+                                    <table class="table table-hover" id="doTable">
                                         <thead class="table-dark">
-                                            <tr>
+                                            <tr
+                                                data-name="<?php echo htmlspecialchars(trim(($customer['first_name'] ?? '') . ' ' . ($customer['last_name'] ?? ''))); ?>"
+                                                data-phone="<?php echo htmlspecialchars($customer['phone'] ?? ''); ?>"
+                                                data-province="<?php echo htmlspecialchars($customer['province'] ?? ''); ?>"
+                                                data-temp="<?php echo htmlspecialchars($customer['temperature_status'] ?? ''); ?>"
+                                                data-grade="<?php echo htmlspecialchars($customer['customer_grade'] ?? ''); ?>"
+                                                data-next="<?php echo htmlspecialchars($customer['next_followup_at'] ?? ''); ?>"
+                                                data-created="<?php echo htmlspecialchars($customer['created_at'] ?? ''); ?>"
+                                                data-is-new="<?php echo (($customer['customer_status'] ?? '') === 'new') ? '1' : '0'; ?>"
+                                            >
                                                 <th>ลูกค้า</th>
                                                 <th>เบอร์โทร</th>
                                                 <th>จังหวัด</th>
                                                 <th>สถานะ</th>
-                                                <th>เวลาที่เหลือ</th>
+                                                <th>หมายเหตุ</th>
                                                 <th>การดำเนินการ</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             <?php foreach ($followUpCustomers as $customer): ?>
-                                            <tr>
+                                            <tr 
+                                                data-name="<?php echo htmlspecialchars(trim($customer['first_name'] . ' ' . $customer['last_name'])); ?>"
+                                                data-phone="<?php echo htmlspecialchars($customer['phone']); ?>"
+                                                data-province="<?php echo htmlspecialchars($customer['province']); ?>"
+                                                data-temp="<?php echo htmlspecialchars($customer['temperature_status']); ?>"
+                                                data-grade="<?php echo htmlspecialchars($customer['customer_grade'] ?? ''); ?>"
+                                                data-next="<?php echo htmlspecialchars($customer['next_followup_at'] ?? ''); ?>"
+                                                data-created="<?php echo htmlspecialchars($customer['created_at'] ?? ''); ?>"
+                                                data-is-new="<?php echo (($customer['customer_status'] ?? '') === 'new') ? '1' : '0'; ?>"
+                                            >
                                                 <td>
                                                     <strong><?php echo htmlspecialchars($customer['first_name'] . ' ' . $customer['last_name']); ?></strong>
                                                     <br><small class="text-muted"><?php echo htmlspecialchars($customer['customer_code']); ?></small>
@@ -150,48 +137,32 @@ $userId = $_SESSION['user_id'] ?? '';
                                                 <td><?php echo htmlspecialchars($customer['province']); ?></td>
                                                 <td>
                                                     <?php 
-                                                    $statusIcon = '';
-                                                    $statusClass = '';
-                                                    switch($customer['temperature_status']) {
-                                                        case 'hot':
-                                                            $statusIcon = '🔥';
-                                                            $statusClass = 'danger';
-                                                            break;
-                                                        case 'warm':
-                                                            $statusIcon = '🌤️';
-                                                            $statusClass = 'warning';
-                                                            break;
-                                                        case 'cold':
-                                                            $statusIcon = '❄️';
-                                                            $statusClass = 'info';
-                                                            break;
-                                                        case 'frozen':
-                                                            $statusIcon = '🧊';
-                                                            $statusClass = 'secondary';
-                                                            break;
-                                                        default:
-                                                            $statusIcon = '❓';
-                                                            $statusClass = 'secondary';
-                                                    }
+                                                        $statusIcon = '';
+                                                        $statusText = ucfirst(htmlspecialchars($customer['temperature_status']));
+                                                        switch($customer['temperature_status']) {
+                                                            case 'hot': $statusIcon = '🔥'; break;
+                                                            case 'warm': $statusIcon = '🌤️'; break;
+                                                            case 'cold': $statusIcon = '❄️'; break;
+                                                            case 'frozen': $statusIcon = '🧊'; break;
+                                                            default: $statusIcon = '❓';
+                                                        }
+                                                        echo $statusIcon . ' ' . $statusText;
                                                     ?>
-                                                    <span class="badge bg-<?php echo $statusClass; ?>">
-                                                        <?php echo $statusIcon . ' ' . ucfirst(htmlspecialchars($customer['temperature_status'])); ?>
-                                                    </span>
                                                 </td>
                                                 <td>
                                                     <?php 
-                                                    $followupDate = new DateTime($customer['next_followup_at']);
-                                                    $today = new DateTime();
-                                                    $diff = $today->diff($followupDate);
-                                                    $daysUntil = $diff->invert ? -$diff->days : $diff->days;
-                                                    
-                                                    if ($daysUntil < 0) {
-                                                        echo '<span class="badge bg-danger">ใกล้หมดเวลา ' . abs($daysUntil) . ' วัน</span>';
-                                                    } elseif ($daysUntil === 0) {
-                                                        echo '<span class="badge bg-warning">นัดหมายวันนี้</span>';
-                                                    } else {
-                                                        echo '<span class="badge bg-info">นัดหมาย ' . $daysUntil . ' วัน</span>';
-                                                    }
+                                                        if (!empty($customer['next_followup_at'])) {
+                                                            echo '<div><strong>ลูกค้าต้องติดตาม</strong></div>';
+                                                            echo '<div class="text-muted">' . date('d/m/Y', strtotime($customer['next_followup_at'])) . '</div>';
+                                                        } elseif (($customer['customer_status'] ?? '') === 'new') {
+                                                            echo '<div><strong>ลูกค้าแจกใหม่</strong></div>';
+                                                            echo '<div class="text-muted">&nbsp;</div>';
+                                                        } elseif (!empty($customer['customer_time_expiry'])) {
+                                                            echo '<div><strong>ติดตามก่อนหมดอายุ</strong></div>';
+                                                            echo '<div class="text-muted">' . date('d/m/Y', strtotime($customer['customer_time_expiry'])) . '</div>';
+                                                        } else {
+                                                            echo '<div class="text-muted">-</div>';
+                                                        }
                                                     ?>
                                                 </td>
                                                 <td>
@@ -206,6 +177,12 @@ $userId = $_SESSION['user_id'] ?? '';
                                             <?php endforeach; ?>
                                         </tbody>
                                     </table>
+                                    <div class="d-flex justify-content-between align-items-center mt-3">
+                                        <div class="small text-muted">แสดงสูงสุด 10 รายการต่อหน้า</div>
+                                        <nav>
+                                    <ul class="pagination pagination-sm mb-0" id="doTable-pagination"></ul>
+                                        </nav>
+                                    </div>
                                 </div>
                                 <?php else: ?>
                                 <div class="text-center py-4">
@@ -232,6 +209,33 @@ $userId = $_SESSION['user_id'] ?? '';
                                     </button>
                                 </div>
                                 <?php endif; ?>
+                                <form class="d-flex gap-2 flex-wrap ms-auto" onsubmit="event.preventDefault(); applyFilters();">
+                                    <input type="text" class="form-control form-control-sm" style="width: 160px;" id="nameFilter_new" placeholder="ชื่อลูกค้า">
+                                    <input type="text" class="form-control form-control-sm" style="width: 140px;" id="phoneFilter_new" placeholder="เบอร์โทร">
+                                    <select class="form-select form-select-sm" style="width: 120px;" id="tempFilter_new">
+                                        <option value="">สถานะ</option>
+                                        <option value="hot">Hot</option>
+                                        <option value="warm">Warm</option>
+                                        <option value="cold">Cold</option>
+                                        <option value="frozen">Frozen</option>
+                                    </select>
+                                    <select class="form-select form-select-sm" style="width: 100px;" id="gradeFilter_new">
+                                        <option value="">เกรด</option>
+                                        <option value="A+">A+</option>
+                                        <option value="A">A</option>
+                                        <option value="B">B</option>
+                                        <option value="C">C</option>
+                                        <option value="D">D</option>
+                                    </select>
+                                    <select class="form-select form-select-sm" style="width: 140px;" id="provinceFilter_new">
+                                        <option value="">จังหวัด</option>
+                                        <?php foreach ($provinces as $province): ?>
+                                        <option value="<?php echo htmlspecialchars($province['province']); ?>"><?php echo htmlspecialchars($province['province']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTabFilters('new')"><i class="fas fa-times"></i></button>
+                                </form>
                             </div>
                             <div class="card-body">
                                 <div id="newCustomersTable">
@@ -248,7 +252,33 @@ $userId = $_SESSION['user_id'] ?? '';
                                 <h5 class="card-title mb-0">
                                     <i class="fas fa-clock me-2"></i>ลูกค้าที่ต้องติดตาม
                                 </h5>
-                                <div></div>
+                                <form class="d-flex gap-2 flex-wrap ms-auto" onsubmit="event.preventDefault(); applyFilters();">
+                                    <input type="text" class="form-control form-control-sm" style="width: 160px;" id="nameFilter_followup" placeholder="ชื่อลูกค้า">
+                                    <input type="text" class="form-control form-control-sm" style="width: 140px;" id="phoneFilter_followup" placeholder="เบอร์โทร">
+                                    <select class="form-select form-select-sm" style="width: 120px;" id="tempFilter_followup">
+                                        <option value="">สถานะ</option>
+                                        <option value="hot">Hot</option>
+                                        <option value="warm">Warm</option>
+                                        <option value="cold">Cold</option>
+                                        <option value="frozen">Frozen</option>
+                                    </select>
+                                    <select class="form-select form-select-sm" style="width: 100px;" id="gradeFilter_followup">
+                                        <option value="">เกรด</option>
+                                        <option value="A+">A+</option>
+                                        <option value="A">A</option>
+                                        <option value="B">B</option>
+                                        <option value="C">C</option>
+                                        <option value="D">D</option>
+                                    </select>
+                                    <select class="form-select form-select-sm" style="width: 140px;" id="provinceFilter_followup">
+                                        <option value="">จังหวัด</option>
+                                        <?php foreach ($provinces as $province): ?>
+                                        <option value="<?php echo htmlspecialchars($province['province']); ?>"><?php echo htmlspecialchars($province['province']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTabFilters('followup')"><i class="fas fa-times"></i></button>
+                                </form>
                             </div>
                             <div class="card-body">
                                 <div id="followupCustomersTable">
@@ -265,7 +295,33 @@ $userId = $_SESSION['user_id'] ?? '';
                                 <h5 class="card-title mb-0">
                                     <i class="fas fa-user me-2"></i>ลูกค้าเก่า
                                 </h5>
-                                <div></div>
+                                <form class="d-flex gap-2 flex-wrap ms-auto" onsubmit="event.preventDefault(); applyFilters();">
+                                    <input type="text" class="form-control form-control-sm" style="width: 160px;" id="nameFilter_existing" placeholder="ชื่อลูกค้า">
+                                    <input type="text" class="form-control form-control-sm" style="width: 140px;" id="phoneFilter_existing" placeholder="เบอร์โทร">
+                                    <select class="form-select form-select-sm" style="width: 120px;" id="tempFilter_existing">
+                                        <option value="">สถานะ</option>
+                                        <option value="hot">Hot</option>
+                                        <option value="warm">Warm</option>
+                                        <option value="cold">Cold</option>
+                                        <option value="frozen">Frozen</option>
+                                    </select>
+                                    <select class="form-select form-select-sm" style="width: 100px;" id="gradeFilter_existing">
+                                        <option value="">เกรด</option>
+                                        <option value="A+">A+</option>
+                                        <option value="A">A</option>
+                                        <option value="B">B</option>
+                                        <option value="C">C</option>
+                                        <option value="D">D</option>
+                                    </select>
+                                    <select class="form-select form-select-sm" style="width: 140px;" id="provinceFilter_existing">
+                                        <option value="">จังหวัด</option>
+                                        <?php foreach ($provinces as $province): ?>
+                                        <option value="<?php echo htmlspecialchars($province['province']); ?>"><?php echo htmlspecialchars($province['province']); ?></option>
+                                        <?php endforeach; ?>
+                                    </select>
+                                    <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTabFilters('existing')"><i class="fas fa-times"></i></button>
+                                </form>
                             </div>
                             <div class="card-body">
                                 <div id="existingCustomersTable">
@@ -283,10 +339,10 @@ $userId = $_SESSION['user_id'] ?? '';
                                     <i class="fas fa-phone me-2"></i>การโทรติดตามลูกค้า
                                 </h5>
                                 <div class="btn-group" role="group">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadCallFollowups('all')">ทั้งหมด</button>
-                                    <button type="button" class="btn btn-sm btn-outline-warning" onclick="loadCallFollowups('overdue')">เกินกำหนด</button>
-                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="loadCallFollowups('urgent')">เร่งด่วน</button>
-                                    <button type="button" class="btn btn-sm btn-outline-info" onclick="loadCallFollowups('soon')">เร็วๆ นี้</button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadCallFollowups('all')">การโทรทั้งหมด</button>
+                                    <button type="button" class="btn btn-sm btn-outline-success" onclick="loadCallFollowups('answered')">ติดต่อได้</button>
+                                    <button type="button" class="btn btn-sm btn-outline-info" onclick="loadCallFollowups('need_followup')">ต้องติดตาม</button>
+                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="loadCallFollowups('dnc')">ไม่ติดต่ออีก</button>
                                 </div>
                             </div>
                             <div class="card-body">
@@ -402,10 +458,11 @@ $userId = $_SESSION['user_id'] ?? '';
                         <div class="col-md-6">
                             <label for="callStatus" class="form-label">สถานะการโทร</label>
                             <select class="form-select" id="callStatus" required>
-                                <option value="answered">รับสาย</option>
-                                <option value="no_answer">ไม่รับสาย</option>
-                                <option value="busy">สายไม่ว่าง</option>
-                                <option value="invalid">เบอร์ไม่ถูกต้อง</option>
+                                <option value="รับสาย">รับสาย</option>
+                                <option value="ไม่รับสาย">ไม่รับสาย</option>
+                                <option value="สายไม่ว่าง">สายไม่ว่าง</option>
+                                <option value="ตัดสายทิ้ง">ตัดสายทิ้ง</option>
+                                <option value="ติดต่อไม่ได้">ติดต่อไม่ได้</option>
                             </select>
                         </div>
                     </div>
@@ -414,11 +471,17 @@ $userId = $_SESSION['user_id'] ?? '';
                             <label for="callResult" class="form-label">ผลการโทร</label>
                             <select class="form-select" id="callResult">
                                 <option value="">เลือกผลการโทร</option>
-                                <option value="interested">สนใจ</option>
-                                <option value="not_interested">ไม่สนใจ</option>
-                                <option value="callback">โทรกลับ</option>
-                                <option value="order">สั่งซื้อ</option>
-                                <option value="complaint">ร้องเรียน</option>
+                                <option value="สั่งซื้อ">สั่งซื้อ</option>
+                                <option value="สนใจ">สนใจ</option>
+                                <option value="Add Line แล้ว">Add Line แล้ว</option>
+                                <option value="ต้องการซื้อทางเพจ">ต้องการซื้อทางเพจ</option>
+                                <option value="น้ำท่วม">น้ำท่วม</option>
+                                <option value="รอติดต่อใหม่">รอติดต่อใหม่</option>
+                                <option value="นัดหมาย">นัดหมาย</option>
+                                <option value="เบอร์ไม่ถูก">เบอร์ไม่ถูก</option>
+                                <option value="ไม่สะดวกคุย">ไม่สะดวกคุย</option>
+                                <option value="ไม่สนใจ">ไม่สนใจ</option>
+                                <option value="อย่าโทรมาอีก">อย่าโทรมาอีก</option>
                             </select>
                         </div>
                         <div class="col-md-6">

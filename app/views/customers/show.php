@@ -48,7 +48,7 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
         <button class="btn btn-warning me-2" id="createOrderBtn" data-customer-id="<?php echo $customer['customer_id']; ?>">
             <i class="fas fa-shopping-cart me-1"></i>สร้างคำสั่งซื้อ
         </button>
-        <a href="customers.php?action=edit&id=<?php echo $customer['customer_id']; ?>" class="btn btn-primary">
+        <a href="customers.php?action=edit_basic&id=<?php echo $customer['customer_id']; ?>" class="btn btn-primary">
             <i class="fas fa-edit me-1"></i>แก้ไข
         </a>
     </div>
@@ -151,6 +151,28 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                         <div class="h4 text-warning"><?php echo count($activities); ?></div>
                         <small class="text-muted">กิจกรรม</small>
                     </div>
+                    <div class="col-6 mb-3">
+                        <?php 
+                            // คำนวณเวลาคงเหลือจาก customer_time_expiry ถ้ามี ไม่งั้นดูจาก recall/next_followup
+                            $expiry = $customer['customer_time_expiry'] ?? null;
+                            $follow = $customer['next_followup_at'] ?? ($customer['recall_at'] ?? null);
+                            $label = '';
+                            $colorClass = 'text-muted';
+                            if ($expiry) {
+                                $days = (int) floor((strtotime($expiry) - time()) / 86400);
+                                $label = ($days >= 0) ? "{$days} วัน" : ("เกินกำหนด " . abs($days) . " วัน");
+                                $colorClass = ($days < 0) ? 'text-danger' : (($days <= 3) ? 'text-warning' : 'text-info');
+                            } elseif ($follow) {
+                                $days = (int) floor((strtotime($follow) - time()) / 86400);
+                                $label = ($days >= 0) ? "ติดตามใน {$days} วัน" : ("เกินกำหนด " . abs($days) . " วัน");
+                                $colorClass = ($days < 0) ? 'text-danger' : (($days <= 3) ? 'text-warning' : 'text-info');
+                            } else {
+                                $label = '-';
+                            }
+                        ?>
+                        <div class="h4 <?php echo $colorClass; ?> mb-0"><?php echo htmlspecialchars($label); ?></div>
+                        <small class="text-muted">เวลาคงเหลือ</small>
+                    </div>
                 </div>
             </div>
         </div>
@@ -199,6 +221,7 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                                             <th style="font-size: 14px;">ผู้โทร</th>
                                             <th style="font-size: 14px;">สถานะ</th>
                                             <th style="font-size: 14px;">ผลการโทร</th>
+                                            <th style="font-size: 14px;">หมายเหตุ</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -211,7 +234,19 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                                                         <?php echo $log['call_status'] === 'answered' ? 'รับสาย' : ($log['call_status'] === 'no_answer' ? 'ไม่รับสาย' : 'สายไม่ว่าง'); ?>
                                                     </span>
                                                 </td>
-                                                <td style="font-size: 13px;"><?php echo htmlspecialchars($log['call_result'] ?? 'ไม่ระบุ'); ?></td>
+                                                <td style="font-size: 13px;">
+                                                    <?php 
+                                                        $resultThMap = [
+                                                            'order'=>'สั่งซื้อ','interested'=>'สนใจ','add_line'=>'Add Line แล้ว','buy_on_page'=>'ต้องการซื้อทางเพจ',
+                                                            'flood'=>'น้ำท่วม','callback'=>'รอติดต่อใหม่','appointment'=>'นัดหมาย','invalid_number'=>'เบอร์ไม่ถูก',
+                                                            'not_convenient'=>'ไม่สะดวกคุย','not_interested'=>'ไม่สนใจ','do_not_call'=>'อย่าโทรมาอีก',
+                                                            'busy'=>'สายไม่ว่าง','unable_to_contact'=>'ติดต่อไม่ได้','hangup'=>'ตัดสายทิ้ง'
+                                                        ];
+                                                        $resultKey = $log['call_result'] ?? '';
+                                                        echo htmlspecialchars($resultThMap[$resultKey] ?? $resultKey);
+                                                    ?>
+                                                </td>
+                                                <td style="font-size: 13px;"><?php echo htmlspecialchars($log['notes'] ?? ''); ?></td>
                                             </tr>
                                         <?php endforeach; ?>
                                     </tbody>
@@ -232,19 +267,19 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                                     <ul class="pagination pagination-sm justify-content-center">
                                         <?php if ($currentPage > 1): ?>
                                             <li class="page-item">
-                                                <a class="page-link" href="?action=show&id=<?php echo $customer['customer_id']; ?>&page=<?php echo $currentPage - 1; ?>">ก่อนหน้า</a>
+                                                <a class="page-link" href="?action=show&id=<?php echo $customer['customer_id']; ?>&page=<?php echo $currentPage - 1; ?>&tab=call-history">ก่อนหน้า</a>
                                             </li>
                                         <?php endif; ?>
                                         
                                         <?php for ($i = 1; $i <= $totalCallLogPages; $i++): ?>
                                             <li class="page-item <?php echo $i == $currentPage ? 'active' : ''; ?>">
-                                                <a class="page-link" href="?action=show&id=<?php echo $customer['customer_id']; ?>&page=<?php echo $i; ?>"><?php echo $i; ?></a>
+                                                <a class="page-link" href="?action=show&id=<?php echo $customer['customer_id']; ?>&page=<?php echo $i; ?>&tab=call-history"><?php echo $i; ?></a>
                                             </li>
                                         <?php endfor; ?>
                                         
                                         <?php if ($currentPage < $totalCallLogPages): ?>
                                             <li class="page-item">
-                                                <a class="page-link" href="?action=show&id=<?php echo $customer['customer_id']; ?>&page=<?php echo $currentPage + 1; ?>">ถัดไป</a>
+                                                <a class="page-link" href="?action=show&id=<?php echo $customer['customer_id']; ?>&page=<?php echo $currentPage + 1; ?>&tab=call-history">ถัดไป</a>
                                             </li>
                                         <?php endif; ?>
                                     </ul>
@@ -288,6 +323,7 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                                         <tr>
                                             <th style="font-size: 14px;">เลขที่</th>
                                             <th style="font-size: 14px;">วันที่</th>
+                                            <th style="font-size: 14px;">รายการสินค้า</th>
                                             <th style="font-size: 14px;">ผู้ขาย</th>
                                             <th style="font-size: 14px;">ยอดรวม</th>
                                             <th style="font-size: 14px;">สถานะ</th>
@@ -298,6 +334,9 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                                             <tr>
                                                 <td style="font-size: 14px;"><?php echo htmlspecialchars($order['order_number'] ?? 'ORD-' . $order['order_id']); ?></td>
                                                 <td style="font-size: 14px;"><?php echo date('d/m/Y', strtotime($order['order_date'])); ?></td>
+                                                <td style="font-size: 14px; max-width: 420px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">
+                                                    <span class="text-muted">(ซ่อน)</span>
+                                                </td>
                                                 <td style="font-size: 14px;">
                                                     <?php if (!empty($order['salesperson_name'])): ?>
                                                         <span class="badge bg-info"><?php echo htmlspecialchars($order['salesperson_name']); ?></span>
@@ -348,6 +387,9 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                                                     <span class="badge bg-<?php echo $statusClass; ?>" style="font-size: 12px;">
                                                         <?php echo $statusText; ?>
                                                     </span>
+                                                    <button class="btn btn-link btn-sm text-decoration-none ms-1" title="ดูรายการสินค้า" onclick="viewOrderItems(<?php echo (int)$order['order_id']; ?>)">
+                                                        <i class="fas fa-eye"></i>
+                                                    </button>
                                                 </td>
                                             </tr>
                                         <?php endforeach; ?>
@@ -361,19 +403,19 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                                     <ul class="pagination pagination-sm justify-content-center">
                                         <?php if ($currentPage > 1): ?>
                                             <li class="page-item">
-                                                <a class="page-link" href="?action=show&id=<?php echo $customer['customer_id']; ?>&page=<?php echo $currentPage - 1; ?>">ก่อนหน้า</a>
+                                                <a class="page-link" href="?action=show&id=<?php echo $customer['customer_id']; ?>&page=<?php echo $currentPage - 1; ?>&tab=orders">ก่อนหน้า</a>
                                             </li>
                                         <?php endif; ?>
                                         
                                         <?php for ($i = 1; $i <= $totalOrderPages; $i++): ?>
                                             <li class="page-item <?php echo $i == $currentPage ? 'active' : ''; ?>">
-                                                <a class="page-link" href="?action=show&id=<?php echo $customer['customer_id']; ?>&page=<?php echo $i; ?>"><?php echo $i; ?></a>
+                                                <a class="page-link" href="?action=show&id=<?php echo $customer['customer_id']; ?>&page=<?php echo $i; ?>&tab=orders"><?php echo $i; ?></a>
                                             </li>
                                         <?php endfor; ?>
                                         
                                         <?php if ($currentPage < $totalOrderPages): ?>
                                             <li class="page-item">
-                                                <a class="page-link" href="?action=show&id=<?php echo $customer['customer_id']; ?>&page=<?php echo $currentPage + 1; ?>">ถัดไป</a>
+                                                <a class="page-link" href="?action=show&id=<?php echo $customer['customer_id']; ?>&page=<?php echo $currentPage + 1; ?>&tab=orders">ถัดไป</a>
                                             </li>
                                         <?php endif; ?>
                                     </ul>
@@ -487,10 +529,11 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                         <div class="col-md-6">
                             <label for="callStatus" class="form-label">สถานะการโทร</label>
                             <select class="form-select" id="callStatus" required>
-                                <option value="answered">รับสาย</option>
-                                <option value="no_answer">ไม่รับสาย</option>
-                                <option value="busy">สายไม่ว่าง</option>
-                                <option value="invalid">เบอร์ไม่ถูกต้อง</option>
+                                <option value="รับสาย">รับสาย</option>
+                                <option value="ไม่รับสาย">ไม่รับสาย</option>
+                                <option value="สายไม่ว่าง">สายไม่ว่าง</option>
+                                <option value="ตัดสายทิ้ง">ตัดสายทิ้ง</option>
+                                <option value="ติดต่อไม่ได้">ติดต่อไม่ได้</option>
                             </select>
                         </div>
                     </div>
@@ -499,11 +542,17 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                             <label for="callResult" class="form-label">ผลการโทร</label>
                             <select class="form-select" id="callResult">
                                 <option value="">เลือกผลการโทร</option>
-                                <option value="interested">สนใจ</option>
-                                <option value="not_interested">ไม่สนใจ</option>
-                                <option value="callback">โทรกลับ</option>
-                                <option value="order">สั่งซื้อ</option>
-                                <option value="complaint">ร้องเรียน</option>
+                                <option value="สั่งซื้อ">สั่งซื้อ</option>
+                                <option value="สนใจ">สนใจ</option>
+                                <option value="Add Line แล้ว">Add Line แล้ว</option>
+                                <option value="ต้องการซื้อทางเพจ">ต้องการซื้อทางเพจ</option>
+                                <option value="น้ำท่วม">น้ำท่วม</option>
+                                <option value="รอติดต่อใหม่">รอติดต่อใหม่</option>
+                                <option value="นัดหมาย">นัดหมาย</option>
+                                <option value="เบอร์ไม่ถูก">เบอร์ไม่ถูก</option>
+                                <option value="ไม่สะดวกคุย">ไม่สะดวกคุย</option>
+                                <option value="ไม่สนใจ">ไม่สนใจ</option>
+                                <option value="อย่าโทรมาอีก">อย่าโทรมาอีก</option>
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -566,4 +615,71 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+</script>
+<script>
+function viewOrderItems(orderId) {
+    fetch('orders.php?action=items&id=' + orderId)
+        .then(r => r.json())
+        .then(data => {
+            if (!data.success) { alert(data.message || 'ไม่สามารถโหลดรายการสินค้า'); return; }
+            const items = data.items || [];
+            const rows = items.map(it => `
+                <tr>
+                    <td>${escapeHtml(it.product_name || 'ไม่ทราบสินค้า')}</td>
+                    <td>${escapeHtml(it.product_code || '')}</td>
+                    <td class="text-center">${it.quantity}</td>
+                    <td class="text-end">฿${Number(it.unit_price).toLocaleString('th-TH', {minimumFractionDigits:2})}</td>
+                    <td class="text-end">฿${Number(it.total_price).toLocaleString('th-TH', {minimumFractionDigits:2})}</td>
+                </tr>
+            `).join('');
+            const html = `
+                <div class="table-responsive">
+                    <table class="table table-sm">
+                        <thead>
+                            <tr>
+                                <th>สินค้า</th>
+                                <th>รหัส</th>
+                                <th class="text-center">จำนวน</th>
+                                <th class="text-end">ราคาต่อหน่วย</th>
+                                <th class="text-end">รวม</th>
+                            </tr>
+                        </thead>
+                        <tbody>${rows || '<tr><td colspan="5" class="text-center text-muted">ไม่มีรายการสินค้า</td></tr>'}</tbody>
+                    </table>
+                </div>`;
+            showModal('รายละเอียดสินค้าในคำสั่งซื้อ #' + (data.order.order_number || orderId), html);
+        })
+        .catch(() => alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'));
+}
+
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = String(text || '');
+    return div.innerHTML;
+}
+
+function showModal(title, bodyHtml) {
+    const id = 'orderItemsModal';
+    let modal = document.getElementById(id);
+    if (!modal) {
+        modal = document.createElement('div');
+        modal.className = 'modal fade';
+        modal.id = id;
+        modal.innerHTML = `
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title"></h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body"></div>
+                </div>
+            </div>`;
+        document.body.appendChild(modal);
+    }
+    modal.querySelector('.modal-title').textContent = title;
+    modal.querySelector('.modal-body').innerHTML = bodyHtml;
+    const bsModal = new bootstrap.Modal(modal);
+    bsModal.show();
+}
 </script>

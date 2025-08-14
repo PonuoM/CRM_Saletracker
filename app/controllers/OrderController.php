@@ -65,16 +65,10 @@ class OrderController {
             $filters['delivery_status'] = $_GET['delivery_status'];
         }
         
-        // รองรับพารามิเตอร์ status จากฟอร์ม โดย map ไปยัง delivery_status
-        if (!empty($_GET['status'])) {
-            $statusInput = $_GET['status'];
-            // Map ค่าจาก UI ให้ตรงกับค่าที่เก็บในฐานข้อมูล
-            $statusMap = [
-                'processing' => 'shipped',
-                'completed' => 'delivered'
-            ];
-            $filters['delivery_status'] = $statusMap[$statusInput] ?? $statusInput;
-        }
+            // รองรับพารามิเตอร์ status จากฟอร์ม โดยส่งตรงค่า (UI ใช้: pending, confirmed, shipped, cancelled)
+            if (!empty($_GET['status'])) {
+                $filters['delivery_status'] = $_GET['status'];
+            }
         
         if (!empty($_GET['date_from'])) {
             $filters['date_from'] = $_GET['date_from'];
@@ -184,6 +178,36 @@ class OrderController {
     }
     
     /**
+     * API: คืนรายการสินค้าในคำสั่งซื้อ (JSON)
+     */
+    public function items() {
+        header('Content-Type: application/json');
+        try {
+            if (!isset($_SESSION['user_id'])) {
+                echo json_encode(['success' => false, 'message' => 'ไม่ได้รับอนุญาต']);
+                return;
+            }
+            $orderId = isset($_GET['id']) ? (int)$_GET['id'] : 0;
+            if ($orderId <= 0) {
+                echo json_encode(['success' => false, 'message' => 'ไม่พบ ID คำสั่งซื้อ']);
+                return;
+            }
+            $result = $this->orderService->getOrderDetail($orderId);
+            if (!$result['success']) {
+                echo json_encode(['success' => false, 'message' => $result['message']]);
+                return;
+            }
+            echo json_encode([
+                'success' => true,
+                'order' => $result['order'],
+                'items' => $result['items']
+            ]);
+        } catch (Exception $e) {
+            echo json_encode(['success' => false, 'message' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()]);
+        }
+    }
+    
+    /**
      * แสดงหน้ารายละเอียดคำสั่งซื้อ
      */
     public function show($orderId) {
@@ -247,8 +271,9 @@ class OrderController {
         $roleName = $_SESSION['role_name'] ?? '';
         $userId = $_SESSION['user_id'];
         
-        // รับ customer_id จาก URL parameter
+        // รับ customer_id จาก URL parameter และโหมดสร้างลูกค้าใหม่ (guest)
         $selectedCustomerId = $_GET['customer_id'] ?? null;
+        $guest = isset($_GET['guest']) && $_GET['guest'] === '1';
         
         // ดึงข้อมูลลูกค้าสำหรับเลือก
         $customerList = [];
@@ -267,7 +292,11 @@ class OrderController {
         $productsResult = $this->orderService->getProducts();
         $productList = $productsResult['success'] ? $productsResult['products'] : [];
         
-        include APP_VIEWS . 'orders/create.php';
+        if ($guest) {
+            include APP_VIEWS . 'orders/create_guest.php';
+        } else {
+            include APP_VIEWS . 'orders/create.php';
+        }
     }
     
     /**
@@ -442,7 +471,60 @@ class OrderController {
                 return;
             }
             
-            // ตรวจสอบข้อมูลที่จำเป็น
+            // รองรับโหมดลูกค้าใหม่ (ไม่มี customer_id แต่ส่ง customer_temp มา)
+            if (empty($input['customer_id']) && !empty($input['customer_temp']) && is_array($input['customer_temp'])) {
+                $temp = $input['customer_temp'];
+                $firstName = trim($temp['first_name'] ?? '');
+                // Normalize phone: digits only
+                $rawPhone = preg_replace('/\D+/', '', (string)($temp['phone'] ?? ''));
+                if ($firstName === '' || $rawPhone === '') {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'message' => 'กรุณาระบุชื่อ และเบอร์โทรลูกค้าใหม่']);
+                    return;
+                }
+                // Validate: must be 10 digits and start with 0
+                if (!preg_match('/^0\d{9}$/', $rawPhone)) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'message' => 'รูปแบบเบอร์โทรไม่ถูกต้อง (ต้องมี 10 หลักและขึ้นต้น 0)']);
+                    return;
+                }
+                // Remove leading 0 to store 9-digit and build customer_code
+                $normalizedPhone9 = substr($rawPhone, 1);
+                // สร้างลูกค้าใหม่แบบย่อ
+                $customerData = [
+                    'first_name' => $firstName,
+                    'last_name' => trim($temp['last_name'] ?? ''),
+                    'phone' => $normalizedPhone9,
+                    'email' => trim($temp['email'] ?? ''),
+                    'address' => trim($temp['address'] ?? ''),
+                    'district' => trim($temp['district'] ?? ''),
+                    'province' => trim($temp['province'] ?? ''),
+                    'postal_code' => trim($temp['postal_code'] ?? ''),
+                    'customer_code' => 'CUS' . $normalizedPhone9,
+                    'assigned_to' => $userId,
+                    'customer_status' => 'new',
+                    // Ensure basket is assigned to current user instead of default distribution
+                    'basket_type' => 'assigned',
+                    'assigned_at' => date('Y-m-d H:i:s'),
+                    // Initialize time base for basket/SLAs
+                    'customer_time_base' => date('Y-m-d H:i:s'),
+                    'is_active' => 1,
+                    'created_at' => date('Y-m-d H:i:s'),
+                    'updated_at' => date('Y-m-d H:i:s')
+                ];
+                $newCustomerId = $this->db->insert('customers', $customerData);
+                if (!$newCustomerId) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['success' => false, 'message' => 'ไม่สามารถสร้างลูกค้าใหม่ได้']);
+                    return;
+                }
+                $input['customer_id'] = $newCustomerId;
+                if (empty($input['delivery_address'])) {
+                    $input['delivery_address'] = $customerData['address'];
+                }
+            }
+
+            // ตรวจสอบข้อมูลที่จำเป็น (หลังจากพยายามสร้างลูกค้าแล้ว)
             if (empty($input['customer_id']) || empty($input['items']) || !is_array($input['items'])) {
                 header('Content-Type: application/json');
                 echo json_encode(['success' => false, 'message' => 'ข้อมูลไม่ครบถ้วน']);
@@ -722,7 +804,7 @@ class OrderController {
             $paymentStatus = $input['payment_status'];
 
             // ตรวจสอบค่าที่ได้รับ
-            if (!in_array($paymentStatus, ['pending', 'paid', 'partial', 'cancelled'])) {
+            if (!in_array($paymentStatus, ['pending', 'paid', 'partial', 'cancelled', 'returned'])) {
                 echo json_encode([
                     'success' => false,
                     'message' => 'สถานะการชำระเงินไม่ถูกต้อง'
@@ -824,6 +906,131 @@ class OrderController {
     }
     
     /**
+     * จัดการการดำเนินการแบบกลุ่ม (Bulk Actions)
+     */
+    public function bulkUpdate() {
+        header('Content-Type: application/json');
+
+        try {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                throw new Exception('Method not allowed');
+            }
+
+            $bulkAction = $_POST['bulk_action'] ?? '';
+            $orderIdsJson = $_POST['order_ids'] ?? '';
+
+            if (empty($bulkAction) || empty($orderIdsJson)) {
+                throw new Exception('ข้อมูลไม่ครบถ้วน');
+            }
+
+            $orderIds = json_decode($orderIdsJson, true);
+            if (!is_array($orderIds) || empty($orderIds)) {
+                throw new Exception('รายการคำสั่งซื้อไม่ถูกต้อง');
+            }
+
+            // ตรวจสอบสิทธิ์การเข้าถึง
+            $roleName = $_SESSION['role_name'] ?? '';
+            $userId = $_SESSION['user_id'];
+
+            // สร้าง WHERE clause สำหรับตรวจสอบสิทธิ์
+            $whereClause = "order_id IN (" . implode(',', array_fill(0, count($orderIds), '?')) . ")";
+            $params = $orderIds;
+
+            if ($roleName === 'telesales') {
+                $whereClause .= " AND created_by = ?";
+                $params[] = $userId;
+            } elseif ($roleName === 'supervisor') {
+                $teamMemberIds = $this->getTeamMemberIds($userId);
+                if (!empty($teamMemberIds)) {
+                    $whereClause .= " AND created_by IN (" . implode(',', array_fill(0, count($teamMemberIds), '?')) . ")";
+                    $params = array_merge($params, $teamMemberIds);
+                }
+            }
+
+            // ตรวจสอบว่าคำสั่งซื้อทั้งหมดมีอยู่และผู้ใช้มีสิทธิ์เข้าถึง
+            $accessibleOrders = $this->db->fetchAll(
+                "SELECT order_id FROM orders WHERE $whereClause",
+                $params
+            );
+
+            $accessibleOrderIds = array_column($accessibleOrders, 'order_id');
+            $inaccessibleOrders = array_diff($orderIds, $accessibleOrderIds);
+
+            if (!empty($inaccessibleOrders)) {
+                throw new Exception('คุณไม่มีสิทธิ์เข้าถึงคำสั่งซื้อบางรายการ');
+            }
+
+            // ดำเนินการตาม bulk action
+            $updatedCount = 0;
+            $this->db->beginTransaction();
+
+            switch ($bulkAction) {
+                case 'mark_paid':
+                    $updatedCount = $this->bulkUpdatePaymentStatus($accessibleOrderIds, 'paid');
+                    break;
+
+                case 'mark_pending':
+                    $updatedCount = $this->bulkUpdatePaymentStatus($accessibleOrderIds, 'pending');
+                    break;
+
+                case 'mark_delivered':
+                    $updatedCount = $this->bulkUpdateDeliveryStatus($accessibleOrderIds, 'delivered');
+                    break;
+
+                case 'mark_pending_delivery':
+                    $updatedCount = $this->bulkUpdateDeliveryStatus($accessibleOrderIds, 'pending');
+                    break;
+
+                default:
+                    throw new Exception('การดำเนินการไม่ถูกต้อง');
+            }
+
+            $this->db->commit();
+
+            echo json_encode([
+                'success' => true,
+                'message' => "อัปเดตสำเร็จ {$updatedCount} รายการ"
+            ]);
+
+        } catch (Exception $e) {
+            if ($this->db->getPdo()->inTransaction()) {
+                $this->db->rollback();
+            }
+
+            echo json_encode([
+                'success' => false,
+                'message' => $e->getMessage()
+            ]);
+        }
+    }
+
+    /**
+     * อัปเดตสถานะการชำระเงินแบบกลุ่ม
+     */
+    private function bulkUpdatePaymentStatus($orderIds, $status) {
+        $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
+        $params = array_merge([$status], $orderIds);
+
+        return $this->db->execute(
+            "UPDATE orders SET payment_status = ?, updated_at = NOW() WHERE order_id IN ($placeholders)",
+            $params
+        );
+    }
+
+    /**
+     * อัปเดตสถานะการจัดส่งแบบกลุ่ม
+     */
+    private function bulkUpdateDeliveryStatus($orderIds, $status) {
+        $placeholders = implode(',', array_fill(0, count($orderIds), '?'));
+        $params = array_merge([$status], $orderIds);
+
+        return $this->db->execute(
+            "UPDATE orders SET delivery_status = ?, updated_at = NOW() WHERE order_id IN ($placeholders)",
+            $params
+        );
+    }
+
+    /**
      * ดึง user_id ของสมาชิกทีมทั้งหมด
      */
     private function getTeamMemberIds($supervisorId) {
@@ -831,12 +1038,12 @@ class OrderController {
             "SELECT user_id FROM users WHERE supervisor_id = :supervisor_id AND is_active = 1",
             ['supervisor_id' => $supervisorId]
         );
-        
+
         $teamMemberIds = [];
         foreach ($teamMembers as $member) {
             $teamMemberIds[] = $member['user_id'];
         }
-        
+
         return $teamMemberIds;
     }
     

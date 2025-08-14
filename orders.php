@@ -90,6 +90,16 @@ try {
             // Return JSON list for incremental loading
             $orderController->list();
             break;
+
+        case 'items':
+            // Return JSON items for an order
+            $orderController->items();
+            break;
+
+        case 'bulk_update':
+            // Handle bulk actions
+            $orderController->bulkUpdate();
+            break;
             
         case 'get_products':
             $orderController->getProducts();

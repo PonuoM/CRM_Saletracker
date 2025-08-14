@@ -263,13 +263,14 @@ class CustomerService {
      * @param int $userId ID ของ Telesales หรือ Supervisor
      * @return array รายการลูกค้าที่ต้องติดตาม
      */
-    public function getFollowUpCustomers($userId) {
+    public function getFollowUpCustomers($userId, $filters = []) {
         $sql = "SELECT c.*, u.full_name as assigned_to_name,
                        DATEDIFF(c.customer_time_expiry, NOW()) as days_remaining,
                        DATEDIFF(c.next_followup_at, NOW()) as followup_days,
                        CASE
+                           WHEN c.next_followup_at IS NOT NULL THEN 'appointment'
+                           WHEN c.customer_status = 'new' THEN 'new'
                            WHEN c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 7 DAY) THEN 'expiry'
-                           WHEN c.next_followup_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 7 DAY) THEN 'appointment'
                            ELSE 'other'
                        END as reason_type
                 FROM customers c
@@ -278,12 +279,36 @@ class CustomerService {
                 AND c.basket_type = 'assigned'
                 AND c.is_active = 1
                 AND (
-                    c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 7 DAY) OR
-                    c.next_followup_at BETWEEN NOW() AND DATE_ADD(NOW(), INTERVAL 7 DAY)
+                    c.next_followup_at IS NOT NULL OR
+                    c.customer_status = 'new' OR
+                    c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 7 DAY)
                 )
-                ORDER BY c.customer_time_expiry ASC, c.next_followup_at ASC";
+                ";
 
-        return $this->db->fetchAll($sql, ['user_id' => $userId]);
+        $params = ['user_id' => $userId];
+        if (!empty($filters['temperature'])) {
+            $sql .= " AND c.temperature_status = :temp"; $params['temp'] = $filters['temperature'];
+        }
+        if (!empty($filters['grade'])) {
+            $sql .= " AND c.customer_grade = :grade"; $params['grade'] = $filters['grade'];
+        }
+        if (!empty($filters['province'])) {
+            $sql .= " AND c.province = :province"; $params['province'] = $filters['province'];
+        }
+        if (!empty($filters['name'])) {
+            $sql .= " AND (c.first_name LIKE :name OR c.last_name LIKE :name OR CONCAT(c.first_name, ' ', c.last_name) LIKE :name)"; $params['name'] = '%' . $filters['name'] . '%';
+        }
+        if (!empty($filters['phone'])) {
+            $sql .= " AND c.phone LIKE :phone"; $params['phone'] = '%' . $filters['phone'] . '%';
+        }
+
+        $sql .= " ORDER BY 
+                    (c.next_followup_at IS NULL) ASC,
+                    c.next_followup_at ASC,
+                    (c.customer_status <> 'new') ASC,
+                    c.created_at DESC";
+
+        return $this->db->fetchAll($sql, $params);
     }
     
     /**

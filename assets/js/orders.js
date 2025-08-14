@@ -133,7 +133,7 @@ class OrderManager {
         const paidChecked = (order.payment_status === 'paid') ? 'checked' : '';
         const createdByMatch = (order.created_by == userId);
         const canEdit = ['supervisor','admin','super_admin'].includes(roleName) || createdByMatch;
-        const orderDate = new Date(order.order_date).toLocaleDateString('th-TH');
+        const orderDate = new Date(order.order_date).toLocaleDateString('th-TH-u-ca-gregory');
         const itemCount = order.item_count || 0;
         const totalAmount = parseFloat(order.total_amount || 0).toFixed(2);
         return `
@@ -840,18 +840,55 @@ function deleteOrder(orderId) {
 /**
  * Toggle paid status from list view
  */
-async function togglePaid(orderId, isChecked) {
+async function updatePaymentStatusInline(orderId, status) {
     try {
         const response = await fetch('orders.php?action=update_status', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ order_id: orderId, field: 'payment_status', value: isChecked ? 'paid' : 'pending' })
+            body: JSON.stringify({ order_id: orderId, field: 'payment_status', value: status })
         });
         const result = await response.json();
         if (!result.success) {
             showAlert('อัปเดตสถานะการชำระเงินไม่สำเร็จ: ' + (result.message || ''), 'error');
         } else {
             showAlert('อัปเดตสถานะการชำระเงินสำเร็จ', 'success');
+            const badge = document.getElementById('payment-badge-' + orderId);
+            if (badge) {
+                const color = ({ pending: 'warning', paid: 'success', partial: 'info', cancelled: 'danger', returned: 'secondary' })[status] || 'warning';
+                const text = ({ pending: 'รอชำระ', paid: 'ชำระแล้ว', partial: 'ชำระบางส่วน', cancelled: 'ยกเลิก', returned: 'ตีกลับ' })[status] || 'รอชำระ';
+                badge.className = 'badge bg-' + color + ' text-dark';
+                badge.textContent = text;
+            }
+            // For detail page, ensure refresh so server data stays in sync
+            if (window.location.href.includes('orders.php?action=show')) {
+                setTimeout(() => window.location.reload(), 800);
+            }
+        }
+    } catch (e) {
+        console.error(e);
+        showAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
+    }
+}
+
+async function updateDeliveryStatusInline(orderId, status) {
+    try {
+        const response = await fetch('orders.php?action=update_status', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ order_id: orderId, field: 'delivery_status', value: status })
+        });
+        const result = await response.json();
+        if (!result.success) {
+            showAlert('อัปเดตสถานะจัดส่งไม่สำเร็จ: ' + (result.message || ''), 'error');
+        } else {
+            showAlert('อัปเดตสถานะจัดส่งสำเร็จ', 'success');
+            const badge = document.getElementById('status-badge-' + orderId);
+            if (badge) {
+                const color = ({ pending: 'warning', confirmed: 'info', shipped: 'primary', delivered: 'success', cancelled: 'danger' })[status] || 'warning';
+                const text = ({ pending: 'รอดำเนินการ', confirmed: 'ยืนยันแล้ว', shipped: 'จัดส่งแล้ว', delivered: 'ส่งมอบแล้ว', cancelled: 'ยกเลิก' })[status] || 'รอดำเนินการ';
+                badge.className = 'badge bg-' + color + ' text-dark';
+                badge.textContent = text;
+            }
         }
     } catch (e) {
         console.error(e);
@@ -867,4 +904,21 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Initialize OrderManager
     window.orderManager = new OrderManager();
+
+    // Fix dropdown clipping inside scrollable tables
+    document.addEventListener('shown.bs.dropdown', (ev) => {
+        const trigger = ev.target;
+        // elevate z-index to avoid clipping
+        const menu = trigger.parentElement && trigger.parentElement.querySelector('.dropdown-menu');
+        if (menu) menu.style.zIndex = '2000';
+        const container = trigger.closest('.table-responsive');
+        if (container) container.classList.add('overflow-visible');
+    });
+    document.addEventListener('hidden.bs.dropdown', (ev) => {
+        const trigger = ev.target;
+        const menu = trigger.parentElement && trigger.parentElement.querySelector('.dropdown-menu');
+        if (menu) menu.style.zIndex = '';
+        const container = trigger.closest('.table-responsive');
+        if (container) container.classList.remove('overflow-visible');
+    });
 }); 

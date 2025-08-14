@@ -54,7 +54,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>เข้าสู่ระบบ - CRM SalesTracker</title>
+    <title>เข้าสู่ระบบ - Customer Sales</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <link href="assets/css/app.css" rel="stylesheet">
@@ -194,13 +194,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         .company-info p {
             margin: 4px 0;
         }
+
+        .logo-container {
+            margin-bottom: 20px;
+        }
+
+        .logo-container img {
+            max-width: 80px;
+            height: auto;
+            border-radius: 8px;
+            display: block;
+            margin: 0 auto;
+        }
+
+        .logo-fallback {
+            font-size: 48px;
+            color: var(--primary-color);
+            margin-bottom: 20px;
+        }
     </style>
 </head>
 <body>
     <div class="login-container">
         <div class="login-header">
-            <i class="fas fa-chart-line fa-3x mb-3"></i>
-            <h2>CRM SalesTracker</h2>
+            <div class="logo-container">
+                <img src="assets/logo.png" alt="Company Logo" class="mb-3">
+            </div>
+            <h2>Customer Sales</h2>
             <p class="mb-0">ระบบจัดการลูกค้าสัมพันธ์</p>
         </div>
         
@@ -246,6 +266,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <hr>
                 <p><strong>บริษัท พรีม่าแพสชั่น 49 จำกัด</strong></p>
                 <p>เวอร์ชัน 1.0.0</p>
+                <p style="font-size: 11px; color: #999;">© 2025 Prima Passion 49 Co., Ltd. All rights reserved. by Thanu</p>
             </div>
         </div>
     </div>

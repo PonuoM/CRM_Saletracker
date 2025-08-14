@@ -95,9 +95,29 @@
                                         <select class="form-select" id="role_id" name="role_id" required>
                                             <option value="">เลือกบทบาท</option>
                                             <?php foreach ($roles as $role): ?>
-                                                <option value="<?php echo $role['role_id']; ?>" 
+                                                <?php
+                                                $roleDisplayName = $role['role_name'];
+                                                switch ($role['role_name']) {
+                                                    case 'super_admin':
+                                                        $roleDisplayName = 'Super Admin (ผู้ดูแลระบบสูงสุด)';
+                                                        break;
+                                                    case 'admin':
+                                                        $roleDisplayName = 'Admin (ผู้ดูแลระบบ)';
+                                                        break;
+                                                    case 'supervisor':
+                                                        $roleDisplayName = 'Supervisor (หัวหน้าทีม)';
+                                                        break;
+                                                    case 'telesales':
+                                                        $roleDisplayName = 'Telesales (พนักงานขาย)';
+                                                        break;
+                                                    case 'admin_page':
+                                                        $roleDisplayName = 'Admin Page (แผนกจัดการข้อมูล)';
+                                                        break;
+                                                }
+                                                ?>
+                                                <option value="<?php echo $role['role_id']; ?>"
                                                         <?php echo (isset($_POST['role_id']) && $_POST['role_id'] == $role['role_id']) ? 'selected' : ''; ?>>
-                                                    <?php echo htmlspecialchars($role['role_name']); ?>
+                                                    <?php echo htmlspecialchars($roleDisplayName); ?>
                                                 </option>
                                             <?php endforeach; ?>
                                         </select>

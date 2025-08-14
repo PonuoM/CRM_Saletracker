@@ -251,7 +251,8 @@ class OrderService {
                     CONCAT(c.first_name, ' ', c.last_name) as customer_name,
                     c.phone,
                     u.username as created_by_name,
-                    COALESCE(item_counts.item_count, 0) as item_count
+                    COALESCE(item_counts.item_count, 0) as item_count,
+                    COALESCE(qty_counts.total_quantity, 0) as total_quantity
                 FROM orders o
                 LEFT JOIN customers c ON o.customer_id = c.customer_id
                 LEFT JOIN users u ON o.created_by = u.user_id
@@ -260,20 +261,30 @@ class OrderService {
                     FROM order_items
                     GROUP BY order_id
                 ) as item_counts ON o.order_id = item_counts.order_id
+                LEFT JOIN (
+                    SELECT order_id, SUM(quantity) as total_quantity
+                    FROM order_items
+                    GROUP BY order_id
+                ) as qty_counts ON o.order_id = qty_counts.order_id
+                
                 WHERE {$whereClause}
-                ORDER BY o.created_at DESC
+                ORDER BY COALESCE(o.order_date, o.created_at) DESC
                 LIMIT {$limitInt} OFFSET {$offsetInt}
             ";
             
             $orders = $this->db->fetchAll($query, $params);
             
+            $totalPages = ceil($total / $limit);
+            $hasMore = $page < $totalPages;
+
             return [
                 'success' => true,
                 'orders' => $orders,
                 'total' => $total,
                 'page' => $page,
                 'limit' => $limit,
-                'total_pages' => ceil($total / $limit)
+                'total_pages' => $totalPages,
+                'has_more' => $hasMore
             ];
             
         } catch (Exception $e) {

@@ -392,7 +392,112 @@ class CronJobService {
             ];
         }
     }
-    
+
+    /**
+     * ระบบจัดการตะกร้าลูกค้าอัตโนมัติ (Customer Basket Management)
+     */
+    public function customerBasketManagement() {
+        $this->log("Starting customer basket management...");
+
+        try {
+            $results = [
+                'new_customers_recalled' => 0,
+                'existing_customers_recalled' => 0,
+                'moved_to_distribution' => 0
+            ];
+
+            // 1. ดึงลูกค้าใหม่ที่หมดเวลาถือครอง (>30 วัน) กลับไป distribution
+            $sql1 = "
+                UPDATE customers
+                SET basket_type = 'distribution',
+                    assigned_to = NULL,
+                    assigned_at = NULL,
+                    recall_at = NOW(),
+                    recall_reason = 'new_customer_timeout'
+                WHERE basket_type = 'assigned'
+                AND assigned_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
+                AND customer_id NOT IN (
+                    SELECT DISTINCT customer_id FROM orders
+                    WHERE created_at > assigned_at
+                )
+                AND customer_id NOT IN (
+                    SELECT DISTINCT customer_id FROM appointments
+                    WHERE created_at > assigned_at
+                )
+            ";
+
+            $stmt1 = $this->db->prepare($sql1);
+            $stmt1->execute();
+            $results['new_customers_recalled'] = $stmt1->rowCount();
+
+            // 2. ดึงลูกค้าเก่าที่ไม่มีออเดอร์ใน 90 วัน ไปตะกร้ารอ (waiting)
+            $sql2 = "
+                UPDATE customers
+                SET basket_type = 'waiting',
+                    assigned_to = NULL,
+                    assigned_at = NULL,
+                    recall_at = NOW(),
+                    recall_reason = 'existing_customer_timeout'
+                WHERE basket_type = 'assigned'
+                AND customer_id IN (
+                    SELECT customer_id FROM (
+                        SELECT customer_id
+                        FROM orders
+                        GROUP BY customer_id
+                        HAVING MAX(order_date) < DATE_SUB(NOW(), INTERVAL 90 DAY)
+                    ) as old_customers
+                )
+            ";
+
+            $stmt2 = $this->db->prepare($sql2);
+            $stmt2->execute();
+            $results['existing_customers_recalled'] = $stmt2->rowCount();
+
+            // 3. ย้ายลูกค้าจากตะกร้ารอ (waiting) ไปตะกร้าพร้อมแจก (distribution) หลัง 30 วัน
+            $sql3 = "
+                UPDATE customers
+                SET basket_type = 'distribution',
+                    recall_at = NULL,
+                    recall_reason = NULL
+                WHERE basket_type = 'waiting'
+                AND recall_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
+            ";
+
+            $stmt3 = $this->db->prepare($sql3);
+            $stmt3->execute();
+            $results['moved_to_distribution'] = $stmt3->rowCount();
+
+            // บันทึก activity logs
+            if ($results['new_customers_recalled'] > 0) {
+                $this->logBasketActivity('new_customer_recall', $results['new_customers_recalled']);
+            }
+
+            if ($results['existing_customers_recalled'] > 0) {
+                $this->logBasketActivity('existing_customer_recall', $results['existing_customers_recalled']);
+            }
+
+            if ($results['moved_to_distribution'] > 0) {
+                $this->logBasketActivity('waiting_to_distribution', $results['moved_to_distribution']);
+            }
+
+            $this->log("Customer basket management completed. New recalled: {$results['new_customers_recalled']}, Existing recalled: {$results['existing_customers_recalled']}, Moved to distribution: {$results['moved_to_distribution']}");
+
+            return [
+                'success' => true,
+                'new_customers_recalled' => $results['new_customers_recalled'],
+                'existing_customers_recalled' => $results['existing_customers_recalled'],
+                'moved_to_distribution' => $results['moved_to_distribution']
+            ];
+
+        } catch (Exception $e) {
+            $this->log("Error in customer basket management: " . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
+    }
+
     /**
      * เรียกใช้งาน Cron Jobs ทั้งหมด
      */
@@ -402,22 +507,25 @@ class CronJobService {
         
         $results = [];
         
-        // 1. อัปเดตเกรดลูกค้า
+        // 1. จัดการตะกร้าลูกค้าอัตโนมัติ (ย้ายลูกค้าระหว่างตะกร้า)
+        $results['basket_management'] = $this->customerBasketManagement();
+
+        // 2. อัปเดตเกรดลูกค้า
         $results['grade_update'] = $this->updateCustomerGrades();
-        
-        // 2. อัปเดตอุณหภูมิลูกค้า
+
+        // 3. อัปเดตอุณหภูมิลูกค้า
         $results['temperature_update'] = $this->updateCustomerTemperatures();
-        
-        // 3. สร้างรายการลูกค้าที่ต้องติดตาม
+
+        // 4. สร้างรายการลูกค้าที่ต้องติดตาม
         $results['recall_list'] = $this->createCustomerRecallList();
-        
-        // 4. ส่งการแจ้งเตือน
+
+        // 5. ส่งการแจ้งเตือน
         $results['notifications'] = $this->sendCustomerRecallNotifications();
-        
-        // 5. อัปเดตการติดตามการโทร
+
+        // 6. อัปเดตการติดตามการโทร
         $results['call_followup'] = $this->updateCallFollowups();
         
-        // 6. ทำความสะอาดข้อมูล (รันทุกวันอาทิตย์)
+        // 7. ทำความสะอาดข้อมูล (รันทุกวันอาทิตย์)
         if (date('w') == 0) { // Sunday
             $results['cleanup'] = $this->cleanupOldData();
         }
@@ -582,13 +690,37 @@ class CronJobService {
     }
     
     /**
+     * บันทึกกิจกรรมการจัดการตะกร้า
+     */
+    private function logBasketActivity($activityType, $count) {
+        try {
+            $sql = "INSERT INTO activity_logs (user_id, activity_type, table_name, action, description, created_at)
+                    VALUES (NULL, 'basket_management', 'customers', ?, ?, NOW())";
+
+            $descriptions = [
+                'new_customer_recall' => "ดึงลูกค้าใหม่ {$count} รายกลับไปตะกร้าพร้อมแจก (หมดเวลาถือครอง 30 วัน)",
+                'existing_customer_recall' => "ดึงลูกค้าเก่า {$count} รายไปตะกร้ารอ (ไม่มีออเดอร์ 90 วัน)",
+                'waiting_to_distribution' => "ย้ายลูกค้า {$count} รายจากตะกร้ารอไปตะกร้าพร้อมแจก (รอครบ 30 วัน)"
+            ];
+
+            $description = $descriptions[$activityType] ?? "จัดการตะกร้าลูกค้า: {$activityType} ({$count} รายการ)";
+
+            $stmt = $this->db->prepare($sql);
+            $stmt->execute([$activityType, $description]);
+
+        } catch (Exception $e) {
+            $this->log("Error logging basket activity: " . $e->getMessage());
+        }
+    }
+
+    /**
      * บันทึก log
      */
     private function log($message) {
         $timestamp = date('Y-m-d H:i:s');
         $logMessage = "[{$timestamp}] {$message}" . PHP_EOL;
         file_put_contents($this->logFile, $logMessage, FILE_APPEND | LOCK_EX);
-        
+
         // แสดงผลใน console ด้วย (ถ้ารันจาก command line)
         if (php_sapi_name() === 'cli') {
             echo $logMessage;

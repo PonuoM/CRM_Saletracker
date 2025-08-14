@@ -13,11 +13,12 @@ $userId = $_SESSION['user_id'] ?? 0;
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">จัดการคำสั่งซื้อ</h1>
     <div class="btn-toolbar mb-2 mb-md-0">
-        <div class="btn-group me-2">
-            <button type="button" class="btn btn-sm btn-outline-secondary" onclick="exportOrders()">
-                <i class="fas fa-download me-1"></i>ส่งออก
-            </button>
-        </div>
+        
+        <?php if (in_array(($roleName ?? ''), ['telesales','supervisor','admin','super_admin'])): ?>
+            <a href="orders.php?action=create&guest=1" class="btn btn-primary btn-sm">
+                <i class="fas fa-user-plus me-1"></i>สร้างคำสั่งซื้อ (ลูกค้าใหม่)
+            </a>
+        <?php endif; ?>
     </div>
 </div>
 
@@ -108,7 +109,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                 <span class="badge bg-primary" id="orderCount">0 รายการ</span>
             </div>
             <div class="card-body p-0">
-                <div class="table-responsive" style="max-height: 450px; overflow-y: auto;">
+                <div class="table-responsive" style="max-height: 620px; overflow-y: auto; overflow-x: unset;">
                     <table class="table table-hover mb-0">
                         <thead class="table-light">
                             <tr>
@@ -141,11 +142,10 @@ $userId = $_SESSION['user_id'] ?? 0;
                     <p class="text-muted mb-0">ไม่พบข้อมูลคำสั่งซื้อ</p>
                 </div>
                 
-                <!-- Load more button -->
-                <div class="text-center py-3" id="loadMoreContainer" style="display: none;">
-                    <button class="btn btn-outline-primary" id="loadMoreBtn">
-                        <i class="fas fa-plus me-1"></i>แสดงเพิ่มอีก 10 รายการ
-                    </button>
+                <!-- Pagination -->
+                <div class="d-flex justify-content-between align-items-center p-3">
+                    <div class="text-muted small">แสดง 10 รายการต่อหน้า</div>
+                    <ul class="pagination pagination-sm mb-0" id="orders-pagination"></ul>
                 </div>
             </div>
         </div>
@@ -172,10 +172,19 @@ $userId = $_SESSION['user_id'] ?? 0;
 <script>
 // Orders JavaScript functionality
 document.addEventListener('DOMContentLoaded', function() {
-    let currentPage = 1;
+    let currentPage = parseInt(new URLSearchParams(window.location.search).get('page') || '1', 10);
     let isLoading = false;
     let hasMoreData = true;
     let currentFilters = {};
+    let totalPages = 1;
+
+    // Utility: escape HTML (prevent XSS and rendering issues)
+    function escapeHtml(text) {
+        if (text === undefined || text === null) return '';
+        const div = document.createElement('div');
+        div.textContent = String(text);
+        return div.innerHTML;
+    }
 
     // Initialize
     loadOrders();
@@ -210,11 +219,71 @@ document.addEventListener('DOMContentLoaded', function() {
         loadOrders(true);
     });
 
-    // Load more button
-    document.getElementById('loadMoreBtn').addEventListener('click', function() {
-        currentPage++;
-        loadOrders(false);
-    });
+    // Render minimal pager
+    function renderPager() {
+        const pager = document.getElementById('orders-pagination');
+        if (!pager) return;
+        pager.innerHTML = '';
+
+        const createBtn = (label, page, disabled = false) => {
+            const li = document.createElement('li');
+            li.className = `page-item ${disabled ? 'disabled' : ''}`;
+            const a = document.createElement('a');
+            a.className = 'page-link';
+            a.href = '#';
+            a.setAttribute('data-page', page);
+            a.textContent = label;
+            a.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (disabled) return;
+                const target = parseInt(e.currentTarget.getAttribute('data-page'), 10);
+                if (!isNaN(target) && target >= 1 && target <= totalPages && target !== currentPage) {
+                    currentPage = target;
+                    const url = new URL(window.location.href);
+                    url.searchParams.set('page', String(currentPage));
+                    history.replaceState(null, '', url.toString());
+                    loadOrders(true);
+                }
+            });
+            li.appendChild(a);
+            pager.appendChild(li);
+        };
+
+        // «« and «
+        createBtn('««', 1, currentPage === 1);
+        createBtn('«', Math.max(1, currentPage - 1), currentPage === 1);
+
+        // Select in the middle
+        const liSelect = document.createElement('li');
+        liSelect.className = 'page-item';
+        const select = document.createElement('select');
+        select.className = 'form-select form-select-sm page-select';
+        for (let i = 1; i <= totalPages; i++) {
+            const opt = document.createElement('option');
+            opt.value = String(i);
+            opt.textContent = String(i);
+            if (i === currentPage) opt.selected = true;
+            select.appendChild(opt);
+        }
+        select.addEventListener('change', (e) => {
+            const val = parseInt(e.target.value, 10);
+            if (!isNaN(val) && val >= 1 && val <= totalPages) {
+                currentPage = val;
+                const url = new URL(window.location.href);
+                url.searchParams.set('page', String(currentPage));
+                history.replaceState(null, '', url.toString());
+                loadOrders(true);
+            }
+        });
+        liSelect.appendChild(select);
+        pager.appendChild(liSelect);
+
+        // » and »»
+        createBtn('»', Math.min(totalPages, currentPage + 1), currentPage === totalPages);
+        createBtn('»»', totalPages, currentPage === totalPages);
+    }
+
+
 
     function loadOrders(reset = false) {
         if (isLoading) return;
@@ -223,7 +292,6 @@ document.addEventListener('DOMContentLoaded', function() {
         
         if (reset) {
             document.getElementById('ordersTableBody').innerHTML = '';
-            document.getElementById('loadMoreContainer').style.display = 'none';
         }
         
         document.getElementById('loadingIndicator').style.display = 'block';
@@ -236,7 +304,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const params = new URLSearchParams();
         params.append('page', currentPage);
-        params.append('limit', 10); // โหลด 10 รายการต่อครั้ง
+        params.append('limit', 10); // 10 ต่อหน้า
         params.append('paid_only', paidOnly ? '1' : '0');
         params.append('unpaid_only', unpaidOnly ? '1' : '0');
 
@@ -254,17 +322,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     
                     if (data.orders.length > 0) {
                         appendOrdersToTable(data.orders);
-                        hasMoreData = data.has_more;
-                        
-                        if (hasMoreData) {
-                            document.getElementById('loadMoreContainer').style.display = 'block';
-                        } else {
-                            document.getElementById('loadMoreContainer').style.display = 'none';
-                        }
+                        totalPages = data.total_pages || 1;
+                        renderPager();
                     } else if (currentPage === 1) {
                         document.getElementById('noDataMessage').style.display = 'block';
                     }
-                    
+
                     document.getElementById('orderCount').textContent = `${data.total} รายการ`;
                 } else {
                     console.error('Error loading orders:', data.message);
@@ -287,14 +350,45 @@ document.addEventListener('DOMContentLoaded', function() {
             tbody.appendChild(row);
         });
 
-        // Add event listeners for payment switches
-        document.querySelectorAll('.payment-switch').forEach(switchEl => {
-            switchEl.addEventListener('change', function() {
-                const orderId = this.dataset.orderId;
-                const isPaid = this.checked;
-                updatePaymentStatus(orderId, isPaid ? 'paid' : 'pending');
+        // Attach inline dropdown handlers
+        document.querySelectorAll('select[data-field]')
+            .forEach(sel => {
+                sel.addEventListener('change', function() {
+                    const orderId = this.dataset.orderId;
+                    const field = this.dataset.field;
+                    const value = this.value;
+                    fetch('orders.php?action=update_status', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ order_id: orderId, field, value })
+                    })
+                    .then(r => r.json())
+                    .then(data => {
+                        if (!data.success) { alert('อัปเดตไม่สำเร็จ'); return; }
+                        // Update badge color/text inline
+                        if (field === 'payment_status') {
+                            const badge = document.getElementById('payment-badge-' + orderId);
+                            if (badge) {
+                                const color = ({ pending: 'warning', paid: 'success', partial: 'info', cancelled: 'danger', returned: 'secondary' })[value] || 'warning';
+                                const text = ({ pending: 'รอชำระ', paid: 'ชำระแล้ว', partial: 'ชำระบางส่วน', cancelled: 'ยกเลิก', returned: 'ตีกลับ' })[value] || 'รอชำระ';
+                                badge.className = 'badge bg-' + color + ' text-dark';
+                                badge.textContent = text;
+                            }
+                        } else if (field === 'delivery_status') {
+                            const badge = document.getElementById('status-badge-' + orderId);
+                            if (badge) {
+                                const color = ({ pending: 'warning', confirmed: 'info', shipped: 'primary', delivered: 'success', cancelled: 'danger' })[value] || 'warning';
+                                const text = ({ pending: 'รอดำเนินการ', confirmed: 'ยืนยันแล้ว', shipped: 'จัดส่งแล้ว', delivered: 'ส่งมอบแล้ว', cancelled: 'ยกเลิก' })[value] || 'รอดำเนินการ';
+                                badge.className = 'badge bg-' + color + ' text-dark';
+                                badge.textContent = text;
+                            }
+                        }
+                    })
+                    .catch(() => alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'));
+                });
             });
-        });
+
+
     }
 
     function createOrderRow(order) {
@@ -313,7 +407,8 @@ document.addEventListener('DOMContentLoaded', function() {
             'pending': 'warning',
             'paid': 'success',
             'partial': 'info',
-            'cancelled': 'danger'
+            'cancelled': 'danger',
+            'returned': 'secondary'
         };
 
         // Ensure we have valid status values
@@ -322,41 +417,29 @@ document.addEventListener('DOMContentLoaded', function() {
 
         row.innerHTML = `
             <td>
-                <a href="orders.php?action=show&id=${order.order_id}" class="text-decoration-none">
+                <a href="orders.php?action=show&id=${order.order_id}&page=${currentPage}" class="text-decoration-none">
                     ${order.order_number || order.orders_number || 'N/A'}
                 </a>
             </td>
             <td>${order.customer_name || 'N/A'}</td>
-            <td>${new Date(order.created_at).toLocaleDateString('th-TH')}</td>
-            <td>฿${parseFloat(order.net_amount || 0).toLocaleString('th-TH', {minimumFractionDigits: 2})}</td>
+            <td>${(order.order_date ? new Date(order.order_date) : new Date(order.created_at)).toLocaleDateString('th-TH-u-ca-gregory')}</td>
+            <td>฿${parseFloat(order.net_amount || order.total_amount || 0).toLocaleString('th-TH', {minimumFractionDigits: 2})}</td>
             <td>
-                <span class="badge bg-${statusColors[deliveryStatus] || 'warning'}">
-                    ${getStatusText(deliveryStatus)}
-                </span>
+                <span id="status-badge-${order.order_id}" class="badge bg-${statusColors[deliveryStatus] || 'warning'} text-dark">${getStatusText(deliveryStatus)}</span>
             </td>
             <td>
-                <span class="badge bg-${paymentColors[paymentStatus] || 'warning'}">
-                    ${getPaymentStatusText(paymentStatus)}
-                </span>
+                <span id="payment-badge-${order.order_id}" class="badge bg-${paymentColors[paymentStatus] || 'warning'} text-dark">${getPaymentStatusText(paymentStatus)}</span>
             </td>
             <td>
                 <div class="d-flex align-items-center gap-2">
                     <!-- Action Buttons -->
                     <div class="btn-group btn-group-sm">
-                        <a href="orders.php?action=show&id=${order.order_id}" class="btn btn-outline-primary btn-sm" title="ดูรายละเอียด">
+                        <a href="orders.php?action=show&id=${order.order_id}&page=${currentPage}" class="btn btn-outline-primary btn-sm" title="ดูรายละเอียด">
                             <i class="fas fa-eye"></i>
                         </a>
                         <a href="orders.php?action=edit&id=${order.order_id}" class="btn btn-outline-warning btn-sm" title="แก้ไข">
                             <i class="fas fa-edit"></i>
                         </a>
-                    </div>
-
-                    <!-- Payment Status Switch -->
-                    <div class="form-check form-switch ms-2">
-                        <input class="form-check-input payment-switch" type="checkbox"
-                               data-order-id="${order.order_id}"
-                               ${paymentStatus === 'paid' ? 'checked' : ''}
-                               title="ชำระแล้ว">
                     </div>
                 </div>
             </td>
@@ -376,61 +459,20 @@ document.addEventListener('DOMContentLoaded', function() {
         return statusTexts[status] || 'รอดำเนินการ';
     }
 
-    function getPaymentStatusText(status) {
+        function getPaymentStatusText(status) {
         const paymentTexts = {
             'pending': 'รอชำระ',
             'paid': 'ชำระแล้ว',
             'partial': 'ชำระบางส่วน',
-            'cancelled': 'ยกเลิก'
+                'cancelled': 'ยกเลิก',
+                'returned': 'ตีกลับ'
         };
         return paymentTexts[status] || 'รอชำระ';
     }
 
     // Global functions - Delete functions removed as delete button is removed
 
-    function updatePaymentStatus(orderId, status) {
-        fetch(`orders.php?action=update_payment`, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                order_id: orderId,
-                payment_status: status
-            })
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                // Update the payment status badge in the table
-                const row = document.querySelector(`[data-order-id="${orderId}"]`).closest('tr');
-                const paymentBadge = row.querySelector('td:nth-child(6) .badge');
-
-                if (status === 'paid') {
-                    paymentBadge.className = 'badge bg-success';
-                    paymentBadge.textContent = 'ชำระแล้ว';
-                } else {
-                    paymentBadge.className = 'badge bg-warning';
-                    paymentBadge.textContent = 'รอชำระ';
-                }
-
-                console.log('Payment status updated successfully');
-            } else {
-                console.error('Failed to update payment status:', data.message);
-                // Revert the switch
-                const switchEl = document.querySelector(`[data-order-id="${orderId}"]`);
-                switchEl.checked = !switchEl.checked;
-                alert('เกิดข้อผิดพลาดในการอัปเดตสถานะการชำระเงิน');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            // Revert the switch
-            const switchEl = document.querySelector(`[data-order-id="${orderId}"]`);
-            switchEl.checked = !switchEl.checked;
-            alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
-        });
-    }
+    // removed legacy updatePaymentStatus()
 
     window.exportOrders = function() {
         const params = new URLSearchParams();

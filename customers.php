@@ -31,6 +31,21 @@ switch ($action) {
     case 'get_customer_address':
         $controller->getCustomerAddress();
         break;
+    
+    // Basic profile edit page for customer info (name/phone/address)
+    case 'edit_basic':
+        if ($customerId) {
+            $controller->editBasic($customerId);
+        } else {
+            header('Location: customers.php');
+            exit;
+        }
+        break;
+
+    // Handle update basic info (AJAX JSON)
+    case 'update_basic':
+        $controller->updateBasic();
+        break;
         
     default:
         $controller->index();

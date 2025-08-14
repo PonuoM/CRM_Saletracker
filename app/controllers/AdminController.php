@@ -152,8 +152,19 @@ class AdminController {
         
         $roles = $this->getAllRoles();
         $companies = $this->getAllCompanies();
-        
+
+        // Set page title and prepare content for layout
+        $pageTitle = 'สร้างผู้ใช้ใหม่ - CRM SalesTracker';
+        $currentPage = 'admin';
+        $currentAction = 'users';
+
+        // Capture create user content
+        ob_start();
         include __DIR__ . '/../views/admin/users/create.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
     
     /**
@@ -192,8 +203,19 @@ class AdminController {
         $user = $this->auth->getUserById($userId);
         $roles = $this->getAllRoles();
         $companies = $this->getAllCompanies();
-        
+
+        // Set page title and prepare content for layout
+        $pageTitle = 'แก้ไขผู้ใช้ - CRM SalesTracker';
+        $currentPage = 'admin';
+        $currentAction = 'users';
+
+        // Capture edit user content
+        ob_start();
         include __DIR__ . '/../views/admin/users/edit.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
     
     /**
@@ -214,7 +236,19 @@ class AdminController {
         }
         
         $user = $this->auth->getUserById($userId);
+
+        // Set page title and prepare content for layout
+        $pageTitle = 'ลบผู้ใช้ - CRM SalesTracker';
+        $currentPage = 'admin';
+        $currentAction = 'users';
+
+        // Capture delete user content
+        ob_start();
         include __DIR__ . '/../views/admin/users/delete.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
     
     /**
@@ -1017,7 +1051,7 @@ class AdminController {
 
         // Capture customer distribution content
         ob_start();
-        include __DIR__ . '/../views/admin/customer_distribution.php';
+        include __DIR__ . '/../views/admin/customer_distribution_new.php';
         $content = ob_get_clean();
 
         // Use main layout

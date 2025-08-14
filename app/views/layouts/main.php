@@ -35,6 +35,7 @@
     </div>
 
     <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
     <script src="assets/js/sidebar.js"></script>
     <?php if (isset($bodyClass) && $bodyClass === 'customer-page-body'): ?>
@@ -207,4 +208,16 @@
         })();
     </script>
 </body>
+<script>
+// Backdrop watchdog: if there's a backdrop but no visible modal, remove the backdrop
+function cleanupBackdrops(){
+  const anyVisibleModal = !!document.querySelector('.modal.show');
+  if (!anyVisibleModal) {
+    document.querySelectorAll('.modal-backdrop').forEach(b=>b.remove());
+  }
+}
+window.addEventListener('load', cleanupBackdrops);
+document.addEventListener('shown.bs.modal', cleanupBackdrops);
+document.addEventListener('hidden.bs.modal', cleanupBackdrops);
+</script>
 </html> 

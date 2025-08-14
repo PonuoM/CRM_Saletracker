@@ -63,6 +63,11 @@ function initializeSalesImportForm() {
         e.preventDefault();
         
         const formData = new FormData(form);
+        // Ensure company_override from top dropdown is sent
+        const topSelect = document.querySelector('select[name="company_override"][form="importSalesForm"]');
+        if (topSelect) {
+            formData.set('company_override', topSelect.value || '');
+        }
         const resultsDiv = document.getElementById('salesImportResults');
         const messageDiv = document.getElementById('salesImportMessage');
         const detailsDiv = document.getElementById('salesImportDetails');

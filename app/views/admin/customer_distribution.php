@@ -7,18 +7,37 @@
 ?>
 
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-                    <h1 class="h2">
-                        <i class="fas fa-users me-2"></i>
-                        ระบบแจกลูกค้า
-                    </h1>
-                    <div class="btn-toolbar mb-2 mb-md-0">
-                        <div class="btn-group me-2">
-                            <button class="btn btn-sm btn-outline-primary" onclick="refreshDistributionStats()">
-                                <i class="fas fa-refresh me-1"></i>อัปเดตสถิติ
-                            </button>
-                        </div>
-                    </div>
-                </div>
+    <div>
+        <h1 class="h2">
+            <i class="fas fa-share-alt me-2"></i>
+            ระบบแจกลูกค้า
+        </h1>
+        <p class="text-muted mb-0">จัดการการแจกลูกค้าให้กับ Telesales แบบเฉลี่ยและตามคำขอ</p>
+    </div>
+    <div class="btn-toolbar mb-2 mb-md-0">
+        <div class="btn-group me-2">
+            <button class="btn btn-sm btn-outline-primary" onclick="refreshDistributionStats()">
+                <i class="fas fa-refresh me-1"></i>อัปเดตสถิติ
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- แท็บเลือกประเภทการแจก -->
+<ul class="nav nav-tabs mb-4" id="distributionTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="average-tab" data-bs-toggle="tab" data-bs-target="#average" type="button" role="tab">
+            <i class="fas fa-balance-scale me-2"></i>การแจกแบบเฉลี่ย
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="request-tab" data-bs-toggle="tab" data-bs-target="#request" type="button" role="tab">
+            <i class="fas fa-hand-paper me-2"></i>การแจกตามคำขอ
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content" id="distributionTabContent">
 
                 <!-- Distribution Stats -->
                 <div class="row mb-4">
@@ -88,14 +107,14 @@
                                 <div class="row no-gutters align-items-center">
                                     <div class="col mr-2">
                                         <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                            ลูกค้า Warm
+                                            ลูกค้าถูกดึงกลับ (รอเวลา)
                                         </div>
-                                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="warmCustomersCount">
+                                        <div class="h5 mb-0 font-weight-bold text-gray-800" id="waitingCustomersCount">
                                             <i class="fas fa-spinner fa-spin"></i>
                                         </div>
                                     </div>
                                     <div class="col-auto">
-                                        <i class="fas fa-sun fa-2x text-gray-300"></i>
+                                        <i class="fas fa-clock fa-2x text-gray-300"></i>
                                     </div>
                                 </div>
                             </div>
@@ -231,12 +250,12 @@ function loadDistributionStats() {
                 const distributionEl = document.getElementById('distributionCount');
                 const availableTelesalesEl = document.getElementById('availableTelesalesCount');
                 const hotCustomersEl = document.getElementById('hotCustomersCount');
-                const warmCustomersEl = document.getElementById('warmCustomersCount');
+                const waitingCustomersEl = document.getElementById('waitingCustomersCount');
 
                 if (distributionEl) distributionEl.textContent = stats.distribution_count || 0;
                 if (availableTelesalesEl) availableTelesalesEl.textContent = stats.available_telesales_count || 0;
                 if (hotCustomersEl) hotCustomersEl.textContent = stats.hot_customers_count || 0;
-                if (warmCustomersEl) warmCustomersEl.textContent = stats.warm_customers_count || 0;
+                if (waitingCustomersEl) waitingCustomersEl.textContent = stats.waiting_customers_count || 0;
             } else {
                 console.error('Failed to load distribution stats:', data.message);
                 showAlert('ไม่สามารถโหลดสถิติได้', 'error');
@@ -323,8 +342,8 @@ function loadTelesalesList() {
 
                 let options = '';
                 telesales.forEach(person => {
-                    const customerCount = person.customer_count || 0;
-                    options += `<option value="${person.user_id}">${person.full_name} (${customerCount} ลูกค้า)</option>`;
+                    const customerCount = person.current_customers_count || 0;
+                    options += `<option value="${person.user_id}">${person.full_name} (${customerCount} ลูกค้าที่กำลังติดตาม)</option>`;
                 });
 
                 selectEl.innerHTML = options;
@@ -352,33 +371,57 @@ function assignCustomer(customerId) {
         return;
     }
 
-    // Simulate API call
-    setTimeout(function() {
-        showAlert('มอบหมายลูกค้าสำเร็จ (Demo)', 'success');
-        loadDistributionStats();
-        loadAvailableCustomers();
-        loadTelesalesList();
-    }, 1000);
+    // เรียกใช้ API จริง
+    const telesalesIds = selectedOptions.map(option => parseInt(option.value));
+    
+    fetch('api/customer-distribution.php?action=distribute', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            quantity: 1,
+            priority: 'hot_warm_cold',
+            telesales_ids: telesalesIds
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert('มอบหมายลูกค้าสำเร็จ', 'success');
+            loadDistributionStats();
+            loadAvailableCustomers();
+            loadTelesalesList();
+        } else {
+            showAlert('เกิดข้อผิดพลาด: ' + (data.message || 'ไม่ทราบสาเหตุ'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
+    });
 }
 
 function bulkAssign() {
-    const telesalesSelect = document.getElementById('telesalesSelect');
-    const bulkCountInput = document.getElementById('bulkCount');
+    const telesalesSelect = document.getElementById('distributionTelesales');
+    const distributionQuantity = document.getElementById('distributionQuantity');
+    const distributionPriority = document.getElementById('distributionPriority');
 
-    const telesalesId = telesalesSelect ? telesalesSelect.value : '';
-    const count = bulkCountInput ? bulkCountInput.value : '';
+    const selectedOptions = telesalesSelect ? Array.from(telesalesSelect.selectedOptions) : [];
+    const quantity = distributionQuantity ? parseInt(distributionQuantity.value) : 0;
+    const priority = distributionPriority ? distributionPriority.value : 'hot_warm_cold';
 
-    if (!telesalesId) {
+    if (selectedOptions.length === 0) {
         showAlert('กรุณาเลือก Telesales ก่อน', 'warning');
         return;
     }
 
-    if (!count || count < 1) {
+    if (!quantity || quantity < 1) {
         showAlert('กรุณาระบุจำนวนลูกค้า', 'warning');
         return;
     }
 
-    if (!confirm(`คุณต้องการมอบหมายลูกค้า ${count} คนหรือไม่?`)) {
+    if (!confirm(`คุณต้องการมอบหมายลูกค้า ${quantity} คนหรือไม่?`)) {
         return;
     }
 
@@ -387,17 +430,39 @@ function bulkAssign() {
     button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>กำลังดำเนินการ...';
     button.disabled = true;
 
-    // Simulate API call
-    setTimeout(function() {
-        showAlert(`มอบหมายลูกค้า ${count} คนสำเร็จ (Demo)`, 'success');
-        loadDistributionStats();
-        loadAvailableCustomers();
-        loadTelesalesList();
-        if (bulkCountInput) bulkCountInput.value = '';
-
+    // เรียกใช้ API จริง
+    const telesalesIds = selectedOptions.map(option => parseInt(option.value));
+    
+    fetch('api/customer-distribution.php?action=distribute', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            quantity: quantity,
+            priority: priority,
+            telesales_ids: telesalesIds
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showAlert(`มอบหมายลูกค้า ${quantity} คนสำเร็จ`, 'success');
+            loadDistributionStats();
+            loadAvailableCustomers();
+            loadTelesalesList();
+        } else {
+            showAlert('เกิดข้อผิดพลาด: ' + (data.message || 'ไม่ทราบสาเหตุ'), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showAlert('เกิดข้อผิดพลาดในการเชื่อมต่อ', 'error');
+    })
+    .finally(() => {
         button.innerHTML = originalText;
         button.disabled = false;
-    }, 2000);
+    });
 }
 
 function showAlert(message, type) {

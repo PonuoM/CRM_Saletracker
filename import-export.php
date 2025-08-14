@@ -51,6 +51,8 @@ try {
             header('Access-Control-Allow-Origin: *');
             header('Access-Control-Allow-Methods: POST');
             header('Access-Control-Allow-Headers: Content-Type');
+            // Enforce permission
+            $controller->requireImportPermission();
             $controller->importCustomers();
             break;
             
@@ -62,6 +64,8 @@ try {
             header('Access-Control-Allow-Origin: *');
             header('Access-Control-Allow-Methods: POST');
             header('Access-Control-Allow-Headers: Content-Type');
+            // Enforce permission
+            $controller->requireImportPermission();
             $controller->importSales();
             break;
             
@@ -73,6 +77,8 @@ try {
             header('Access-Control-Allow-Origin: *');
             header('Access-Control-Allow-Methods: POST');
             header('Access-Control-Allow-Headers: Content-Type');
+            // Enforce permission
+            $controller->requireImportPermission();
             $controller->importCustomersOnly();
             break;
             

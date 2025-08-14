@@ -58,6 +58,61 @@ try {
             echo json_encode(['success' => true, 'data' => $telesales]);
             break;
 
+        case 'company_stats':
+            // ดึงสถิติของบริษัทเฉพาะ
+            $company = $_GET['company'] ?? '';
+            if (!$company) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'ไม่ได้ระบุบริษัท']);
+                exit;
+            }
+            $stats = $distributionService->getCompanyStats($company);
+            echo json_encode(['success' => true, 'data' => $stats]);
+            break;
+
+        case 'telesales_by_company':
+            // ดึงรายการ Telesales ตามบริษัท
+            $company = $_GET['company'] ?? '';
+            if (!$company) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'ไม่ได้ระบุบริษัท']);
+                exit;
+            }
+            $telesales = $distributionService->getTelesalesByCompany($company);
+            echo json_encode(['success' => true, 'data' => $telesales]);
+            break;
+
+        case 'available_customers_by_date':
+            // ดึงจำนวนลูกค้าพร้อมแจกตามวันที่
+            $company = $_GET['company'] ?? '';
+            $dateFrom = $_GET['date_from'] ?? '';
+            $dateTo = $_GET['date_to'] ?? '';
+
+            if (!$company || !$dateFrom || !$dateTo) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'ข้อมูลไม่ครบถ้วน']);
+                exit;
+            }
+
+            $result = $distributionService->getAvailableCustomersByDate($company, $dateFrom, $dateTo);
+            echo json_encode(['success' => true, 'data' => $result]);
+            break;
+
+        case 'check_quota':
+            // ตรวจสอบโควต้าของ Telesales
+            $company = $_GET['company'] ?? '';
+            $telesalesId = $_GET['telesales_id'] ?? '';
+
+            if (!$company || !$telesalesId) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'ข้อมูลไม่ครบถ้วน']);
+                exit;
+            }
+
+            $quota = $distributionService->checkTelesalesQuota($company, $telesalesId);
+            echo json_encode(['success' => true, 'data' => $quota]);
+            break;
+
         case 'available_customers':
             // ดึงรายการลูกค้าที่พร้อมแจก
             $priority = $_GET['priority'] ?? 'hot_warm_cold';
@@ -92,14 +147,111 @@ try {
             echo json_encode($result);
             break;
 
+        case 'distribute_average':
+            // แจกลูกค้าแบบเฉลี่ย
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                http_response_code(405);
+                echo json_encode(['error' => 'Method not allowed']);
+                exit;
+            }
+
+            $input = json_decode(file_get_contents('php://input'), true);
+
+            if (!$input || !isset($input['company']) || !isset($input['customer_count']) || !isset($input['telesales_ids'])) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'ข้อมูลไม่ครบถ้วน']);
+                exit;
+            }
+
+            // Validate inputs to avoid server errors (e.g., division by zero when no telesales selected)
+            $company = trim((string)($input['company'] ?? ''));
+            $customerCount = (int)($input['customer_count'] ?? 0);
+            $telesalesIds = $input['telesales_ids'];
+            if ($customerCount <= 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'กรุณาระบุจำนวนลูกค้าที่ต้องการแจก']);
+                exit;
+            }
+            if (!is_array($telesalesIds) || count($telesalesIds) === 0) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'กรุณาเลือก Telesales อย่างน้อย 1 คน']);
+                exit;
+            }
+
+            $result = $distributionService->distributeAverage(
+                $company,
+                $customerCount,
+                $input['date_from'] ?? null,
+                $input['date_to'] ?? null,
+                $telesalesIds,
+                $_SESSION['user_id']
+            );
+
+            echo json_encode($result);
+
+            // If success, log a lightweight debug file for last distribution
+            if (isset($result['success']) && $result['success'] === true) {
+                $debug = [
+                    'at' => date('Y-m-d H:i:s'),
+                    'action' => 'distribute_average',
+                    'company' => $company,
+                    'customer_count' => $customerCount,
+                    'telesales_ids' => $telesalesIds
+                ];
+                @file_put_contents(__DIR__ . '/../cron.log', "[DIST-AVG] " . json_encode($debug, JSON_UNESCAPED_UNICODE) . "\n", FILE_APPEND);
+            }
+            break;
+
+        case 'distribute_request':
+            // แจกลูกค้าตามคำขอ
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                http_response_code(405);
+                echo json_encode(['error' => 'Method not allowed']);
+                exit;
+            }
+
+            $input = json_decode(file_get_contents('php://input'), true);
+
+            if (!$input || !isset($input['company']) || !isset($input['quantity']) || !isset($input['telesales_id'])) {
+                http_response_code(400);
+                echo json_encode(['success' => false, 'message' => 'ข้อมูลไม่ครบถ้วน']);
+                exit;
+            }
+
+            $result = $distributionService->distributeRequest(
+                $input['company'],
+                $input['quantity'],
+                $input['priority'] ?? 'hot_warm_cold',
+                $input['telesales_id'],
+                $_SESSION['user_id']
+            );
+
+            echo json_encode($result);
+
+            // If success, log a lightweight debug file for last distribution
+            if (isset($result['success']) && $result['success'] === true) {
+                $debug = [
+                    'at' => date('Y-m-d H:i:s'),
+                    'action' => 'distribute_request',
+                    'company' => $input['company'],
+                    'quantity' => $input['quantity'],
+                    'priority' => $input['priority'] ?? 'hot_warm_cold',
+                    'telesales_id' => $input['telesales_id']
+                ];
+                @file_put_contents(__DIR__ . '/../cron.log', "[DIST-REQ] " . json_encode($debug, JSON_UNESCAPED_UNICODE) . "\n", FILE_APPEND);
+            }
+            break;
+
         default:
             http_response_code(400);
             echo json_encode(['error' => 'Invalid action']);
             break;
     }
 
-} catch (Exception $e) {
+} catch (Throwable $e) {
+    // Catch all throwables so the client always receives JSON
     error_log("Customer Distribution API Error: " . $e->getMessage());
+    error_log($e->getTraceAsString());
     http_response_code(500);
-    echo json_encode(['error' => 'Internal server error']);
-} 
+    echo json_encode(['success' => false, 'message' => 'Internal server error', 'error' => $e->getMessage()]);
+}

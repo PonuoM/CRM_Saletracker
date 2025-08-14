@@ -52,6 +52,36 @@
 
                 <!-- Tab Content -->
                 <div class="tab-content" id="importExportTabContent">
+                    <?php if (($roleName ?? '') === 'super_admin'): ?>
+                    <div class="alert alert-secondary d-flex align-items-center justify-content-between mt-3">
+                        <div>
+                            <i class="fas fa-building me-2"></i>
+                            <strong>บริษัทปลายทาง:</strong>
+                            <select class="form-select d-inline-block w-auto ms-2" form="importSalesForm" name="company_override">
+                                <option value="">เลือกบริษัท...</option>
+                                <?php foreach (($companies ?? []) as $co): ?>
+                                    <option value="<?php echo htmlspecialchars(isset($co['company_code']) && $co['company_code'] !== '' ? $co['company_code'] : $co['company_name']); ?>"><?php echo htmlspecialchars($co['company_name']); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                            <?php if (($roleName ?? '') === 'super_admin'): ?>
+                            <input type="hidden" form="importCustomersOnlyForm" name="company_override" id="companyOverrideHidden">
+                            <script>
+                            // Keep both forms in sync: when top dropdown changes, update hidden input of customers-only form
+                            (function(){
+                                const topSelect = document.querySelector('select[name="company_override"][form="importSalesForm"]');
+                                const hidden = document.getElementById('companyOverrideHidden');
+                                if (topSelect && hidden) {
+                                    const sync = () => { hidden.value = topSelect.value; };
+                                    topSelect.addEventListener('change', sync);
+                                    sync();
+                                }
+                            })();
+                            </script>
+                            <?php endif; ?>
+                        <small class="text-muted">ไม่เลือก = ใช้บริษัทของผู้ใช้งาน</small>
+                    </div>
+                    <?php endif; ?>
                     <!-- Import Tab -->
                     <div class="tab-pane fade show active" id="import" role="tabpanel">
                         <div class="row mt-4">
@@ -65,13 +95,14 @@
                                         </h5>
                                     </div>
                                     <div class="card-body">
+
                                         <form id="importSalesForm" enctype="multipart/form-data">
                                             <div class="mb-3">
                                                 <label for="salesCsvFile" class="form-label">เลือกไฟล์ CSV</label>
                                                 <input type="file" class="form-control" id="salesCsvFile" name="csv_file" accept=".csv" required>
                                                 <div class="form-text">รองรับไฟล์ CSV เท่านั้น</div>
                                             </div>
-                                            
+
                                             <div class="mb-3">
                                                 <button type="button" class="btn btn-outline-primary btn-sm" onclick="downloadTemplate('sales')">
                                                     <i class="fas fa-download me-1"></i>
@@ -82,18 +113,18 @@
                                                     ดาวน์โหลด Template ยอดขาย (แบบง่าย)
                                                 </button>
                                             </div>
-                                            
+
                                             <button type="submit" class="btn btn-primary">
                                                 <i class="fas fa-upload me-1"></i>
                                                 นำเข้ายอดขาย
                                             </button>
-                                            
+
                                             <a href="test_import_dry_run.php" class="btn btn-warning ms-2">
                                                 <i class="fas fa-flask me-1"></i>
                                                 ทดสอบการนำเข้า (Dry Run)
                                             </a>
                                         </form>
-                                        
+
                                         <div id="salesImportResults" class="mt-3" style="display: none;">
                                             <div class="alert" role="alert">
                                                 <div id="salesImportMessage"></div>
@@ -102,8 +133,9 @@
                                         </div>
                                     </div>
                                 </div>
+
                             </div>
-                            
+
                             <!-- นำเข้าเฉพาะรายชื่อ -->
                             <div class="col-md-6">
                                 <div class="card">
@@ -120,20 +152,20 @@
                                                 <input type="file" class="form-control" id="customersOnlyCsvFile" name="csv_file" accept=".csv" required>
                                                 <div class="form-text">รองรับไฟล์ CSV เท่านั้น</div>
                                             </div>
-                                            
+
                                             <div class="mb-3">
                                                 <button type="button" class="btn btn-outline-primary btn-sm" onclick="downloadTemplate('customers_only')">
                                                     <i class="fas fa-download me-1"></i>
                                                     ดาวน์โหลด Template รายชื่อ
                                                 </button>
                                             </div>
-                                            
+
                                             <button type="submit" class="btn btn-success">
                                                 <i class="fas fa-upload me-1"></i>
                                                 นำเข้าส่วนรายชื่อ
                                             </button>
                                         </form>
-                                        
+
                                         <div id="customersOnlyImportResults" class="mt-3" style="display: none;">
                                             <div class="alert" role="alert">
                                                 <div id="customersOnlyImportMessage"></div>
@@ -144,7 +176,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- คำแนะนำ -->
                         <div class="row mt-4">
                             <div class="col-12">
@@ -181,7 +213,7 @@
                                                 </ul>
                                             </div>
                                         </div>
-                                        
+
                                                                         <div class="row mt-3">
                                     <div class="col-12">
                                         <div class="alert alert-info">
@@ -224,7 +256,7 @@
                                                     <option value="inactive">ไม่ใช้งาน</option>
                                                 </select>
                                             </div>
-                                            
+
                                             <div class="mb-3">
                                                 <label for="customerTemperature" class="form-label">อุณหภูมิ</label>
                                                 <select class="form-select" id="customerTemperature" name="temperature">
@@ -235,7 +267,7 @@
                                                     <option value="frozen">แช่แข็ง</option>
                                                 </select>
                                             </div>
-                                            
+
                                             <div class="mb-3">
                                                 <label for="customerGrade" class="form-label">เกรด</label>
                                                 <select class="form-select" id="customerGrade" name="grade">
@@ -247,7 +279,7 @@
                                                     <option value="D">D</option>
                                                 </select>
                                             </div>
-                                            
+
                                             <button type="submit" class="btn btn-success">
                                                 <i class="fas fa-download me-1"></i>
                                                 ส่งออก CSV
@@ -256,7 +288,7 @@
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="col-md-4">
                                 <div class="card">
                                     <div class="card-header">
@@ -278,17 +310,17 @@
                                                     <option value="cancelled">ยกเลิก</option>
                                                 </select>
                                             </div>
-                                            
+
                                             <div class="mb-3">
                                                 <label for="startDate" class="form-label">วันที่เริ่มต้น</label>
                                                 <input type="date" class="form-control" id="startDate" name="start_date">
                                             </div>
-                                            
+
                                             <div class="mb-3">
                                                 <label for="endDate" class="form-label">วันที่สิ้นสุด</label>
                                                 <input type="date" class="form-control" id="endDate" name="end_date">
                                             </div>
-                                            
+
                                             <button type="submit" class="btn btn-success">
                                                 <i class="fas fa-download me-1"></i>
                                                 ส่งออก CSV
@@ -297,7 +329,7 @@
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="col-md-4">
                                 <div class="card">
                                     <div class="card-header">
@@ -312,18 +344,18 @@
                                                 <label for="summaryStartDate" class="form-label">วันที่เริ่มต้น</label>
                                                 <input type="date" class="form-control" id="summaryStartDate" name="start_date">
                                             </div>
-                                            
+
                                             <div class="mb-3">
                                                 <label for="summaryEndDate" class="form-label">วันที่สิ้นสุด</label>
                                                 <input type="date" class="form-control" id="summaryEndDate" name="end_date">
                                             </div>
-                                            
+
                                             <button type="submit" class="btn btn-success">
                                                 <i class="fas fa-download me-1"></i>
                                                 ส่งออกรายงาน
                                             </button>
                                         </form>
-                                        
+
                                         <div class="mt-3">
                                             <small class="text-muted">
                                                 <i class="fas fa-info-circle me-1"></i>
@@ -349,12 +381,12 @@
                                     </div>
                                     <div class="card-body">
                                         <p class="text-muted">สร้างไฟล์ backup ฐานข้อมูลทั้งหมด</p>
-                                        
+
                                         <button type="button" class="btn btn-primary" id="createBackupBtn">
                                             <i class="fas fa-database me-1"></i>
                                             สร้าง Backup
                                         </button>
-                                        
+
                                         <div id="backupResult" class="mt-3" style="display: none;">
                                             <div class="alert" role="alert">
                                                 <div id="backupMessage"></div>
@@ -363,7 +395,7 @@
                                     </div>
                                 </div>
                             </div>
-                            
+
                             <div class="col-md-6">
                                 <div class="card">
                                     <div class="card-header">
@@ -379,23 +411,23 @@
                                                 <option value="">เลือกไฟล์...</option>
                                                 <?php foreach ($backupFiles as $file): ?>
                                                     <option value="<?php echo htmlspecialchars($file['name']); ?>">
-                                                        <?php echo htmlspecialchars($file['name']); ?> 
+                                                        <?php echo htmlspecialchars($file['name']); ?>
                                                         (<?php echo number_format($file['size'] / 1024, 2); ?> KB)
                                                     </option>
                                                 <?php endforeach; ?>
                                             </select>
                                         </div>
-                                        
+
                                         <button type="button" class="btn btn-warning" id="restoreBackupBtn" disabled>
                                             <i class="fas fa-undo me-1"></i>
                                             Restore
                                         </button>
-                                        
+
                                         <div class="alert alert-warning mt-3">
                                             <i class="fas fa-exclamation-triangle me-2"></i>
                                             <strong>คำเตือน:</strong> การ Restore จะทับข้อมูลปัจจุบันทั้งหมด
                                         </div>
-                                        
+
                                         <div id="restoreResult" class="mt-3" style="display: none;">
                                             <div class="alert" role="alert">
                                                 <div id="restoreMessage"></div>
@@ -405,7 +437,7 @@
                                 </div>
                             </div>
                         </div>
-                        
+
                         <!-- Backup Files List -->
                         <?php if (!empty($backupFiles)): ?>
                         <div class="row mt-4">
@@ -435,7 +467,7 @@
                                                             <td><?php echo number_format($file['size'] / 1024, 2); ?> KB</td>
                                                             <td><?php echo $file['date']; ?></td>
                                                             <td>
-                                                                <button class="btn btn-sm btn-outline-primary restore-file-btn" 
+                                                                <button class="btn btn-sm btn-outline-primary restore-file-btn"
                                                                         data-file="<?php echo htmlspecialchars($file['name']); ?>">
                                                                     <i class="fas fa-undo me-1"></i>
                                                                     Restore
@@ -461,7 +493,7 @@
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="assets/js/page-transitions.js"></script>
     <script src="assets/js/import-export.js"></script>
-    
+
     <script>
     /**
      * Download template and show success message
@@ -472,17 +504,17 @@
         const originalText = button.innerHTML;
         button.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>กำลังดาวน์โหลด...';
         button.disabled = true;
-        
+
         // Create download link
         const link = document.createElement('a');
         link.href = `import-export.php?action=downloadTemplate&type=${type}`;
         link.style.display = 'none';
         document.body.appendChild(link);
-        
+
         // Trigger download
         link.click();
         document.body.removeChild(link);
-        
+
         // Show success message immediately
         const templateNames = {
             'sales': 'Template ยอดขาย (แบบเต็ม)',
@@ -491,9 +523,9 @@
             'customers': 'Template ลูกค้า'
         };
         const templateName = templateNames[type] || 'Template';
-        
+
         showPageMessage(`ดาวน์โหลด${templateName} สำเร็จแล้ว`, 'success');
-        
+
         // Reset button after a short delay
         setTimeout(() => {
             button.innerHTML = originalText;

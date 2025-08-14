@@ -82,6 +82,73 @@ class CustomerController {
         // ใช้ layout หลัก
         include APP_VIEWS . 'layouts/main.php';
     }
+
+    /**
+     * แสดงหน้าแก้ไขข้อมูลพื้นฐานลูกค้า (ชื่อ, เบอร์, ที่อยู่)
+     */
+    public function editBasic($customerId) {
+        if (!isset($_SESSION['user_id'])) { header('Location: login.php'); exit; }
+        $roleName = $_SESSION['role_name'] ?? '';
+        $userId = $_SESSION['user_id'];
+
+        $customer = $this->db->fetchOne(
+            "SELECT c.*, u.full_name as assigned_to_name FROM customers c LEFT JOIN users u ON c.assigned_to = u.user_id WHERE c.customer_id = :customer_id",
+            ['customer_id' => $customerId]
+        );
+        if (!$customer) { $this->showError('ไม่พบลูกค้า','ลูกค้าไม่มีอยู่ในระบบ'); return; }
+        if (($roleName === 'telesales' || $roleName === 'supervisor') && $customer['assigned_to'] != $userId) {
+            $this->showError('ไม่มีสิทธิ์เข้าถึง', 'คุณไม่มีสิทธิ์แก้ไขลูกค้ารายนี้'); return; }
+
+        $pageTitle = 'แก้ไขข้อมูลลูกค้า';
+        ob_start();
+        include APP_VIEWS . 'customers/edit_basic.php';
+        $content = ob_get_clean();
+        include APP_VIEWS . 'layouts/main.php';
+    }
+
+    /**
+     * อัปเดตข้อมูลพื้นฐานลูกค้า (JSON)
+     */
+    public function updateBasic() {
+        header('Content-Type: application/json');
+        try {
+            if (!isset($_SESSION['user_id'])) { echo json_encode(['success'=>false,'message'=>'ไม่ได้รับอนุญาต']); return; }
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') { echo json_encode(['success'=>false,'message'=>'Method not allowed']); return; }
+            $input = json_decode(file_get_contents('php://input'), true);
+            $customerId = (int)($input['customer_id'] ?? 0);
+            if ($customerId <= 0) { echo json_encode(['success'=>false,'message'=>'ไม่พบลูกค้า']); return; }
+
+            $firstName = trim($input['first_name'] ?? '');
+            $lastName = trim($input['last_name'] ?? '');
+            $phoneRaw = preg_replace('/\D+/', '', (string)($input['phone'] ?? ''));
+            $email = trim($input['email'] ?? '');
+            $address = trim($input['address'] ?? '');
+            $province = trim($input['province'] ?? '');
+            $postal = trim($input['postal_code'] ?? '');
+
+            if ($firstName === '' || !preg_match('/^\d{9,10}$/', $phoneRaw)) {
+                echo json_encode(['success'=>false,'message'=>'กรุณากรอกชื่อ และเบอร์โทรให้ถูกต้อง']); return;
+            }
+
+            // ถ้าเป็น 10 หลักขึ้นต้น 0 ให้ตัด 0 ออก เหลือ 9 หลัก ให้สอดคล้องกฎเดิม
+            if (preg_match('/^0\d{9}$/', $phoneRaw)) { $phoneRaw = substr($phoneRaw,1); }
+
+            $this->db->update('customers', [
+                'first_name' => $firstName,
+                'last_name' => $lastName,
+                'phone' => $phoneRaw,
+                'email' => $email,
+                'address' => $address,
+                'province' => $province,
+                'postal_code' => $postal,
+                'updated_at' => date('Y-m-d H:i:s')
+            ], 'customer_id = :id', ['id' => $customerId]);
+
+            echo json_encode(['success'=>true,'message'=>'บันทึกข้อมูลเรียบร้อย']);
+        } catch (Exception $e) {
+            echo json_encode(['success'=>false,'message'=>'เกิดข้อผิดพลาด: '.$e->getMessage()]);
+        }
+    }
     
     /**
      * แสดงหน้ารายละเอียดลูกค้า
@@ -129,14 +196,28 @@ class CustomerController {
         // ดึงกิจกรรมลูกค้าแบบรวม (จากหลายแหล่ง)
         $activities = $this->getCombinedCustomerActivities($customerId);
         
-        // ดึงคำสั่งซื้อ
+        // ดึงคำสั่งซื้อ พร้อมจำนวนรวม (ชิ้น) และสรุปรายการสินค้าแบบย่อ
         $orders = $this->db->fetchAll(
-            "SELECT o.*, COUNT(oi.item_id) as item_count, u.full_name as salesperson_name 
+            "SELECT 
+                o.*, 
+                COALESCE(q.qty_total, 0) AS total_quantity,
+                u.full_name AS salesperson_name,
+                s.item_summary
              FROM orders o 
-             LEFT JOIN order_items oi ON o.order_id = oi.order_id 
              LEFT JOIN users u ON o.created_by = u.user_id 
+             LEFT JOIN (
+                SELECT order_id, SUM(quantity) AS qty_total
+                FROM order_items
+                GROUP BY order_id
+             ) q ON o.order_id = q.order_id
+             LEFT JOIN (
+                SELECT oi.order_id,
+                       GROUP_CONCAT(CONCAT(COALESCE(p.product_name, 'ไม่ทราบสินค้า'), ' × ', oi.quantity) SEPARATOR ', ') AS item_summary
+                FROM order_items oi
+                LEFT JOIN products p ON oi.product_id = p.product_id
+                GROUP BY oi.order_id
+             ) s ON o.order_id = s.order_id
              WHERE o.customer_id = :customer_id 
-             GROUP BY o.order_id 
              ORDER BY o.order_date DESC",
             ['customer_id' => $customerId]
         );
@@ -312,8 +393,8 @@ class CustomerController {
         
         $input = json_decode(file_get_contents('php://input'), true);
         
-        $customerId = $input['customer_id'] ?? null;
-        $callType = $input['call_type'] ?? 'outbound';
+		$customerId = $input['customer_id'] ?? null;
+		$callType = $input['call_type'] ?? 'outbound';
         $callStatus = $input['call_status'] ?? '';
         $callResult = $input['call_result'] ?? null;
         $duration = $input['duration'] ?? 0;
@@ -329,7 +410,32 @@ class CustomerController {
             return;
         }
         
-        try {
+		try {
+			// Map Thai labels to internal codes if needed
+			$statusMap = [
+				'รับสาย' => 'answered',
+				'ไม่รับสาย' => 'no_answer',
+				'สายไม่ว่าง' => 'busy',
+				'ตัดสายทิ้ง' => 'hangup',
+				'ติดต่อไม่ได้' => 'unable_to_contact',
+			];
+			$resultMap = [
+				'สั่งซื้อ' => 'order',
+				'สนใจ' => 'interested',
+				'Add Line แล้ว' => 'add_line',
+				'ต้องการซื้อทางเพจ' => 'buy_on_page',
+				'น้ำท่วม' => 'flood',
+				'รอติดต่อใหม่' => 'callback',
+				'นัดหมาย' => 'appointment',
+				'เบอร์ไม่ถูก' => 'invalid_number',
+				'ไม่สะดวกคุย' => 'not_convenient',
+				'ไม่สนใจ' => 'not_interested',
+				'อย่าโทรมาอีก' => 'do_not_call',
+			];
+            if (isset($statusMap[$callStatus])) $callStatus = $statusMap[$callStatus];
+            if (isset($resultMap[$callResult])) $callResult = $resultMap[$callResult];
+            // Allow full result set; no forced normalization
+
             $data = [
                 'customer_id' => $customerId,
                 'user_id' => $userId,
@@ -352,9 +458,17 @@ class CustomerController {
                 ['customer_id' => $customerId]
             );
             
-            // บันทึกกิจกรรม
+			// บันทึกกิจกรรม
             $this->logCustomerActivity($customerId, $userId, 'call', 
                 "บันทึกการโทร: {$callStatus} - {$notes}");
+
+			// เปลี่ยนสถานะลูกค้าอัตโนมัติ: เมื่อเป็นลูกค้าใหม่และไม่ได้ "สั่งซื้อ" ให้ย้ายไป followup
+			try {
+				$customer = $this->db->fetchOne("SELECT customer_status FROM customers WHERE customer_id = ?", [$customerId]);
+				if (($customer['customer_status'] ?? '') === 'new' && $callResult !== 'order') {
+					$this->db->execute("UPDATE customers SET customer_status = 'followup' WHERE customer_id = ?", [$customerId]);
+				}
+			} catch (Exception $e) { /* ignore */ }
             
             echo json_encode([
                 'success' => true,
@@ -445,7 +559,15 @@ class CustomerController {
 
         // สำหรับ telesales ใช้ service โดยตรง (ตามผู้ใช้)
         if ($roleName === 'telesales') {
-            $data = $this->customerService->getFollowUpCustomers($userId);
+            // ส่ง filters ผ่านมาเพื่อเลี่ยงโหลดเกินและให้กรองฝั่งเซิร์ฟเวอร์
+            $filters = [
+                'temperature' => $_GET['temperature'] ?? null,
+                'grade' => $_GET['grade'] ?? null,
+                'province' => $_GET['province'] ?? null,
+                'name' => $_GET['name'] ?? null,
+                'phone' => $_GET['phone'] ?? null,
+            ];
+            $data = $this->customerService->getFollowUpCustomers($userId, $filters);
             echo json_encode(['success' => true, 'data' => $data]);
             return;
         }
@@ -758,6 +880,8 @@ class CustomerController {
             case 'answered': return 'รับสาย';
             case 'no_answer': return 'ไม่รับสาย';
             case 'busy': return 'สายไม่ว่าง';
+            case 'hangup': return 'ตัดสายทิ้ง';
+            case 'unable_to_contact': return 'ติดต่อไม่ได้';
             case 'invalid': return 'เบอร์ไม่ถูกต้อง';
             default: return 'ไม่ระบุ';
         }
@@ -769,10 +893,18 @@ class CustomerController {
     private function getCallResultText($result) {
         if (!$result) return '';
         switch ($result) {
-            case 'interested': return 'สนใจ';
-            case 'not_interested': return 'ไม่สนใจ';
-            case 'callback': return 'โทรกลับ';
             case 'order': return 'สั่งซื้อ';
+            case 'interested': return 'สนใจ';
+            case 'add_line': return 'Add Line แล้ว';
+            case 'buy_on_page': return 'ต้องการซื้อทางเพจ';
+            case 'flood': return 'น้ำท่วม';
+            case 'callback': return 'รอติดต่อใหม่';
+            case 'appointment': return 'นัดหมาย';
+            case 'invalid_number': return 'เบอร์ไม่ถูก';
+            case 'not_convenient': return 'ไม่สะดวกคุย';
+            case 'order': return 'สั่งซื้อ';
+            case 'not_interested': return 'ไม่สนใจ';
+            case 'do_not_call': return 'อย่าโทรมาอีก';
             case 'complaint': return 'ร้องเรียน';
             default: return $result;
         }
