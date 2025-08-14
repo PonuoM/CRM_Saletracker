@@ -1631,6 +1631,108 @@ class ImportExportService {
     }
 
     /**
+     * Import call logs from CSV, matching customers by customer_code
+     */
+    public function importCallLogsFromCSV($filePath) {
+        $results = ['success'=>1,'total'=>0,'inserted'=>0,'skipped'=>0,'errors'=>[]];
+        try {
+            if (!file_exists($filePath)) { throw new Exception('ไม่พบไฟล์อัปโหลด'); }
+            $lines = file($filePath, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+            if (!$lines || count($lines) < 2) { throw new Exception('ไฟล์ว่างหรือไม่มีข้อมูล'); }
+            // Strip UTF-8 BOM if present on first line
+            if (isset($lines[0]) && substr($lines[0], 0, 3) === "\xEF\xBB\xBF") {
+                $lines[0] = substr($lines[0], 3);
+            }
+            $headers = str_getcsv(trim($lines[0]));
+            // Build both raw and normalized header maps
+            $map = [];
+            foreach ($headers as $idx => $h) {
+                $clean = preg_replace('/^\xEF\xBB\xBF/u', '', (string)$h);
+                $map[strtolower(trim($clean))] = $idx;
+            }
+            $normalize = function($s){ return preg_replace('/[^a-z0-9]+/','', strtolower((string)$s)); };
+            $normalizedMap = [];
+            foreach ($map as $k => $idx) { $normalizedMap[$normalize($k)] = $idx; }
+
+            $userId = $_SESSION['user_id'] ?? 0;
+            for ($i=1; $i<count($lines); $i++) {
+                $results['total']++;
+                $row = str_getcsv($lines[$i]);
+                // Getter that tolerates header variants: underscores/spaces/case/BOM
+                $get = function($key) use($normalizedMap,$row,$normalize){
+                    $nk = $normalize($key);
+                    if (!isset($normalizedMap[$nk])) { return ''; }
+                    $idx = $normalizedMap[$nk];
+                    return isset($row[$idx]) ? trim($row[$idx]) : '';
+                };
+                $customerCode = $get('customer_code');
+                if ($customerCode === '') { $results['skipped']++; $results['errors'][] = "บรรทัด $i: ไม่มี customer_code"; continue; }
+                $customer = $this->db->fetchOne("SELECT customer_id FROM customers WHERE customer_code = ? LIMIT 1", [$customerCode]);
+                if (!$customer) { $results['skipped']++; $results['errors'][] = "บรรทัด $i: ไม่พบลูกค้า $customerCode"; continue; }
+                $customerId = (int)$customer['customer_id'];
+
+                // Normalize enums (accept Thai and English)
+                $rawType = $get('call_type');
+                $rawStatus = $get('call_status');
+                $rawResult = $get('call_result');
+
+                $callType = $this->mapCallTypeEnum($rawType);
+                $callStatus = $this->mapCallStatusEnum($rawStatus);
+                $callResult = $this->mapCallResultEnum($rawResult);
+
+                if ($callStatus === '') { $results['skipped']++; $results['errors'][] = "บรรทัด $i: call_status ไม่ถูกต้อง"; continue; }
+                if ($rawResult !== '' && $callResult === '') { $results['skipped']++; $results['errors'][] = "บรรทัด $i: call_result ไม่ถูกต้อง"; continue; }
+
+                $duration = (int)$get('duration_minutes');
+                $notes = $get('notes');
+                $nextAction = $get('next_action');
+                $nextFollowup = $get('next_followup_at');
+                $createdAt = $get('called_at');
+                $recordedBy = $get('recorded_by');
+                $useUserId = $userId;
+                if ($recordedBy !== '') {
+                    if (ctype_digit($recordedBy)) { $useUserId = (int)$recordedBy; }
+                    else { $u = $this->db->fetchOne("SELECT user_id FROM users WHERE username = ? OR full_name = ? LIMIT 1", [$recordedBy,$recordedBy]); if ($u) $useUserId = (int)$u['user_id']; }
+                }
+
+                // Insert
+                $this->db->insert('call_logs', [
+                    'customer_id' => $customerId,
+                    'user_id' => $useUserId,
+                    'call_type' => $callType,
+                    'call_status' => $callStatus,
+                    'call_result' => ($callResult !== '' ? $callResult : null),
+                    'duration_minutes' => $duration,
+                    'notes' => $notes,
+                    'next_action' => $nextAction,
+                    'next_followup_at' => ($nextFollowup !== '' ? $nextFollowup : null),
+                    'created_at' => ($createdAt !== '' ? $createdAt : date('Y-m-d H:i:s'))
+                ]);
+
+                // Update last_contact_at
+                $this->db->execute("UPDATE customers SET last_contact_at = GREATEST(COALESCE(last_contact_at,'1970-01-01'), ?) WHERE customer_id = ?", [($createdAt !== '' ? $createdAt : date('Y-m-d H:i:s')), $customerId]);
+
+                // Auto followup for new customers without order result
+                if ($callResult !== 'order') {
+                    try {
+                        $cust = $this->db->fetchOne("SELECT customer_status FROM customers WHERE customer_id = ?", [$customerId]);
+                        if (($cust['customer_status'] ?? '') === 'new') {
+                            $this->db->execute("UPDATE customers SET customer_status = 'followup' WHERE customer_id = ?", [$customerId]);
+                        }
+                    } catch (Exception $e) { /* ignore */ }
+                }
+
+                $results['inserted']++;
+            }
+
+            return $results;
+        } catch (Exception $e) {
+            $results['success'] = 0;
+            $results['errors'][] = $e->getMessage();
+            return $results;
+        }
+    }
+    /**
      * Resolve product_id from code or name; return null if not found
      */
     private function resolveProductId($productCode, $productName) {
@@ -1763,6 +1865,74 @@ class ImportExportService {
         ];
 
         return $mapping[$paymentStatus] ?? 'pending';
+    }
+
+    /**
+     * Map Call Type (Thai/English) → enum: outbound|inbound
+     */
+    private function mapCallTypeEnum($value) {
+        $v = trim(mb_strtolower((string)$value));
+        if ($v === '') return 'outbound';
+        $mapping = [
+            'ออกโทร' => 'outbound',
+            'โทรออก' => 'outbound',
+            'โทรออกไป' => 'outbound',
+            'ขาออก' => 'outbound',
+            'โทรเข้า' => 'inbound',
+            'รับสายเข้า' => 'inbound',
+            'ขาเข้า' => 'inbound',
+            // English
+            'outbound' => 'outbound',
+            'inbound' => 'inbound'
+        ];
+        return $mapping[$v] ?? 'outbound';
+    }
+
+    /**
+     * Map Call Status (Thai/English) → enum: answered|no_answer|busy|invalid
+     */
+    private function mapCallStatusEnum($value) {
+        $v = trim(mb_strtolower((string)$value));
+        $mapping = [
+            // Thai
+            'รับสาย' => 'answered',
+            'รับแล้ว' => 'answered',
+            'ติดสาย' => 'busy',
+            'สายไม่ว่าง' => 'busy',
+            'ไม่รับสาย' => 'no_answer',
+            'ไม่รับ' => 'no_answer',
+            'เบอร์ผิด' => 'invalid',
+            'ไม่ถูกต้อง' => 'invalid',
+            // English
+            'answered' => 'answered',
+            'no_answer' => 'no_answer',
+            'busy' => 'busy',
+            'invalid' => 'invalid'
+        ];
+        return $mapping[$v] ?? '';
+    }
+
+    /**
+     * Map Call Result (Thai/English) → enum: interested|not_interested|callback|order|complaint
+     */
+    private function mapCallResultEnum($value) {
+        $v = trim(mb_strtolower((string)$value));
+        if ($v === '') return '';
+        $mapping = [
+            // Thai
+            'สนใจ' => 'interested',
+            'ไม่สนใจ' => 'not_interested',
+            'โทรกลับ' => 'callback',
+            'สั่งซื้อ' => 'order',
+            'ร้องเรียน' => 'complaint',
+            // English
+            'interested' => 'interested',
+            'not_interested' => 'not_interested',
+            'callback' => 'callback',
+            'order' => 'order',
+            'complaint' => 'complaint'
+        ];
+        return $mapping[$v] ?? '';
     }
 
     /**

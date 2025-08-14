@@ -124,6 +124,16 @@ try {
             ob_end_clean();
             $controller->downloadTemplate();
             break;
+
+        case 'importCallLogs':
+            ob_end_clean();
+            header('Content-Type: application/json; charset=utf-8');
+            header('Access-Control-Allow-Origin: *');
+            header('Access-Control-Allow-Methods: POST');
+            header('Access-Control-Allow-Headers: Content-Type');
+            $controller->requireImportPermission();
+            $controller->importCallLogs();
+            break;
             
         default:
             // Clear any previous output

@@ -48,6 +48,11 @@
                             <i class="fas fa-database me-2"></i>Backup/Restore
                         </button>
                     </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="calllogs-tab" data-bs-toggle="tab" data-bs-target="#calllogs" type="button" role="tab">
+                            <i class="fas fa-phone me-2"></i>ประวัติการโทร
+                        </button>
+                    </li>
                 </ul>
 
                 <!-- Tab Content -->
@@ -483,6 +488,38 @@
                             </div>
                         </div>
                         <?php endif; ?>
+                    </div>
+
+                    <!-- Call Logs Tab -->
+                    <div class="tab-pane fade" id="calllogs" role="tabpanel">
+                        <div class="row mt-4">
+                            <div class="col-md-8">
+                                <div class="card">
+                                    <div class="card-header">
+                                        <h5 class="mb-0"><i class="fas fa-phone me-2"></i>นำเข้าประวัติการโทร</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <form id="importCallLogsForm" enctype="multipart/form-data">
+                                            <div class="mb-3">
+                                                <label class="form-label" for="callLogsCsvFile">เลือกไฟล์ CSV</label>
+                                                <input type="file" class="form-control" id="callLogsCsvFile" name="csv_file" accept=".csv" required>
+                                                <div class="form-text">หัวตาราง: customer_code, call_type, call_status, call_result, duration_minutes, notes, next_action, next_followup_at, called_at, recorded_by</div>
+                                            </div>
+                                            <div class="mb-3">
+                                                <button type="button" class="btn btn-outline-primary btn-sm" onclick="downloadTemplate('call_logs')"><i class="fas fa-download me-1"></i>ดาวน์โหลด Template ประวัติการโทร</button>
+                                            </div>
+                                            <button type="submit" class="btn btn-primary"><i class="fas fa-upload me-1"></i>นำเข้า Call Logs</button>
+                                        </form>
+                                        <div id="callLogsImportResults" class="mt-3" style="display:none;">
+                                            <div class="alert" role="alert">
+                                                <div id="callLogsImportMessage"></div>
+                                                <div id="callLogsImportDetails" class="mt-2"></div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </main>

@@ -693,6 +693,11 @@ class ImportExportController {
                 'filename' => 'customers_template.csv',
                 'headers' => ['ชื่อ', 'นามสกุล', 'เบอร์โทรศัพท์', 'อีเมล', 'ที่อยู่', 'จังหวัด', 'รหัสไปรษณีย์', 'หมายเหตุ', 'รหัสสินค้า', 'ผู้ติดตาม'],
                 'sample' => ['สมหญิง', 'รักดี', '081-222-2222', 'somying@email.com', '456 ถนนรัชดา', 'กรุงเทพฯ', '10400', 'ลูกค้าใหม่', 'PROD002', 'พนักงานขาย2']
+            ],
+            'call_logs' => [
+                'filename' => 'call_logs_template.csv',
+                'headers' => ['customer_code','call_type','call_status','call_result','duration_minutes','notes','next_action','next_followup_at','called_at','recorded_by'],
+                'sample' => ['CUS812345678','outbound','answered','interested','3','สนใจสินค้า A','นัดติดตาม','2025-08-20 14:00:00','2025-08-14 10:30:00','telesales1']
             ]
         ];
 
@@ -721,6 +726,40 @@ class ImportExportController {
         fputcsv($output, $template['sample']);
 
         fclose($output);
+    }
+
+    /**
+     * นำเข้าประวัติการโทรจาก CSV (อ้างอิง customer_code)
+     */
+    public function importCallLogs() {
+        try {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                http_response_code(405);
+                echo json_encode(['error' => 'Method not allowed']);
+                return;
+            }
+
+            if (!isset($_FILES['csv_file']) || $_FILES['csv_file']['error'] !== UPLOAD_ERR_OK) {
+                echo json_encode(['error' => 'กรุณาเลือกไฟล์ CSV']);
+                return;
+            }
+
+            $file = $_FILES['csv_file'];
+            $uploadDir = __DIR__ . '/../../uploads/';
+            if (!is_dir($uploadDir)) mkdir($uploadDir, 0777, true);
+            $uploadedFile = $uploadDir . 'call_logs_' . date('Y-m-d_H-i-s') . '.csv';
+            if (is_uploaded_file($file['tmp_name'])) {
+                move_uploaded_file($file['tmp_name'], $uploadedFile);
+            } else {
+                copy($file['tmp_name'], $uploadedFile);
+            }
+
+            $results = $this->importExportService->importCallLogsFromCSV($uploadedFile);
+            if (file_exists($uploadedFile)) unlink($uploadedFile);
+            echo json_encode($results);
+        } catch (Exception $e) {
+            echo json_encode(['success'=>0,'error'=>$e->getMessage()]);
+        }
     }
 
     /**

@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeSalesImportForm();
     initializeCustomersOnlyImportForm();
     initializeBackupRestore();
+    initializeCallLogsImportForm();
     
     // Initialize backup button
     const createBackupBtn = document.getElementById('createBackupBtn');
@@ -50,6 +51,40 @@ function showPageMessage(message, type = 'success') {
             messageDiv.remove();
         }
     }, 5000);
+}
+
+// Initialize Call Logs Import
+function initializeCallLogsImportForm() {
+    const form = document.getElementById('importCallLogsForm');
+    if (!form) return;
+    form.addEventListener('submit', function(e) {
+        e.preventDefault();
+        const formData = new FormData(form);
+        const box = document.getElementById('callLogsImportResults');
+        const msg = document.getElementById('callLogsImportMessage');
+        const details = document.getElementById('callLogsImportDetails');
+        box.style.display = 'block';
+        box.querySelector('.alert').className = 'alert alert-info';
+        msg.innerHTML = '<i class="fas fa-spinner fa-spin me-2"></i>กำลังนำเข้าประวัติการโทร...';
+        details.innerHTML = '';
+        fetch('import-export.php?action=importCallLogs', { method: 'POST', body: formData })
+            .then(r => r.json())
+            .then(data => {
+                const ok = (data.success && String(data.success) !== '0');
+                box.querySelector('.alert').className = 'alert ' + (ok ? 'alert-success' : 'alert-danger');
+                msg.textContent = ok
+                    ? `นำเข้าเรียบร้อย: รวม ${data.total||0} แถว, แทรก ${data.inserted||0}, ข้าม ${data.skipped||0}`
+                    : (data.error || 'เกิดข้อผิดพลาด');
+                const errs = data.errors || [];
+                details.innerHTML = errs.length ? `<ul class="mb-0">${errs.slice(0,50).map(e => `<li>${e}</li>`).join('')}</ul>` : '';
+                if (ok) form.reset();
+            })
+            .catch(() => {
+                box.querySelector('.alert').className = 'alert alert-danger';
+                msg.textContent = 'เชื่อมต่อเซิร์ฟเวอร์ไม่สำเร็จ';
+                details.innerHTML = '';
+            });
+    });
 }
 
 /**
