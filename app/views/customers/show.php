@@ -39,7 +39,7 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
         <a href="customers.php" class="btn btn-outline-secondary me-2">
             <i class="fas fa-arrow-left me-1"></i>กลับ
         </a>
-        <button class="btn btn-success me-2" id="logCallBtn" data-customer-id="<?php echo $customer['customer_id']; ?>">
+        <button class="btn btn-success me-2 log-call-btn" id="logCallBtn" data-customer-id="<?php echo $customer['customer_id']; ?>">
             <i class="fas fa-phone me-1"></i>บันทึกการโทร
         </button>
         <button class="btn btn-info me-2" id="createAppointmentBtn" data-customer-id="<?php echo $customer['customer_id']; ?>">
@@ -159,13 +159,31 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                             $label = '';
                             $colorClass = 'text-muted';
                             if ($expiry) {
-                                $days = (int) floor((strtotime($expiry) - time()) / 86400);
-                                $label = ($days >= 0) ? "{$days} วัน" : ("เกินกำหนด " . abs($days) . " วัน");
-                                $colorClass = ($days < 0) ? 'text-danger' : (($days <= 3) ? 'text-warning' : 'text-info');
+                                $expTs = strtotime($expiry);
+                                $nowTs = time();
+                                if ($expTs >= $nowTs) {
+                                    $days = (int) ceil(($expTs - $nowTs) / 86400);
+                                    if ($days < 0) { $days = 0; }
+                                    $label = "{$days} วัน";
+                                    $colorClass = ($days <= 3) ? 'text-warning' : 'text-info';
+                                } else {
+                                    $daysOver = (int) floor(($nowTs - $expTs) / 86400);
+                                    $label = "เกินกำหนด {$daysOver} วัน";
+                                    $colorClass = 'text-danger';
+                                }
                             } elseif ($follow) {
-                                $days = (int) floor((strtotime($follow) - time()) / 86400);
-                                $label = ($days >= 0) ? "ติดตามใน {$days} วัน" : ("เกินกำหนด " . abs($days) . " วัน");
-                                $colorClass = ($days < 0) ? 'text-danger' : (($days <= 3) ? 'text-warning' : 'text-info');
+                                $folTs = strtotime($follow);
+                                $nowTs = time();
+                                if ($folTs >= $nowTs) {
+                                    $days = (int) ceil(($folTs - $nowTs) / 86400);
+                                    if ($days < 0) { $days = 0; }
+                                    $label = "ติดตามใน {$days} วัน";
+                                    $colorClass = ($days <= 3) ? 'text-warning' : 'text-info';
+                                } else {
+                                    $daysOver = (int) floor(($nowTs - $folTs) / 86400);
+                                    $label = "เกินกำหนด {$daysOver} วัน";
+                                    $colorClass = 'text-danger';
+                                }
                             } else {
                                 $label = '-';
                             }
@@ -208,7 +226,7 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                     <div class="tab-pane fade show active" id="call-history" role="tabpanel" aria-labelledby="call-history-tab">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h6 class="mb-0">ประวัติการโทรล่าสุด</h6>
-                            <button class="btn btn-sm btn-primary" id="logCallBtn" data-customer-id="<?php echo $customer['customer_id']; ?>">
+                            <button class="btn btn-sm btn-primary log-call-btn" data-customer-id="<?php echo $customer['customer_id']; ?>">
                                 <i class="fas fa-phone me-1"></i>บันทึกการโทร
                             </button>
                         </div>
@@ -294,7 +312,7 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                     <div class="tab-pane fade" id="appointments" role="tabpanel" aria-labelledby="appointments-tab">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h6 class="mb-0">รายการนัดหมายล่าสุด</h6>
-                            <button class="btn btn-sm btn-info" id="addAppointmentBtn" data-customer-id="<?php echo $customer['customer_id']; ?>">
+            <button class="btn btn-sm btn-info add-appointment-btn" data-customer-id="<?php echo $customer['customer_id']; ?>">
                                 <i class="fas fa-plus me-1"></i>เพิ่มนัดหมาย
                             </button>
                         </div>
@@ -312,7 +330,7 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                     <div class="tab-pane fade" id="orders" role="tabpanel" aria-labelledby="orders-tab">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h6 class="mb-0">ประวัติคำสั่งซื้อล่าสุด</h6>
-                            <button class="btn btn-sm btn-warning" id="addOrderBtn" data-customer-id="<?php echo $customer['customer_id']; ?>">
+            <button class="btn btn-sm btn-warning add-order-btn" data-customer-id="<?php echo $customer['customer_id']; ?>">
                                 <i class="fas fa-plus me-1"></i>สร้างคำสั่งซื้อ
                             </button>
                         </div>

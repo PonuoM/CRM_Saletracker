@@ -101,7 +101,7 @@
                                     </div>
                                     <div class="card-body">
 
-                                        <form id="importSalesForm" enctype="multipart/form-data">
+                                        <form id="importSalesForm" class="ajax-form no-transition" enctype="multipart/form-data">
                                             <div class="mb-3">
                                                 <label for="salesCsvFile" class="form-label">เลือกไฟล์ CSV</label>
                                                 <input type="file" class="form-control" id="salesCsvFile" name="csv_file" accept=".csv" required>
@@ -151,7 +151,7 @@
                                         </h5>
                                     </div>
                                     <div class="card-body">
-                                        <form id="importCustomersOnlyForm" enctype="multipart/form-data">
+                                         <form id="importCustomersOnlyForm" class="ajax-form no-transition" enctype="multipart/form-data">
                                             <div class="mb-3">
                                                 <label for="customersOnlyCsvFile" class="form-label">เลือกไฟล์ CSV</label>
                                                 <input type="file" class="form-control" id="customersOnlyCsvFile" name="csv_file" accept=".csv" required>
@@ -499,7 +499,7 @@
                                         <h5 class="mb-0"><i class="fas fa-phone me-2"></i>นำเข้าประวัติการโทร</h5>
                                     </div>
                                     <div class="card-body">
-                                        <form id="importCallLogsForm" enctype="multipart/form-data">
+                                        <form id="importCallLogsForm" class="ajax-form no-transition" enctype="multipart/form-data">
                                             <div class="mb-3">
                                                 <label class="form-label" for="callLogsCsvFile">เลือกไฟล์ CSV</label>
                                                 <input type="file" class="form-control" id="callLogsCsvFile" name="csv_file" accept=".csv" required>

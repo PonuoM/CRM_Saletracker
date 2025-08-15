@@ -5,11 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title><?php echo $pageTitle ?? 'CRM SalesTracker'; ?></title>
 
-    <!-- Font Preloading to prevent FOUT -->
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link rel="preload" href="https://fonts.googleapis.com/css2?family=Sukhumvit+Set:wght@300;400;500;600;700&display=swap" as="style" onload="this.onload=null;this.rel='stylesheet'">
-    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Sukhumvit+Set:wght@300;400;500;600;700&display=swap"></noscript>
+    <!-- Preload local Sukhumvit Set fonts to reduce FOUT/FOIT -->
+    <link rel="preload" href="assets/fonts/SukhumvitSet-Light.ttf" as="font" type="font/ttf" crossorigin>
+    <link rel="preload" href="assets/fonts/SukhumvitSet-Text.ttf" as="font" type="font/ttf" crossorigin>
+    <link rel="preload" href="assets/fonts/SukhumvitSet-Medium.ttf" as="font" type="font/ttf" crossorigin>
+    <link rel="preload" href="assets/fonts/SukhumvitSet-SemiBold.ttf" as="font" type="font/ttf" crossorigin>
+    <link rel="preload" href="assets/fonts/SukhumvitSet-Bold.ttf" as="font" type="font/ttf" crossorigin>
 
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
@@ -29,7 +30,7 @@
         <?php include APP_VIEWS . 'components/sidebar.php'; ?>
 
         <!-- Main Content -->
-        <main class="main-content">
+        <main class="main-content page-transition">
             <?php echo $content ?? ''; ?>
         </main>
     </div>
@@ -37,6 +38,7 @@
     <!-- Scripts -->
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="assets/js/page-transitions.js"></script>
     <script src="assets/js/sidebar.js"></script>
     <?php if (isset($bodyClass) && $bodyClass === 'customer-page-body'): ?>
         <script src="assets/js/customers.js"></script>
@@ -48,12 +50,10 @@
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Main layout loaded');
             
-            // Log Call Button
-            const logCallBtn = document.getElementById('logCallBtn');
-            if (logCallBtn) {
-                logCallBtn.addEventListener('click', function() {
+            // Log Call Buttons (support multiple on page)
+            document.querySelectorAll('.log-call-btn').forEach(function(btn){
+                btn.addEventListener('click', function() {
                     const customerId = this.getAttribute('data-customer-id');
-                    console.log('Log Call button clicked for customer:', customerId);
                     if (typeof window.logCall === 'function') {
                         window.logCall(customerId);
                     } else {
@@ -61,7 +61,7 @@
                         alert('เกิดข้อผิดพลาด: ฟังก์ชัน logCall ไม่ได้ถูกโหลด');
                     }
                 });
-            }
+            });
             
             // Add Call Log Button
             const addCallLogBtn = document.getElementById('addCallLogBtn');
@@ -78,12 +78,10 @@
                 });
             }
             
-            // Create Appointment Button
-            const createAppointmentBtn = document.getElementById('createAppointmentBtn');
-            if (createAppointmentBtn) {
-                createAppointmentBtn.addEventListener('click', function() {
+            // Create Appointment Buttons
+            document.querySelectorAll('.add-appointment-btn, #createAppointmentBtn').forEach(function(btn){
+                btn.addEventListener('click', function(){
                     const customerId = this.getAttribute('data-customer-id');
-                    console.log('Create Appointment button clicked for customer:', customerId);
                     if (typeof window.createAppointment === 'function') {
                         window.createAppointment(customerId);
                     } else {
@@ -91,7 +89,7 @@
                         alert('เกิดข้อผิดพลาด: ฟังก์ชัน createAppointment ไม่ได้ถูกโหลด');
                     }
                 });
-            }
+            });
             
             // Create Order Button
             const createOrderBtn = document.getElementById('createOrderBtn');
@@ -108,12 +106,10 @@
                 });
             }
             
-            // Add Order Button
-            const addOrderBtn = document.getElementById('addOrderBtn');
-            if (addOrderBtn) {
-                addOrderBtn.addEventListener('click', function() {
+            // Add Order Buttons
+            document.querySelectorAll('.add-order-btn, #addOrderBtn, #createOrderBtn').forEach(function(btn){
+                btn.addEventListener('click', function(){
                     const customerId = this.getAttribute('data-customer-id');
-                    console.log('Add Order button clicked for customer:', customerId);
                     if (typeof window.createOrder === 'function') {
                         window.createOrder(customerId);
                     } else {
@@ -121,7 +117,7 @@
                         alert('เกิดข้อผิดพลาด: ฟังก์ชัน createOrder ไม่ได้ถูกโหลด');
                     }
                 });
-            }
+            });
             
             // Submit Call Log Button
             const submitCallLogBtn = document.getElementById('submitCallLogBtn');

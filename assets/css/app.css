@@ -108,29 +108,17 @@
   --transition: all 0.3s ease;
 }
 
-/* FOUT Prevention Styles */
-.fonts-loading {
-  /* Hide text briefly while fonts load to prevent FOUT */
-  visibility: hidden;
+/* Reduce layout shift from scrollbar appearance (Windows/desktop) */
+html {
+  scrollbar-gutter: stable both-edges;
 }
 
+/* FOUT mitigation: use font-display: swap on @font-face + keep content visible */
+.fonts-loading { }
 .fonts-loading .sidebar,
-.fonts-loading .main-content {
-  /* Show critical UI elements even during font loading */
-  visibility: visible;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
-
-.fonts-loaded {
-  /* Show everything once fonts are loaded */
-  visibility: visible;
-}
-
-.fonts-fallback {
-  /* Fallback state if fonts fail to load */
-  visibility: visible;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-}
+.fonts-loading .main-content { }
+.fonts-loaded { }
+.fonts-fallback { }
 
 /* Helpers */
 .text-ellipsis {
@@ -160,18 +148,8 @@ body {
 
 /* Page Transitions */
 .page-transition {
-  animation: fadeIn 0.3s ease-in-out;
-}
-
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(10px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
+  opacity: 1;
+  transform: none;
 }
 
 /* Typography */

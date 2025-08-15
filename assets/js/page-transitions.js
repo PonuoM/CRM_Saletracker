@@ -4,57 +4,53 @@
  */
 
 $(document).ready(function() {
-    // Add fade-in animation to main content
-    $('.page-transition').addClass('fadeIn');
-    
-    // Smooth page transitions for all admin links
-    $('a[href*="admin.php"]').on('click', function(e) {
-        const href = $(this).attr('href');
-        if (href && !href.includes('#')) {
-            e.preventDefault();
-            
-            // Add fade-out animation
-            $('.page-transition').css({
-                'opacity': '0',
-                'transform': 'translateY(-10px)',
-                'transition': 'all 0.2s ease-out'
-            });
-            
-            // Navigate after animation
-            setTimeout(function() {
-                window.location.href = href;
-            }, 200);
-        }
-    });
-    
-    // Smooth transitions for form submissions
-    $('form').on('submit', function() {
-        $('.page-transition').css({
-            'opacity': '0',
-            'transform': 'translateY(-10px)',
-            'transition': 'all 0.2s ease-out'
+    // Add subtle fade-in (reduced distance/time)
+    const $pt = $('.page-transition');
+    $pt.css({'opacity':'0.96','transform':'translateY(2px)'});
+    requestAnimationFrame(function(){
+        $pt.css({
+            'opacity': '1',
+            'transform': 'translateY(0)',
+            'transition': 'opacity 120ms ease-out, transform 120ms ease-out'
         });
     });
     
-    // Smooth transitions for other navigation links
-    $('a[href*="dashboard.php"], a[href*="customers.php"], a[href*="orders.php"], a[href*="reports.php"], a[href*="import-export.php"]').on('click', function(e) {
+    // Smooth page transitions for all internal links (same origin)
+    $('a[href]:not([target])').on('click', function(e) {
         const href = $(this).attr('href');
-        if (href && !href.includes('#')) {
+        if (!href || href.startsWith('#') || href.startsWith('mailto:') || href.startsWith('tel:')) return;
+        const isSameOrigin = this.origin === window.location.origin;
+        if (isSameOrigin) {
             e.preventDefault();
             
             // Add fade-out animation
-            $('.page-transition').css({
-                'opacity': '0',
-                'transform': 'translateY(-10px)',
-                'transition': 'all 0.2s ease-out'
+            $pt.css({
+                'opacity': '0.0',
+                'transform': 'translateY(3px)',
+                'transition': 'opacity 100ms ease-in, transform 100ms ease-in'
             });
             
             // Navigate after animation
             setTimeout(function() {
                 window.location.href = href;
-            }, 200);
+            }, 100);
         }
     });
+    
+    // Smooth transitions for form submissions (skip AJAX/no-transition forms)
+    $('form').on('submit', function() {
+        const $f = $(this);
+        if ($f.hasClass('no-transition') || $f.attr('data-transition') === 'none' || $f.hasClass('ajax-form') || $f.data('ajax') === true) {
+            return; // do not fade-out for AJAX forms
+        }
+        $('.page-transition').css({
+            'opacity': '0',
+            'transform': 'translateY(-6px)',
+            'transition': 'opacity 100ms ease-in, transform 100ms ease-in'
+        });
+    });
+    
+    // Remove specific-page selector; handled by global handler above
     
     // Add hover effects to buttons
     $('.btn').hover(
