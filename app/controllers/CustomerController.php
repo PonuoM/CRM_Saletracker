@@ -7,16 +7,24 @@
 require_once __DIR__ . '/../core/Auth.php';
 require_once __DIR__ . '/../core/Database.php';
 require_once __DIR__ . '/../services/CustomerService.php';
+require_once __DIR__ . '/../services/TagService.php';
 
 class CustomerController {
     private $db;
     private $auth;
     private $customerService;
+    private $tagService;
     
     public function __construct() {
-        $this->db = new Database();
-        $this->auth = new Auth($this->db);
-        $this->customerService = new CustomerService();
+        try {
+            $this->db = new Database();
+            $this->auth = new Auth($this->db);
+            $this->customerService = new CustomerService();
+            $this->tagService = new TagService();
+        } catch (Exception $e) {
+            error_log("CustomerController constructor error: " . $e->getMessage());
+            throw $e;
+        }
     }
     
     /**
@@ -40,13 +48,16 @@ class CustomerController {
             case 'admin':
             case 'super_admin':
                 // Admin เห็นลูกค้าทั้งหมด
-                $customers = $this->customerService->getCustomersByBasket('distribution');
+                $customers = $this->customerService->getCustomersByBasket('distribution', ['current_user_id' => $userId]);
                 break;
 
             case 'supervisor':
             case 'telesales':
                 // Supervisor และ Telesales เห็นเฉพาะลูกค้าที่ได้รับมอบหมายให้ตัวเอง
-                $customers = $this->customerService->getCustomersByBasket('assigned', ['assigned_to' => $userId]);
+                $customers = $this->customerService->getCustomersByBasket('assigned', [
+                    'assigned_to' => $userId,
+                    'current_user_id' => $userId
+                ]);
                 $followUpCustomers = $this->customerService->getFollowUpCustomers($userId);
                 break;
         }
@@ -902,7 +913,6 @@ class CustomerController {
             case 'appointment': return 'นัดหมาย';
             case 'invalid_number': return 'เบอร์ไม่ถูก';
             case 'not_convenient': return 'ไม่สะดวกคุย';
-            case 'order': return 'สั่งซื้อ';
             case 'not_interested': return 'ไม่สนใจ';
             case 'do_not_call': return 'อย่าโทรมาอีก';
             case 'complaint': return 'ร้องเรียน';
@@ -1013,6 +1023,246 @@ class CustomerController {
      */
     private function showError($title, $message) {
         include APP_VIEWS . 'errors/error.php';
+    }
+
+    // ========================= TAG MANAGEMENT =========================
+
+    /**
+     * API: เพิ่ม tag ให้ลูกค้า
+     */
+    public function addTag() {
+        // ตรวจสอบการยืนยันตัวตน
+        if (!isset($_SESSION['user_id'])) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Authentication required']);
+            return;
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['error' => 'Method not allowed']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        $customerId = $input['customer_id'] ?? null;
+        $tagName = trim($input['tag_name'] ?? '');
+        $tagColor = $input['tag_color'] ?? '#007bff';
+        $userId = $_SESSION['user_id'];
+
+        if (!$customerId || !$tagName) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing required parameters']);
+            return;
+        }
+
+        $result = $this->tagService->addTagToCustomer($customerId, $userId, $tagName, $tagColor);
+        
+        if ($result['success']) {
+            echo json_encode($result);
+        } else {
+            http_response_code(400);
+            echo json_encode($result);
+        }
+    }
+
+    /**
+     * API: ลบ tag ของลูกค้า
+     */
+    public function removeTag() {
+        // ตรวจสอบการยืนยันตัวตน
+        if (!isset($_SESSION['user_id'])) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Authentication required']);
+            return;
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['error' => 'Method not allowed']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        $customerId = $input['customer_id'] ?? null;
+        $tagName = trim($input['tag_name'] ?? '');
+        $userId = $_SESSION['user_id'];
+
+        if (!$customerId || !$tagName) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing required parameters']);
+            return;
+        }
+
+        $result = $this->tagService->removeTagFromCustomer($customerId, $userId, $tagName);
+        
+        if ($result['success']) {
+            echo json_encode($result);
+        } else {
+            http_response_code(400);
+            echo json_encode($result);
+        }
+    }
+
+    /**
+     * API: ดึง tags ของลูกค้า
+     */
+    public function getCustomerTags() {
+        // ตรวจสอบการยืนยันตัวตน
+        if (!isset($_SESSION['user_id'])) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Authentication required']);
+            return;
+        }
+
+        $customerId = $_GET['customer_id'] ?? null;
+        $userId = $_SESSION['user_id'];
+
+        if (!$customerId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing customer_id']);
+            return;
+        }
+
+        $tags = $this->tagService->getCustomerTags($customerId, $userId);
+        echo json_encode(['tags' => $tags]);
+    }
+
+    /**
+     * API: ดึง tags ทั้งหมดที่ user เคยใช้
+     */
+    public function getUserTags() {
+        // ตรวจสอบการยืนยันตัวตน
+        if (!isset($_SESSION['user_id'])) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Authentication required']);
+            return;
+        }
+
+        $userId = $_SESSION['user_id'];
+        $tags = $this->tagService->getUserTags($userId);
+        $predefinedTags = $this->tagService->getPredefinedTags($userId);
+        
+        echo json_encode([
+            'user_tags' => $tags,
+            'predefined_tags' => $predefinedTags
+        ]);
+    }
+
+    /**
+     * API: ค้นหาลูกค้าตาม tags
+     */
+    public function getCustomersByTags() {
+        // ตรวจสอบการยืนยันตัวตน
+        if (!isset($_SESSION['user_id'])) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Authentication required']);
+            return;
+        }
+
+        $userId = $_SESSION['user_id'];
+        $tagNames = $_GET['tags'] ?? [];
+        
+        // แปลง string เป็น array ถ้าจำเป็น
+        if (is_string($tagNames)) {
+            $tagNames = explode(',', $tagNames);
+        }
+
+        // Additional filters
+        $additionalFilters = [
+            'temperature' => $_GET['temperature'] ?? '',
+            'grade' => $_GET['grade'] ?? '',
+            'province' => $_GET['province'] ?? '',
+            'name' => $_GET['name'] ?? '',
+            'phone' => $_GET['phone'] ?? ''
+        ];
+
+        // ลบค่าว่าง
+        $additionalFilters = array_filter($additionalFilters);
+
+        $customers = $this->tagService->getCustomersByTags($userId, $tagNames, $additionalFilters);
+        echo json_encode(['customers' => $customers]);
+    }
+
+    /**
+     * API: เพิ่ม tags หลายอันพร้อมกัน (Bulk operation)
+     */
+    public function bulkAddTags() {
+        // ตรวจสอบการยืนยันตัวตน
+        if (!isset($_SESSION['user_id'])) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Authentication required']);
+            return;
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['error' => 'Method not allowed']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        $customerIds = $input['customer_ids'] ?? [];
+        $tagName = trim($input['tag_name'] ?? '');
+        $tagColor = $input['tag_color'] ?? '#007bff';
+        $userId = $_SESSION['user_id'];
+
+        if (empty($customerIds) || !$tagName) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing required parameters']);
+            return;
+        }
+
+        $result = $this->tagService->bulkAddTags($customerIds, $userId, $tagName, $tagColor);
+        
+        if ($result['success']) {
+            echo json_encode($result);
+        } else {
+            http_response_code(400);
+            echo json_encode($result);
+        }
+    }
+
+    /**
+     * API: ลบ tags หลายอันพร้อมกัน (Bulk operation)
+     */
+    public function bulkRemoveTags() {
+        // ตรวจสอบการยืนยันตัวตน
+        if (!isset($_SESSION['user_id'])) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Authentication required']);
+            return;
+        }
+
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            http_response_code(405);
+            echo json_encode(['error' => 'Method not allowed']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        
+        $customerIds = $input['customer_ids'] ?? [];
+        $tagNames = $input['tag_names'] ?? [];
+        $userId = $_SESSION['user_id'];
+
+        if (empty($customerIds) || empty($tagNames)) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing required parameters']);
+            return;
+        }
+
+        $result = $this->tagService->bulkRemoveTags($customerIds, $userId, $tagNames);
+        
+        if ($result['success']) {
+            echo json_encode($result);
+        } else {
+            http_response_code(400);
+            echo json_encode($result);
+        }
     }
 
 }

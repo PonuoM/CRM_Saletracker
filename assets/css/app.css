@@ -17,6 +17,19 @@
 .table-responsive.overflow-visible {
 	overflow: visible !important;
 }
+
+/* Smooth loading transitions */
+#allCustomersTable, #newCustomersTable, #followupCustomersTable, #existingCustomersTable {
+    transition: opacity 0.3s ease-in-out;
+}
+
+/* Pagination styling improvements */
+.pagination .page-select {
+    min-width: 60px;
+    height: 31px;
+    margin: 0 0.25rem;
+    font-size: 0.875rem;
+}
 /* Ensure modal is visible over everything */
 .modal { z-index: 1060; }
 .modal-backdrop { z-index: 1055; }
@@ -114,11 +127,6 @@ html {
 }
 
 /* FOUT mitigation: use font-display: swap on @font-face + keep content visible */
-.fonts-loading { }
-.fonts-loading .sidebar,
-.fonts-loading .main-content { }
-.fonts-loaded { }
-.fonts-fallback { }
 
 /* Helpers */
 .text-ellipsis {

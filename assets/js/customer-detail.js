@@ -76,6 +76,14 @@ window.createAppointment = function(customerId) {
                                     <label for="appointmentNotes" class="form-label">หมายเหตุ</label>
                                     <textarea class="form-control" id="appointmentNotes" rows="3"></textarea>
                                 </div>
+                                <div class="mb-3">
+                                    <label class="form-label">เพิ่ม Tag</label>
+                                    <div class="d-flex gap-1">
+                                        <button type="button" class="btn btn-outline-primary btn-sm flex-grow-1" onclick="showAddTagModalFromAppointment()">
+                                            <i class="fas fa-plus"></i> เพิ่ม Tag
+                                        </button>
+                                    </div>
+                                </div>
                             </form>
                         </div>
                         <div class="modal-footer">
@@ -130,6 +138,23 @@ window.viewHistory = function(customerId) {
     } catch (error) {
         console.error('Error viewing history:', error);
         alert('เกิดข้อผิดพลาดในการดูประวัติ');
+    }
+};
+
+/**
+ * เปิด modal เพิ่ม tag จากหน้าสร้างนัดหมาย
+ */
+window.showAddTagModalFromAppointment = function() {
+    const customerId = document.getElementById('appointmentCustomerId').value;
+    if (!customerId) {
+        alert('ไม่พบ ID ลูกค้า');
+        return;
+    }
+    // เรียกใช้ฟังก์ชันจาก tags.js
+    if (typeof showAddTagModal === 'function') {
+        showAddTagModal(parseInt(customerId));
+    } else {
+        alert('ไม่พบฟังก์ชันจัดการ Tags');
     }
 };
 
@@ -234,12 +259,12 @@ window.submitCallLog = function() {
     
     try {
         const customerId = document.getElementById('callCustomerId').value;
-        const callType = document.getElementById('callType').value;
+        const callType = document.getElementById('callType')?.value || 'outbound'; // default to outbound
         const callStatus = document.getElementById('callStatus').value;
         const callResult = document.getElementById('callResult').value;
         const duration = document.getElementById('callDuration').value;
         const notes = document.getElementById('callNotes').value;
-        const nextAction = document.getElementById('nextAction').value;
+        const nextAction = document.getElementById('nextAction')?.value || ''; // optional
         const nextFollowup = document.getElementById('nextFollowup').value;
         
         if (!callStatus) {
@@ -279,6 +304,13 @@ window.submitCallLog = function() {
                 if (modal) {
                     modal.hide();
                 }
+                
+                // เก็บสถานะหน้าปัจจุบันก่อน reload
+                const currentTab = document.querySelector('.nav-tabs .nav-link.active')?.getAttribute('data-bs-target');
+                if (currentTab) {
+                    sessionStorage.setItem('customers_active_tab', currentTab.replace('#', ''));
+                }
+                
                 // Reload page to show updated data
                 location.reload();
             } else {

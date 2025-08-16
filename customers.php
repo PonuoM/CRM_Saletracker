@@ -4,21 +4,26 @@
  * จัดการการเรียกใช้ CustomerController
  */
 
+// Enable error reporting for debugging
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 session_start();
 
-// Include required files
-require_once __DIR__ . '/config/config.php';
-require_once __DIR__ . '/app/controllers/CustomerController.php';
+try {
+    // Include required files
+    require_once __DIR__ . '/config/config.php';
+    require_once __DIR__ . '/app/controllers/CustomerController.php';
 
-// Initialize controller
-$controller = new CustomerController();
+    // Initialize controller
+    $controller = new CustomerController();
 
-// Get action from query string
-$action = $_GET['action'] ?? 'index';
-$customerId = $_GET['id'] ?? null;
+    // Get action from query string
+    $action = $_GET['action'] ?? 'index';
+    $customerId = $_GET['id'] ?? null;
 
-// Route to appropriate method
-switch ($action) {
+    // Route to appropriate method
+    switch ($action) {
     case 'show':
         if ($customerId) {
             $controller->show($customerId);
@@ -50,5 +55,12 @@ switch ($action) {
     default:
         $controller->index();
         break;
+    }
+    
+} catch (Exception $e) {
+    echo "Error: " . $e->getMessage() . "\n";
+    echo "File: " . $e->getFile() . "\n";
+    echo "Line: " . $e->getLine() . "\n";
+    echo "Stack trace:\n" . $e->getTraceAsString();
 }
 ?> 

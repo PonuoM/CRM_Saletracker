@@ -37,11 +37,7 @@ $userId = $_SESSION['user_id'] ?? '';
                             <i class="fas fa-user-plus me-1"></i>ลูกค้าใหม่
                         </button>
                     </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="calls-tab" data-bs-toggle="tab" data-bs-target="#calls" type="button" role="tab">
-                            การโทรติดตาม
-                        </button>
-                    </li>
+
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="followup-tab" data-bs-toggle="tab" data-bs-target="#followup" type="button" role="tab">
                             <i class="fas fa-clock me-1"></i>ติดตาม
@@ -50,6 +46,12 @@ $userId = $_SESSION['user_id'] ?? '';
                     <li class="nav-item" role="presentation">
                         <button class="nav-link" id="existing-tab" data-bs-toggle="tab" data-bs-target="#existing" type="button" role="tab">
                             <i class="fas fa-user me-1"></i>ลูกค้าเก่า
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="all-tab" data-bs-toggle="tab" data-bs-target="#all" type="button" role="tab">
+                            <i class="fas fa-users me-1"></i>ลูกค้าทั้งหมด
+                            <span class="badge bg-info ms-1" id="allCustomersCount">0</span>
                         </button>
                     </li>
                 </ul>
@@ -90,8 +92,9 @@ $userId = $_SESSION['user_id'] ?? '';
                                         <option value="<?php echo htmlspecialchars($province['province']); ?>"><?php echo htmlspecialchars($province['province']); ?></option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i></button>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTabFilters('do')"><i class="fas fa-times"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTabFilters('do')">
+                                        <i class="fas fa-times"></i> ล้าง
+                                    </button>
                                 </form>
                             </div>
                             <div class="card-body">
@@ -177,12 +180,11 @@ $userId = $_SESSION['user_id'] ?? '';
                                             <?php endforeach; ?>
                                         </tbody>
                                     </table>
-                                    <div class="d-flex justify-content-between align-items-center mt-3">
-                                        <div class="small text-muted">แสดงสูงสุด 10 รายการต่อหน้า</div>
-                                        <nav>
-                                    <ul class="pagination pagination-sm mb-0" id="doTable-pagination"></ul>
-                                        </nav>
-                                    </div>
+                                                                    <div class="d-flex justify-content-end mt-3">
+                                    <nav>
+                                        <ul class="pagination pagination-sm mb-0" id="doTable-pagination"></ul>
+                                    </nav>
+                                </div>
                                 </div>
                                 <?php else: ?>
                                 <div class="text-center py-4">
@@ -233,13 +235,19 @@ $userId = $_SESSION['user_id'] ?? '';
                                         <option value="<?php echo htmlspecialchars($province['province']); ?>"><?php echo htmlspecialchars($province['province']); ?></option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i></button>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTabFilters('new')"><i class="fas fa-times"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTabFilters('new')">
+                                        <i class="fas fa-times"></i> ล้าง
+                                    </button>
                                 </form>
                             </div>
                             <div class="card-body">
                                 <div id="newCustomersTable">
                                     <!-- Customer table will be loaded here -->
+                                </div>
+                                <div class="d-flex justify-content-end mt-3">
+                                    <nav>
+                                        <ul class="pagination pagination-sm mb-0" id="newCustomersTable-pagination"></ul>
+                                    </nav>
                                 </div>
                             </div>
                         </div>
@@ -276,13 +284,19 @@ $userId = $_SESSION['user_id'] ?? '';
                                         <option value="<?php echo htmlspecialchars($province['province']); ?>"><?php echo htmlspecialchars($province['province']); ?></option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i></button>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTabFilters('followup')"><i class="fas fa-times"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTabFilters('followup')">
+                                        <i class="fas fa-times"></i> ล้าง
+                                    </button>
                                 </form>
                             </div>
                             <div class="card-body">
                                 <div id="followupCustomersTable">
                                     <!-- Customer table will be loaded here -->
+                                </div>
+                                <div class="d-flex justify-content-end mt-3">
+                                    <nav>
+                                        <ul class="pagination pagination-sm mb-0" id="followupCustomersTable-pagination"></ul>
+                                    </nav>
                                 </div>
                             </div>
                         </div>
@@ -319,76 +333,132 @@ $userId = $_SESSION['user_id'] ?? '';
                                         <option value="<?php echo htmlspecialchars($province['province']); ?>"><?php echo htmlspecialchars($province['province']); ?></option>
                                         <?php endforeach; ?>
                                     </select>
-                                    <button type="submit" class="btn btn-sm btn-primary"><i class="fas fa-filter"></i></button>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTabFilters('existing')"><i class="fas fa-times"></i></button>
+                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTabFilters('existing')">
+                                        <i class="fas fa-times"></i> ล้าง
+                                    </button>
                                 </form>
                             </div>
                             <div class="card-body">
                                 <div id="existingCustomersTable">
                                     <!-- Customer table will be loaded here -->
                                 </div>
+                                <div class="d-flex justify-content-end mt-3">
+                                    <nav>
+                                        <ul class="pagination pagination-sm mb-0" id="existingCustomersTable-pagination"></ul>
+                                    </nav>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- All Customers Tab -->
+                    <div class="tab-pane fade" id="all" role="tabpanel">
+                        <div class="card">
+                            <div class="card-header">
+                                <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                    <h5 class="card-title mb-0">
+                                        <i class="fas fa-users me-2"></i>ลูกค้าทั้งหมด
+                                    </h5>
+                                    
+                                    <!-- Advanced Filters -->
+                                    <div class="d-flex gap-2 flex-wrap align-items-center">
+                                        <!-- Tag Filter -->
+                                        <button class="btn btn-sm btn-outline-primary" type="button" onclick="showTagFilterModal()">
+                                            <i class="fas fa-tags me-1"></i>Tags
+                                            <span class="badge bg-primary ms-1" id="selectedTagsCount">0</span>
+                                        </button>
+                                        
+                                        <!-- Customer Type Filter -->
+                                        <select class="form-select form-select-sm" style="width: 120px;" id="customerTypeFilter_all">
+                                            <option value="">ประเภทลูกค้า</option>
+                                            <option value="new">ลูกค้าใหม่</option>
+                                            <option value="existing">ลูกค้าเก่า</option>
+                                            <option value="followup">ติดตาม</option>
+                                        </select>
+                                        
+                                        <!-- Basic Filters -->
+                                        <input type="text" class="form-control form-control-sm" style="width: 160px;" id="nameFilter_all" placeholder="ชื่อลูกค้า">
+                                        <input type="text" class="form-control form-control-sm" style="width: 140px;" id="phoneFilter_all" placeholder="เบอร์โทร">
+                                        
+                                        <select class="form-select form-select-sm" style="width: 120px;" id="temperatureFilter_all">
+                                            <option value="">สถานะ</option>
+                                            <option value="hot">Hot</option>
+                                            <option value="warm">Warm</option>
+                                            <option value="cold">Cold</option>
+                                            <option value="frozen">Frozen</option>
+                                        </select>
+                                        
+                                        <select class="form-select form-select-sm" style="width: 100px;" id="gradeFilter_all">
+                                            <option value="">เกรด</option>
+                                            <option value="A+">A+</option>
+                                            <option value="A">A</option>
+                                            <option value="B">B</option>
+                                            <option value="C">C</option>
+                                            <option value="D">D</option>
+                                        </select>
+                                        
+                                        <select class="form-select form-select-sm" style="width: 140px;" id="provinceFilter_all">
+                                            <option value="">จังหวัด</option>
+                                            <?php foreach ($provinces as $province): ?>
+                                            <option value="<?php echo htmlspecialchars($province['province']); ?>"><?php echo htmlspecialchars($province['province']); ?></option>
+                                            <?php endforeach; ?>
+                                        </select>
+                                        
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearAllFilters()">
+                                            <i class="fas fa-times"></i> ล้าง
+                                        </button>
+                                    </div>
+                                </div>
+                                
+                                <!-- Action Bar -->
+                                <div class="d-flex justify-content-between align-items-center mt-2">
+                                    <div class="d-flex flex-wrap align-items-center gap-3">
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="hideCalledToday">
+                                            <label class="form-check-label" for="hideCalledToday">
+                                                ซ่อนลูกค้าที่โทรแล้ววันนี้
+                                            </label>
+                                        </div>
+                                        
+                                        <div class="d-flex align-items-center gap-2">
+                                            <div class="form-check">
+                                                <input class="form-check-input" type="checkbox" id="hideDateRange">
+                                                <label class="form-check-label" for="hideDateRange">
+                                                    ซ่อนลูกค้าที่โทรแล้วระหว่าง
+                                                </label>
+                                            </div>
+                                            <input type="date" class="form-control form-control-sm" id="hideDateFrom" style="width: 130px;" disabled>
+                                            <span class="text-muted">ถึง</span>
+                                            <input type="date" class="form-control form-control-sm" id="hideDateTo" style="width: 130px;" disabled>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="btn-group" style="display: none;" id="bulkActions">
+                                        <button class="btn btn-sm btn-outline-primary" onclick="showBulkTagModal()">
+                                            <i class="fas fa-tags me-1"></i>เพิ่ม Tags
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-danger" onclick="showBulkRemoveTagModal()">
+                                            <i class="fas fa-minus me-1"></i>ลบ Tags
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="card-body">
+                                <div id="allCustomersTable">
+                                    <!-- Customer table will be loaded here -->
+                                </div>
+                                <div class="d-flex justify-content-end mt-3">
+                                    <nav>
+                                        <ul class="pagination pagination-sm mb-0" id="allCustomersTable-pagination"></ul>
+                                    </nav>
+                                </div>
                             </div>
                         </div>
                     </div>
 
                     <!-- Call Management Tab -->
-                    <div class="tab-pane fade" id="calls" role="tabpanel">
-                        <div class="card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <h5 class="card-title mb-0">
-                                    <i class="fas fa-phone me-2"></i>การโทรติดตามลูกค้า
-                                </h5>
-                                <div class="btn-group" role="group">
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="loadCallFollowups('all')">การโทรทั้งหมด</button>
-                                    <button type="button" class="btn btn-sm btn-outline-success" onclick="loadCallFollowups('answered')">ติดต่อได้</button>
-                                    <button type="button" class="btn btn-sm btn-outline-info" onclick="loadCallFollowups('need_followup')">ต้องติดตาม</button>
-                                    <button type="button" class="btn btn-sm btn-outline-danger" onclick="loadCallFollowups('dnc')">ไม่ติดต่ออีก</button>
-                                </div>
-                            </div>
-                            <div class="card-body">
-                                <!-- Call Statistics -->
-                                <div class="row mb-3">
-                                    <div class="col-md-3">
-                                        <div class="card bg-primary text-white">
-                                            <div class="card-body text-center">
-                                                <h5 id="total-calls">0</h5>
-                                                <small>การโทรทั้งหมด</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <div class="card bg-success text-white">
-                                            <div class="card-body text-center">
-                                                <h5 id="answered-calls">0</h5>
-                                                <small>ติดต่อได้</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <div class="card bg-warning text-white">
-                                            <div class="card-body text-center">
-                                                <h5 id="need-followup">0</h5>
-                                                <small>ต้องติดตาม</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div class="col-md-3">
-                                        <div class="card bg-danger text-white">
-                                            <div class="card-body text-center">
-                                                <h5 id="overdue-followup">0</h5>
-                                                <small>เกินกำหนด</small>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                                
-                                <!-- Call Follow-up Table -->
-                                <div id="call-followup-table">
-                                    <!-- Call follow-up table will be loaded here -->
-                                </div>
-                            </div>
-                        </div>
-                    </div>
+
                 </div>
             </div>
 
@@ -495,12 +565,15 @@ $userId = $_SESSION['user_id'] ?? '';
                     </div>
                     <div class="row mt-3">
                         <div class="col-md-6">
-                            <label for="nextAction" class="form-label">การดำเนินการต่อไป</label>
-                            <input type="text" class="form-control" id="nextAction">
+                            <label for="callTags" class="form-label">เพิ่ม Tag</label>
+                            <div class="d-flex gap-1">
+                                <button type="button" class="btn btn-outline-primary btn-sm flex-grow-1" onclick="showAddTagModalFromCall()">
+                                    <i class="fas fa-plus"></i> เพิ่ม Tag
+                                </button>
+                            </div>
                         </div>
                         <div class="col-md-6">
-                            <label for="nextFollowup" class="form-label">นัดติดตาม</label>
-                            <input type="datetime-local" class="form-control" id="nextFollowup">
+                            <!-- Reserved for future use -->
                         </div>
                     </div>
                 </form>

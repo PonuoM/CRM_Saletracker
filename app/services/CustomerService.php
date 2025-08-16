@@ -193,12 +193,18 @@ class CustomerService {
      * @return array รายการลูกค้า
      */
     public function getCustomersByBasket($basketType, $filters = []) {
-        $sql = "SELECT c.*, u.full_name as assigned_to_name 
+        $userId = $filters['current_user_id'] ?? $_SESSION['user_id'] ?? null;
+        
+        $sql = "SELECT c.*, u.full_name as assigned_to_name,
+                       GROUP_CONCAT(ct.tag_name ORDER BY ct.created_at DESC) as customer_tags,
+                       GROUP_CONCAT(ct.tag_color ORDER BY ct.created_at DESC) as tag_colors,
+                       (SELECT MAX(cl.created_at) FROM call_logs cl WHERE cl.customer_id = c.customer_id) as last_call_date
                 FROM customers c 
                 LEFT JOIN users u ON c.assigned_to = u.user_id 
+                LEFT JOIN customer_tags ct ON c.customer_id = ct.customer_id AND ct.user_id = ?
                 WHERE c.is_active = 1";
         
-        $params = [];
+        $params = [$userId];
         
         // เงื่อนไข basket_type: ถ้าเป็น 'all' จะไม่กรองตาม basket
         if (!empty($basketType) && $basketType !== 'all') {
@@ -253,7 +259,7 @@ class CustomerService {
             }
         }
         
-        $sql .= " ORDER BY c.created_at DESC";
+        $sql .= " GROUP BY c.customer_id ORDER BY c.created_at DESC";
         
         return $this->db->fetchAll($sql, $params);
     }
@@ -267,6 +273,9 @@ class CustomerService {
         $sql = "SELECT c.*, u.full_name as assigned_to_name,
                        DATEDIFF(c.customer_time_expiry, NOW()) as days_remaining,
                        DATEDIFF(c.next_followup_at, NOW()) as followup_days,
+                       GROUP_CONCAT(ct.tag_name ORDER BY ct.created_at DESC) as customer_tags,
+                       GROUP_CONCAT(ct.tag_color ORDER BY ct.created_at DESC) as tag_colors,
+                       (SELECT MAX(cl.created_at) FROM call_logs cl WHERE cl.customer_id = c.customer_id) as last_call_date,
                        CASE
                            WHEN c.next_followup_at IS NOT NULL THEN 'appointment'
                            WHEN c.customer_status = 'new' THEN 'new'
@@ -275,7 +284,8 @@ class CustomerService {
                        END as reason_type
                 FROM customers c
                 LEFT JOIN users u ON c.assigned_to = u.user_id
-                WHERE c.assigned_to = :user_id
+                LEFT JOIN customer_tags ct ON c.customer_id = ct.customer_id AND ct.user_id = ?
+                WHERE c.assigned_to = ?
                 AND c.basket_type = 'assigned'
                 AND c.is_active = 1
                 AND (
@@ -285,24 +295,33 @@ class CustomerService {
                 )
                 ";
 
-        $params = ['user_id' => $userId];
+        $params = [$userId, $userId];
         if (!empty($filters['temperature'])) {
-            $sql .= " AND c.temperature_status = :temp"; $params['temp'] = $filters['temperature'];
+            $sql .= " AND c.temperature_status = ?"; 
+            $params[] = $filters['temperature'];
         }
         if (!empty($filters['grade'])) {
-            $sql .= " AND c.customer_grade = :grade"; $params['grade'] = $filters['grade'];
+            $sql .= " AND c.customer_grade = ?"; 
+            $params[] = $filters['grade'];
         }
         if (!empty($filters['province'])) {
-            $sql .= " AND c.province = :province"; $params['province'] = $filters['province'];
+            $sql .= " AND c.province = ?"; 
+            $params[] = $filters['province'];
         }
         if (!empty($filters['name'])) {
-            $sql .= " AND (c.first_name LIKE :name OR c.last_name LIKE :name OR CONCAT(c.first_name, ' ', c.last_name) LIKE :name)"; $params['name'] = '%' . $filters['name'] . '%';
+            $sql .= " AND (c.first_name LIKE ? OR c.last_name LIKE ? OR CONCAT(c.first_name, ' ', c.last_name) LIKE ?)"; 
+            $searchTerm = '%' . $filters['name'] . '%';
+            $params[] = $searchTerm;
+            $params[] = $searchTerm;
+            $params[] = $searchTerm;
         }
         if (!empty($filters['phone'])) {
-            $sql .= " AND c.phone LIKE :phone"; $params['phone'] = '%' . $filters['phone'] . '%';
+            $sql .= " AND c.phone LIKE ?"; 
+            $params[] = '%' . $filters['phone'] . '%';
         }
 
-        $sql .= " ORDER BY 
+        $sql .= " GROUP BY c.customer_id 
+                  ORDER BY 
                     (c.next_followup_at IS NULL) ASC,
                     c.next_followup_at ASC,
                     (c.customer_status <> 'new') ASC,
