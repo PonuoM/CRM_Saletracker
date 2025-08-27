@@ -80,37 +80,30 @@ if (!isset($customer)) {
                 <input type="hidden" name="customer_id" value="<?php echo $customer['customer_id']; ?>">
                 
                 <div class="row g-3">
-                    <!-- ประเภทการโทร -->
-                    <div class="col-md-6">
-                        <label for="callType" class="form-label">ประเภทการโทร <span class="text-danger">*</span></label>
-                        <select class="form-select" id="callType" name="call_type" required>
-                            <option value="outbound" selected>โทรออก</option>
-                            <option value="inbound">โทรเข้า</option>
-                        </select>
-                    </div>
-                    
                     <!-- สถานะการโทร -->
                     <div class="col-md-6">
                         <label for="callStatus" class="form-label">สถานะการโทร <span class="text-danger">*</span></label>
                         <select class="form-select" id="callStatus" name="call_status" required>
-                            <option value="">เลือกสถานะ</option>
+                            <option value="">เลือกสถานะการโทร</option>
                             <option value="answered">รับสาย</option>
                             <option value="no_answer">ไม่รับสาย</option>
                             <option value="busy">สายไม่ว่าง</option>
-                            <option value="invalid">เบอร์ไม่ถูกต้อง</option>
+                            <option value="invalid">เบอร์ผิด</option>
+                            <option value="hang_up">ตัดสายทิ้ง</option>
                         </select>
                     </div>
                     
                     <!-- ผลการโทร -->
                     <div class="col-md-6">
-                        <label for="callResult" class="form-label">ผลการโทร <span class="text-danger">*</span></label>
-                        <select class="form-select" id="callResult" name="call_result" required>
+                        <label for="callResult" class="form-label">ผลการโทร</label>
+                        <select class="form-select" id="callResult" name="call_result">
                             <option value="">เลือกผลการโทร</option>
-                            <option value="interested">สนใจ</option>
-                            <option value="not_interested">ไม่สนใจ</option>
-                            <option value="callback">ขอโทรกลับ</option>
-                            <option value="order">สั่งซื้อ</option>
-                            <option value="complaint">ร้องเรียน</option>
+                            <option value="สนใจ">สนใจ</option>
+                            <option value="ไม่สนใจ">ไม่สนใจ</option>
+                            <option value="ลังเล">ลังเล</option>
+                            <option value="เบอร์ผิด">เบอร์ผิด</option>
+                            <option value="ได้คุย">ได้คุย</option>
+                            <option value="ตัดสายทิ้ง">ตัดสายทิ้ง</option>
                         </select>
                     </div>
                     
@@ -120,22 +113,30 @@ if (!isset($customer)) {
                         <input type="number" class="form-control" id="durationMinutes" name="duration_minutes" min="0" max="480" placeholder="0">
                     </div>
                     
+                    <!-- วันที่คาดว่าจะติดต่อครั้งถัดไป -->
+                    <div class="col-md-6">
+                        <label for="nextFollowup" class="form-label">วันที่คาดว่าจะติดต่อครั้งถัดไป</label>
+                        <input type="datetime-local" class="form-control" id="nextFollowup" name="next_followup_at">
+                    </div>
+                    
                     <!-- หมายเหตุ -->
                     <div class="col-12">
                         <label for="notes" class="form-label">หมายเหตุ</label>
                         <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="บันทึกรายละเอียดการสนทนา..."></textarea>
                     </div>
                     
-                    <!-- การดำเนินการต่อไป -->
+                    <!-- เพิ่ม Tag -->
                     <div class="col-12">
-                        <label for="nextAction" class="form-label">การดำเนินการต่อไป</label>
-                        <input type="text" class="form-control" id="nextAction" name="next_action" placeholder="เช่น ส่งเอกสาร, นัดหมาย, ติดตามใน 3 วัน...">
-                    </div>
-                    
-                    <!-- หมายเหตุการติดตาม -->
-                    <div class="col-12">
-                        <label for="followupNotes" class="form-label">หมายเหตุการติดตาม</label>
-                        <textarea class="form-control" id="followupNotes" name="followup_notes" rows="2" placeholder="หมายเหตุสำหรับการติดตามครั้งต่อไป..."></textarea>
+                        <label for="callTags" class="form-label">เพิ่ม Tag</label>
+                        <div class="d-flex gap-1 mb-2">
+                            <button type="button" class="btn btn-outline-primary btn-sm flex-grow-1" onclick="showAddTagModalFromCall()">
+                                <i class="fas fa-plus"></i> เพิ่ม Tag
+                            </button>
+                        </div>
+                        <!-- Preview area สำหรับ Tags ที่เพิ่มแล้ว -->
+                        <div id="callTagsPreview" class="border rounded p-2 bg-light min-height-40" style="min-height: 40px;">
+                            <small class="text-muted">Tags ที่เพิ่มจะแสดงที่นี่</small>
+                        </div>
                     </div>
                 </div>
                 
@@ -157,7 +158,36 @@ if (!isset($customer)) {
 document.addEventListener('DOMContentLoaded', function() {
     loadCallHistory();
     setupFormValidation();
+    setupCallStatusAutoFill();
 });
+
+// Auto-fill ผลการโทรเมื่อเปลี่ยนสถานะการโทร
+function setupCallStatusAutoFill() {
+    const callStatus = document.getElementById('callStatus');
+    const callResult = document.getElementById('callResult');
+    
+    if (callStatus && callResult) {
+        callStatus.addEventListener('change', function() {
+            // ถ้าเลือกสถานะที่ไม่ใช่ "รับสาย" ให้ auto-fill ผลการโทร
+            if (this.value && this.value !== 'answered') {
+                const statusValueMap = {
+                    'no_answer': 'ไม่รับสาย',
+                    'busy': 'สายไม่ว่าง',
+                    'invalid': 'เบอร์ผิด',
+                    'hang_up': 'ตัดสายทิ้ง'
+                };
+                const autoFillValue = statusValueMap[this.value];
+                if (autoFillValue) {
+                    // ตรวจสอบว่ามี option นี้อยู่ใน callResult หรือไม่
+                    const option = Array.from(callResult.options).find(opt => opt.value === autoFillValue);
+                    if (option) {
+                        callResult.value = autoFillValue;
+                    }
+                }
+            }
+        });
+    }
+}
 
 // โหลดประวัติการโทร
 function loadCallHistory() {
@@ -383,7 +413,8 @@ function getCallStatusColor(status) {
         'answered': 'success',
         'no_answer': 'warning',
         'busy': 'info',
-        'invalid': 'danger'
+        'invalid': 'danger',
+        'hang_up': 'secondary'
     };
     return colors[status] || 'secondary';
 }
@@ -393,7 +424,8 @@ function getCallStatusText(status) {
         'answered': 'รับสาย',
         'no_answer': 'ไม่รับสาย',
         'busy': 'สายไม่ว่าง',
-        'invalid': 'เบอร์ไม่ถูกต้อง'
+        'invalid': 'เบอร์ไม่ถูกต้อง',
+        'hang_up': 'ตัดสายทิ้ง'
     };
     return texts[status] || status;
 }

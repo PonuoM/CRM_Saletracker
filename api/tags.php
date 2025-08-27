@@ -12,7 +12,10 @@ ini_set('display_errors', 0);
 error_reporting(E_ALL);
 
 // Start session
-session_start();
+// Start session only if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Load configuration
 require_once '../config/config.php';

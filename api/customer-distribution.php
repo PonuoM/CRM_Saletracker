@@ -4,7 +4,10 @@
  * จัดการ API calls สำหรับระบบแจกลูกค้าตามคำขอ
  */
 
-session_start();
+// Start session only if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Include required files
 require_once __DIR__ . '/../config/config.php';
@@ -44,6 +47,8 @@ try {
 
     // Get action from query string
     $action = $_GET['action'] ?? '';
+    
+    error_log("customer-distribution API: Action: {$action}, User: {$_SESSION['user_id']}, Role: {$_SESSION['role_name']}");
 
     switch ($action) {
         case 'stats':
@@ -66,6 +71,7 @@ try {
                 echo json_encode(['success' => false, 'message' => 'ไม่ได้ระบุบริษัท']);
                 exit;
             }
+            error_log("customer-distribution API: Getting company stats for: {$company}");
             $stats = $distributionService->getCompanyStats($company);
             echo json_encode(['success' => true, 'data' => $stats]);
             break;
@@ -78,6 +84,7 @@ try {
                 echo json_encode(['success' => false, 'message' => 'ไม่ได้ระบุบริษัท']);
                 exit;
             }
+            error_log("customer-distribution API: Getting telesales for company: {$company}");
             $telesales = $distributionService->getTelesalesByCompany($company);
             echo json_encode(['success' => true, 'data' => $telesales]);
             break;
@@ -94,6 +101,7 @@ try {
                 exit;
             }
 
+            error_log("customer-distribution API: Getting available customers for company: {$company}, dateFrom: {$dateFrom}, dateTo: {$dateTo}");
             $result = $distributionService->getAvailableCustomersByDate($company, $dateFrom, $dateTo);
             echo json_encode(['success' => true, 'data' => $result]);
             break;
@@ -242,16 +250,63 @@ try {
             }
             break;
 
+        case 'grade_a_stats':
+            // ดึงสถิติลูกค้าเกรด A
+            $company = $_GET['company'] ?? '';
+            error_log("customer-distribution API: Getting Grade A stats for company: {$company}");
+            $result = $distributionService->getGradeAStats($company);
+            echo json_encode($result);
+            break;
+
+        case 'distribute_grade_a':
+            // แจกลูกค้าเกรด A
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                http_response_code(405);
+                echo json_encode(['error' => 'Method not allowed']);
+                exit;
+            }
+
+            $input = json_decode(file_get_contents('php://input'), true);
+            if (!$input) {
+                http_response_code(400);
+                echo json_encode(['error' => 'Invalid JSON']);
+                exit;
+            }
+
+            $result = $distributionService->distributeGradeA(
+                $input['company'] ?? null,
+                $input['allocations'] ?? [],
+                $input['selected_grades'] ?? ['A'] // ค่าเริ่มต้นเป็น A เท่านั้น
+            );
+
+            echo json_encode($result);
+
+            // Log Grade A distribution for debugging
+            if (isset($result['success']) && $result['success'] === true) {
+                $debug = [
+                    'at' => date('Y-m-d H:i:s'),
+                    'action' => 'distribute_grade_a',
+                    'company' => $input['company'],
+                    'allocations_count' => count($input['allocations'] ?? []),
+                    'total_customers' => array_sum(array_column($input['allocations'] ?? [], 'count'))
+                ];
+                @file_put_contents(__DIR__ . '/../cron.log', "[DIST-GRADE-A] " . json_encode($debug, JSON_UNESCAPED_UNICODE) . "\n", FILE_APPEND);
+            }
+            break;
+
         default:
             http_response_code(400);
-            echo json_encode(['error' => 'Invalid action']);
+            echo json_encode(['success' => false, 'message' => 'Invalid action']);
             break;
     }
 
-} catch (Throwable $e) {
-    // Catch all throwables so the client always receives JSON
-    error_log("Customer Distribution API Error: " . $e->getMessage());
-    error_log($e->getTraceAsString());
+} catch (Exception $e) {
+    error_log("customer-distribution API Error: " . $e->getMessage());
+    error_log("Stack trace: " . $e->getTraceAsString());
     http_response_code(500);
-    echo json_encode(['success' => false, 'message' => 'Internal server error', 'error' => $e->getMessage()]);
+    echo json_encode([
+        'success' => false,
+        'error' => 'Internal server error',
+        'message' => $e->getMessage()
+    ]);
 }

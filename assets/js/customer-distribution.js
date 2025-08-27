@@ -35,6 +35,417 @@ function setupEventListeners() {
             updateAvailableCustomersPreview();
         });
     }
+
+    // Add clear form button event listener
+    const clearFormBtn = document.getElementById('clearFormBtn');
+    if (clearFormBtn) {
+        clearFormBtn.addEventListener('click', clearDistributionForm);
+    }
+}
+
+/**
+ * Clear distribution form and reset all fields
+ */
+function clearDistributionForm() {
+    // Reset form fields
+    const form = document.getElementById('distributionForm');
+    if (form) {
+        form.reset();
+    }
+
+    // Clear selected telesales
+    const telesalesSelect = document.getElementById('distributionTelesales');
+    if (telesalesSelect) {
+        telesalesSelect.selectedIndex = -1;
+    }
+
+    // Clear distribution results
+    const resultsContainer = document.getElementById('distributionResults');
+    if (resultsContainer) {
+        resultsContainer.innerHTML = `
+            <div class="text-center py-4">
+                <i class="fas fa-info-circle text-muted fa-3x mb-3"></i>
+                <h5>ยังไม่มีการแจกลูกค้า</h5>
+                <p class="text-muted">กรุณาเลือกจำนวนและ Telesales แล้วกดแจกลูกค้า</p>
+            </div>
+        `;
+    }
+
+    // Clear available customers preview
+    const previewContainer = document.getElementById('availableCustomersPreview');
+    if (previewContainer) {
+        previewContainer.innerHTML = `
+            <div class="text-center">
+                <div class="spinner-border spinner-border-sm" role="status">
+                    <span class="visually-hidden">กำลังโหลด...</span>
+                </div>
+                <span class="ms-2">กำลังโหลดข้อมูล...</span>
+            </div>
+        `;
+    }
+
+    // Refresh data
+    loadDistributionData();
+    
+    // Show success message
+    showSuccess('ล้างฟอร์มเรียบร้อยแล้ว');
+}
+
+/**
+ * Clear average distribution form
+ */
+function clearAverageForm() {
+    const form = document.getElementById('averageDistributionForm');
+    if (form) {
+        form.reset();
+    }
+
+    // Clear selected telesales
+    const telesalesSelect = document.getElementById('averageTelesales');
+    if (telesalesSelect) {
+        telesalesSelect.selectedIndex = -1;
+    }
+
+    showSuccess('ล้างฟอร์มแจกแบบเฉลี่ยเรียบร้อยแล้ว');
+}
+
+/**
+ * Clear grade A distribution form
+ */
+function clearGradeAForm() {
+    const form = document.getElementById('gradeADistributionForm');
+    if (form) {
+        form.reset();
+    }
+
+    // Clear selected telesales
+    const telesalesSelect = document.getElementById('gradeATelesales');
+    if (telesalesSelect) {
+        telesalesSelect.selectedIndex = -1;
+    }
+
+    showSuccess('ล้างฟอร์มแจกเกรด A เรียบร้อยแล้ว');
+}
+
+/**
+ * Distribute customers using average distribution
+ */
+function distributeAverage() {
+    const quantity = parseInt(document.getElementById('averageQuantity').value);
+    const telesalesSelect = document.getElementById('averageTelesales');
+    const dateFrom = document.getElementById('averageDateFrom').value;
+    
+    if (!telesalesSelect) {
+        showError('ไม่พบ dropdown Telesales');
+        return;
+    }
+
+    const selectedTelesales = Array.from(telesalesSelect.selectedOptions).map(option => option.value);
+    
+    if (selectedTelesales.length === 0) {
+        showError('กรุณาเลือก Telesales อย่างน้อย 1 คน');
+        return;
+    }
+
+    if (quantity <= 0) {
+        showError('กรุณาระบุจำนวนลูกค้าที่ต้องการแจก');
+        return;
+    }
+
+    // Show loading
+    const submitBtn = document.querySelector('#averageDistributionForm button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>กำลังแจกแบบเฉลี่ย...';
+    submitBtn.disabled = true;
+
+    const data = {
+        company: 'prima', // Default company
+        customer_count: quantity,
+        telesales_ids: selectedTelesales,
+        date_from: dateFrom,
+        date_to: null
+    };
+
+    fetch('api/customer-distribution.php?action=distribute_average', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showSuccessModal(data.message, 'แจกลูกค้าแบบเฉลี่ยสำเร็จ');
+            displayAverageDistributionResults(data.data);
+            
+            // Auto-clear form after successful distribution
+            setTimeout(() => {
+                clearAverageForm();
+            }, 3000);
+            
+            // Refresh data
+            setTimeout(() => {
+                loadDistributionData();
+            }, 2000);
+        } else {
+            showError(data.message || 'เกิดข้อผิดพลาดในการแจกลูกค้าแบบเฉลี่ย');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showError('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    })
+    .finally(() => {
+        // Restore button
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+}
+
+/**
+ * Distribute grade A customers
+ */
+function distributeGradeA() {
+    const telesalesSelect = document.getElementById('gradeATelesales');
+    const countPerPerson = parseInt(document.getElementById('gradeACount').value);
+    const gradeSelection = Array.from(document.getElementById('gradeASelection').selectedOptions).map(option => option.value);
+    
+    if (!telesalesSelect) {
+        showError('ไม่พบ dropdown Telesales');
+        return;
+    }
+
+    const selectedTelesales = Array.from(telesalesSelect.selectedOptions).map(option => option.value);
+    
+    if (selectedTelesales.length === 0) {
+        showError('กรุณาเลือก Telesales อย่างน้อย 1 คน');
+        return;
+    }
+
+    if (countPerPerson <= 0) {
+        showError('กรุณาระบุจำนวนลูกค้าต่อคน');
+        return;
+    }
+
+    if (gradeSelection.length === 0) {
+        showError('กรุณาเลือกเกรดที่ต้องการแจก');
+        return;
+    }
+
+    // Show loading
+    const submitBtn = document.querySelector('#gradeADistributionForm button[type="submit"]');
+    const originalText = submitBtn.innerHTML;
+    submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>กำลังแจกเกรด A...';
+    submitBtn.disabled = true;
+
+    // Prepare allocations
+    const allocations = selectedTelesales.map(telesalesId => ({
+        telesales_id: parseInt(telesalesId),
+        count: countPerPerson
+    }));
+
+    const data = {
+        company: 'prima', // Default company
+        allocations: allocations,
+        selected_grades: gradeSelection
+    };
+
+    fetch('api/customer-distribution.php?action=distribute_grade_a', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showSuccessModal(data.message, 'แจกลูกค้าเกรด A สำเร็จ');
+            displayGradeADistributionResults(data.data);
+            
+            // Auto-clear form after successful distribution
+            setTimeout(() => {
+                clearGradeAForm();
+            }, 3000);
+            
+            // Refresh data
+            setTimeout(() => {
+                loadDistributionData();
+            }, 2000);
+        } else {
+            showError(data.message || 'เกิดข้อผิดพลาดในการแจกลูกค้าเกรด A');
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        showError('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    })
+    .finally(() => {
+        // Restore button
+        submitBtn.innerHTML = originalText;
+        submitBtn.disabled = false;
+    });
+}
+
+/**
+ * Display average distribution results
+ */
+function displayAverageDistributionResults(data) {
+    const container = document.getElementById('distributionResults');
+    if (!container) return;
+
+    let html = `
+        <div class="alert alert-success mb-4">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-balance-scale fa-2x me-3"></i>
+                <div>
+                    <h5 class="mb-1">✅ แจกลูกค้าแบบเฉลี่ยสำเร็จแล้ว!</h5>
+                    <p class="mb-0">แจกลูกค้า <strong>${data.total_distributed || 0}</strong> รายการให้ Telesales <strong>${data.distributions?.length || 0}</strong> คน</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    if (data.distributions && data.distributions.length > 0) {
+        html += `
+            <div class="card mb-4">
+                <div class="card-header bg-success text-white">
+                    <h6 class="mb-0"><i class="fas fa-chart-pie me-2"></i>สรุปการแจกลูกค้าแบบเฉลี่ย</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-center">Telesales</th>
+                                    <th class="text-center">จำนวนลูกค้า</th>
+                                    <th class="text-center">รายละเอียด</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+
+        data.distributions.forEach(distribution => {
+            html += `
+                <tr>
+                    <td><strong>${escapeHtml(distribution.telesales_name)}</strong></td>
+                    <td class="text-center"><span class="badge bg-success fs-6">${distribution.count}</span></td>
+                    <td>
+                        <small class="text-muted">
+                            ${distribution.customers?.length > 0 ? 
+                                `ลูกค้า: ${distribution.customers.map(c => c.full_name).join(', ')}` : 
+                                'ไม่มีรายละเอียดลูกค้า'
+                            }
+                        </small>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Action buttons
+    html += `
+        <div class="text-center">
+            <button type="button" class="btn btn-outline-secondary me-2" onclick="clearAverageForm()">
+                <i class="fas fa-eraser me-1"></i>ล้างฟอร์มและเริ่มใหม่
+            </button>
+            <button type="button" class="btn btn-outline-primary" onclick="refreshDistributionStats()">
+                <i class="fas fa-refresh me-1"></i>อัปเดตสถิติ
+            </button>
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+/**
+ * Display grade A distribution results
+ */
+function displayGradeADistributionResults(data) {
+    const container = document.getElementById('distributionResults');
+    if (!container) return;
+
+    let html = `
+        <div class="alert alert-warning mb-4">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-star fa-2x me-3"></i>
+                <div>
+                    <h5 class="mb-1">⭐ แจกลูกค้าเกรด A สำเร็จแล้ว!</h5>
+                    <p class="mb-0">แจกลูกค้าเกรด A <strong>${data.total_distributed || 0}</strong> รายการให้ Telesales <strong>${data.distributions?.length || 0}</strong> คน</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    if (data.distributions && data.distributions.length > 0) {
+        html += `
+            <div class="card mb-4">
+                <div class="card-header bg-warning text-dark">
+                    <h6 class="mb-0"><i class="fas fa-star me-2"></i>สรุปการแจกลูกค้าเกรด A</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-center">Telesales</th>
+                                    <th class="text-center">จำนวนลูกค้า</th>
+                                    <th class="text-center">เกรด</th>
+                                    <th class="text-center">รายละเอียด</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+
+        data.distributions.forEach(distribution => {
+            html += `
+                <tr>
+                    <td><strong>${escapeHtml(distribution.telesales_name)}</strong></td>
+                    <td class="text-center"><span class="badge bg-warning fs-6">${distribution.count}</span></td>
+                    <td class="text-center"><span class="badge bg-success">${distribution.grade}</span></td>
+                    <td>
+                        <small class="text-muted">
+                            ${distribution.customers?.length > 0 ? 
+                                `ลูกค้า: ${distribution.customers.map(c => c.name).join(', ')}` : 
+                                'ไม่มีรายละเอียดลูกค้า'
+                            }
+                        </small>
+                    </td>
+                </tr>
+            `;
+        });
+
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Action buttons
+    html += `
+        <div class="text-center">
+            <button type="button" class="btn btn-outline-secondary me-2" onclick="clearGradeAForm()">
+                <i class="fas fa-eraser me-1"></i>ล้างฟอร์มและเริ่มใหม่
+            </button>
+            <button type="button" class="btn btn-outline-primary" onclick="refreshDistributionStats()">
+                <i class="fas fa-refresh me-1"></i>อัปเดตสถิติ
+            </button>
+        </div>
+    `;
+
+    container.innerHTML = html;
 }
 
 /**
@@ -231,8 +642,19 @@ function distributeCustomers() {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showSuccess(data.message);
-            displayDistributionResults(data.results);
+            showSuccessModal(data.message, 'แจกลูกค้าสำเร็จ');
+            // Use enhanced display function
+            if (data.results) {
+                displayDistributionResultsEnhanced(data.results);
+            } else {
+                displayDistributionResults(data);
+            }
+            
+            // Auto-clear form after successful distribution
+            setTimeout(() => {
+                clearDistributionForm();
+            }, 3000); // Clear after 3 seconds
+            
             // Refresh data
             setTimeout(() => {
                 loadDistributionData();
@@ -253,7 +675,7 @@ function distributeCustomers() {
 }
 
 /**
- * Display distribution results
+ * Display distribution results with clear status
  */
 function displayDistributionResults(results) {
     const container = document.getElementById('distributionResults');
@@ -305,6 +727,162 @@ function displayDistributionResults(results) {
 
         html += '</tbody></table></div></div>';
     }
+
+    // Add clear form button
+    html += `
+        <div class="mt-3 text-center">
+            <button type="button" class="btn btn-outline-secondary" onclick="clearDistributionForm()">
+                <i class="fas fa-eraser me-1"></i>ล้างฟอร์มและเริ่มใหม่
+            </button>
+        </div>
+    `;
+
+    container.innerHTML = html;
+}
+
+/**
+ * Display distribution results with enhanced status display
+ */
+function displayDistributionResultsEnhanced(results) {
+    const container = document.getElementById('distributionResults');
+    if (!container) return;
+
+    // Clear previous results
+    container.innerHTML = '';
+
+    // Success header
+    let html = `
+        <div class="alert alert-success mb-4">
+            <div class="d-flex align-items-center">
+                <i class="fas fa-check-circle fa-2x me-3"></i>
+                <div>
+                    <h5 class="mb-1">✅ แจกลูกค้าสำเร็จแล้ว!</h5>
+                    <p class="mb-0">แจกลูกค้า <strong>${results.total_distributed || 0}</strong> รายการให้ Telesales <strong>${results.telesales_count || 0}</strong> คน</p>
+                </div>
+            </div>
+        </div>
+    `;
+
+    // Distribution summary
+    if (results.distribution_details && results.distribution_details.length > 0) {
+        html += `
+            <div class="card mb-4">
+                <div class="card-header bg-primary text-white">
+                    <h6 class="mb-0"><i class="fas fa-chart-pie me-2"></i>สรุปการแจกลูกค้า</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="table-light">
+                                <tr>
+                                    <th class="text-center">Telesales</th>
+                                    <th class="text-center">จำนวนลูกค้า</th>
+                                    <th class="text-center">🔥 Hot</th>
+                                    <th class="text-center">🌤️ Warm</th>
+                                    <th class="text-center">❄️ Cold</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+
+        results.distribution_details.forEach(detail => {
+            html += `
+                <tr>
+                    <td><strong>${escapeHtml(detail.telesales_name)}</strong></td>
+                    <td class="text-center"><span class="badge bg-primary fs-6">${detail.customer_count}</span></td>
+                    <td class="text-center"><span class="badge bg-danger">${detail.hot_count || 0}</span></td>
+                    <td class="text-center"><span class="badge bg-warning">${detail.warm_count || 0}</span></td>
+                    <td class="text-center"><span class="badge bg-info">${detail.cold_count || 0}</span></td>
+                </tr>
+            `;
+        });
+
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Customer details
+    if (results.customer_details && results.customer_details.length > 0) {
+        html += `
+            <div class="card mb-4">
+                <div class="card-header bg-info text-white">
+                    <h6 class="mb-0"><i class="fas fa-users me-2"></i>รายละเอียดลูกค้าที่แจก</h6>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-sm table-striped">
+                            <thead>
+                                <tr>
+                                    <th>ชื่อลูกค้า</th>
+                                    <th>เบอร์โทร</th>
+                                    <th>สถานะ</th>
+                                    <th>เกรด</th>
+                                    <th>มอบหมายให้</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+        `;
+
+        results.customer_details.forEach(customer => {
+            const tempIcons = {
+                'hot': '🔥',
+                'warm': '🌤️',
+                'cold': '❄️',
+                'frozen': '🧊'
+            };
+
+            const gradeColors = {
+                'A+': 'success',
+                'A': 'primary',
+                'B': 'info',
+                'C': 'warning',
+                'D': 'danger'
+            };
+
+            html += `
+                <tr>
+                    <td><strong>${escapeHtml(customer.first_name + ' ' + customer.last_name)}</strong></td>
+                    <td>${escapeHtml(customer.phone || '-')}</td>
+                    <td>
+                        <span class="badge bg-${customer.temperature_status === 'hot' ? 'danger' : customer.temperature_status === 'warm' ? 'warning' : 'info'}">
+                            ${tempIcons[customer.temperature_status] || '❓'} ${customer.temperature_status || '-'}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge bg-${gradeColors[customer.customer_grade] || 'secondary'}">
+                            ${customer.customer_grade || '-'}
+                        </span>
+                    </td>
+                    <td><span class="badge bg-success">${escapeHtml(customer.assigned_to_name)}</span></td>
+                </tr>
+            `;
+        });
+
+        html += `
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        `;
+    }
+
+    // Action buttons
+    html += `
+        <div class="text-center">
+            <button type="button" class="btn btn-outline-secondary me-2" onclick="clearDistributionForm()">
+                <i class="fas fa-eraser me-1"></i>ล้างฟอร์มและเริ่มใหม่
+            </button>
+            <button type="button" class="btn btn-outline-primary" onclick="refreshDistributionStats()">
+                <i class="fas fa-refresh me-1"></i>อัปเดตสถิติ
+            </button>
+        </div>
+    `;
 
     container.innerHTML = html;
 }
@@ -485,4 +1063,99 @@ function showError(message) {
             alertDiv.remove();
         }
     }, 5000);
+} 
+
+/**
+ * Show success modal in center of screen with detailed information
+ */
+function showSuccessModal(message, title = 'สำเร็จ') {
+    // Create modal backdrop
+    const backdrop = document.createElement('div');
+    backdrop.className = 'modal-backdrop fade show';
+    backdrop.style.cssText = 'z-index: 9998;';
+    document.body.appendChild(backdrop);
+
+    // Create modal
+    const modal = document.createElement('div');
+    modal.className = 'modal fade show d-block';
+    modal.style.cssText = 'z-index: 9999;';
+    modal.innerHTML = `
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-success text-white">
+                    <h5 class="modal-title">
+                        <i class="fas fa-check-circle me-2"></i>${title}
+                    </h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" onclick="closeSuccessModal()"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="alert alert-success">
+                        <i class="fas fa-check-circle me-2"></i>${message}
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card border-success">
+                                <div class="card-header bg-success text-white">
+                                    <h6 class="mb-0"><i class="fas fa-info-circle me-2"></i>ข้อมูลสรุป</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>สถานะ:</strong> <span class="badge bg-success">สำเร็จ</span></p>
+                                    <p><strong>เวลา:</strong> ${new Date().toLocaleString('th-TH')}</p>
+                                    <p><strong>ประเภท:</strong> ${title}</p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card border-info">
+                                <div class="card-header bg-info text-white">
+                                    <h6 class="mb-0"><i class="fas fa-lightbulb me-2"></i>คำแนะนำ</h6>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="mb-0">
+                                        <li>ฟอร์มจะถูกล้างอัตโนมัติใน 3 วินาที</li>
+                                        <li>ข้อมูลจะถูกอัปเดตอัตโนมัติ</li>
+                                        <li>สามารถดูรายละเอียดเพิ่มเติมได้ด้านล่าง</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" onclick="closeSuccessModal()">
+                        <i class="fas fa-times me-1"></i>ปิด
+                    </button>
+                    <button type="button" class="btn btn-success" onclick="closeSuccessModal()">
+                        <i class="fas fa-check me-1"></i>เข้าใจแล้ว
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    // Auto close after 8 seconds
+    setTimeout(() => {
+        closeSuccessModal();
+    }, 8000);
+}
+
+/**
+ * Close success modal
+ */
+function closeSuccessModal() {
+    const modal = document.querySelector('.modal.show');
+    const backdrop = document.querySelector('.modal-backdrop.show');
+    
+    if (modal) {
+        modal.classList.remove('show');
+        modal.classList.add('fade');
+        setTimeout(() => modal.remove(), 150);
+    }
+    
+    if (backdrop) {
+        backdrop.classList.remove('show');
+        setTimeout(() => backdrop.remove(), 150);
+    }
 } 

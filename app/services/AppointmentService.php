@@ -56,12 +56,13 @@ class AppointmentService {
                 // บันทึกกิจกรรม
                 $this->logActivity($appointmentId, $data['user_id'], 'created', 'สร้างนัดหมายใหม่');
 
-                // อัปเดตสถานะลูกค้าให้เป็น "followup" และตั้งวันติดตามถัดไป
+                // 🔄 SYNC: อัปเดต customers.next_followup_at เพื่อให้ sync กับ appointment
                 try {
                     $this->db->query(
                         "UPDATE customers 
                          SET next_followup_at = ?, 
                              customer_status = CASE WHEN customer_status = 'new' THEN 'followup' ELSE customer_status END,
+                             customer_time_expiry = LEAST(DATE_ADD(customer_time_expiry, INTERVAL 30 DAY), DATE_ADD(NOW(), INTERVAL 90 DAY)),
                              updated_at = NOW()
                          WHERE customer_id = ?",
                         [$data['appointment_date'], $data['customer_id']]
@@ -97,6 +98,12 @@ class AppointmentService {
      */
     public function updateAppointment($appointmentId, $data) {
         try {
+            // ดึงข้อมูลนัดหมายปัจจุบันเพื่อเปรียบเทียบ
+            $currentAppointment = $this->getAppointmentById($appointmentId);
+            if (!$currentAppointment['success']) {
+                return $currentAppointment;
+            }
+            
             $sql = "UPDATE appointments SET 
                 appointment_date = ?, appointment_type = ?, appointment_status = ?,
                 location = ?, contact_person = ?, contact_phone = ?,
@@ -121,6 +128,26 @@ class AppointmentService {
             if ($result) {
                 // บันทึกกิจกรรม
                 $this->logActivity($appointmentId, $data['user_id'], 'updated', 'อัปเดตนัดหมาย');
+                
+                // 🔄 SYNC: อัปเดต customers.next_followup_at ถ้าวันที่นัดหมายเปลี่ยน
+                $customerId = $currentAppointment['data']['customer_id'];
+                $oldDate = $currentAppointment['data']['appointment_date'];
+                $newDate = $data['appointment_date'];
+                
+                if ($oldDate !== $newDate && $data['appointment_status'] !== 'completed' && $data['appointment_status'] !== 'cancelled') {
+                    try {
+                        $this->db->query(
+                            "UPDATE customers 
+                             SET next_followup_at = ?,
+                                 customer_time_expiry = LEAST(DATE_ADD(customer_time_expiry, INTERVAL 30 DAY), DATE_ADD(NOW(), INTERVAL 90 DAY)),
+                                 updated_at = NOW()
+                             WHERE customer_id = ?",
+                            [$newDate, $customerId]
+                        );
+                    } catch (Exception $e) {
+                        error_log('Failed to sync customer followup date: ' . $e->getMessage());
+                    }
+                }
                 
                 return [
                     'success' => true,
@@ -351,6 +378,11 @@ class AppointmentService {
                 return;
             }
             
+            $customerId = $appointment['data']['customer_id'];
+            
+            // ล้าง next_followup_at เพื่อให้ลูกค้าออกจาก Do tab หลังจากการนัดหมายเสร็จสิ้น
+            $this->clearCustomerFollowUp($customerId);
+            
             // ตรวจสอบว่าต้องต่อเวลาหรือไม่
             if ($this->shouldExtendTimeForAppointment($appointment['data'])) {
                 // เรียกใช้ AppointmentExtensionService
@@ -359,7 +391,7 @@ class AppointmentService {
                 
                 try {
                     $result = $extensionService->extendTimeFromAppointment(
-                        $appointment['data']['customer_id'],
+                        $customerId,
                         $appointmentId,
                         $userId
                     );
@@ -376,6 +408,33 @@ class AppointmentService {
         }
     }
     
+    /**
+     * ล้าง next_followup_at เพื่อให้ลูกค้าออกจาก Do tab
+     * @param int $customerId ID ของลูกค้า
+     */
+    private function clearCustomerFollowUp($customerId) {
+        try {
+            // ล้าง next_followup_at และเพิ่มเวลา 30 วัน แต่ไม่เกิน 90 วัน (สำหรับนัดหมายที่เสร็จสิ้น)
+            $this->db->execute(
+                "UPDATE customers SET 
+                    next_followup_at = NULL,
+                    customer_time_expiry = LEAST(DATE_ADD(customer_time_expiry, INTERVAL 30 DAY), DATE_ADD(NOW(), INTERVAL 90 DAY))
+                WHERE customer_id = ?",
+                [$customerId]
+            );
+            
+            // ล้าง next_followup_at ใน call_logs ที่ยังค้างอยู่
+            $this->db->execute(
+                "UPDATE call_logs SET next_followup_at = NULL 
+                 WHERE customer_id = ? AND next_followup_at IS NOT NULL",
+                [$customerId]
+            );
+            
+        } catch (Exception $e) {
+            error_log("Error clearing customer follow-up in AppointmentService: " . $e->getMessage());
+        }
+    }
+
     /**
      * ตรวจสอบว่าควรต่อเวลาหรือไม่
      */

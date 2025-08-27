@@ -4,7 +4,10 @@
  * จัดการ API calls สำหรับ Workflow Management
  */
 
-session_start();
+// Start session only if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Include required files
 require_once __DIR__ . '/../config/config.php';

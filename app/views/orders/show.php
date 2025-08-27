@@ -281,6 +281,59 @@ $paymentMethods = [
 			const sel = document.getElementById('paymentStatusSelect');
 			if (sel) sel.addEventListener('change', function(){ reflectPaymentBadge(this.value); });
 		})();
+
+		// ฟังก์ชันสำหรับอัปเดตสถานะคำสั่งซื้อ
+		async function updateOrderStatus(field, value, successMessage = 'อัปเดตสถานะสำเร็จ') {
+			const orderId = <?php echo $order['order_id']; ?>;
+			
+			try {
+				const response = await fetch('orders.php?action=update_status', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json',
+					},
+					body: JSON.stringify({
+						order_id: orderId,
+						field: field,
+						value: value
+					})
+				});
+
+				const result = await response.json();
+
+				if (result.success) {
+					alert(successMessage);
+					// รีโหลดหน้าเพื่อแสดงข้อมูลล่าสุด
+					window.location.reload();
+				} else {
+					alert('เกิดข้อผิดพลาด: ' + result.message);
+				}
+			} catch (error) {
+				console.error('Error:', error);
+				alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+			}
+		}
+
+		// ฟังก์ชันยกเลิกคำสั่งซื้อ
+		function cancelOrder() {
+			if (confirm('คุณต้องการยกเลิกคำสั่งซื้อนี้หรือไม่?')) {
+				updateOrderStatus('delivery_status', 'cancelled', 'ยกเลิกคำสั่งซื้อสำเร็จ');
+			}
+		}
+
+		// ฟังก์ชันจัดส่งสำเร็จ
+		function markAsCompleted() {
+			if (confirm('คุณต้องการเปลี่ยนสถานะเป็น "จัดส่งสำเร็จ" หรือไม่?')) {
+				updateOrderStatus('delivery_status', 'delivered', 'เปลี่ยนสถานะเป็นจัดส่งสำเร็จแล้ว');
+			}
+		}
+
+		// ฟังก์ชันจัดส่งแล้ว
+		function markAsProcessing() {
+			if (confirm('คุณต้องการเปลี่ยนสถานะเป็น "จัดส่งแล้ว" หรือไม่?')) {
+				updateOrderStatus('delivery_status', 'shipped', 'เปลี่ยนสถานะเป็นจัดส่งแล้ว');
+			}
+		}
 	</script>
 </body>
 </html> 

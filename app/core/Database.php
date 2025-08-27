@@ -68,6 +68,17 @@ class Database {
     }
     
     /**
+     * Prepare statement
+     */
+    public function prepare($sql) {
+        try {
+            return $this->pdo->prepare($sql);
+        } catch (PDOException $e) {
+            throw new Exception("Prepare failed: " . $e->getMessage());
+        }
+    }
+    
+    /**
      * Fetch single row
      */
     public function fetchOne($sql, $params = []) {

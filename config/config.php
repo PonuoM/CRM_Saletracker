@@ -8,6 +8,11 @@
 $is_production = (isset($_SERVER['HTTP_HOST']) && 
                  strpos($_SERVER['HTTP_HOST'], 'prima49.com') !== false);
 
+// สำหรับ CLI scripts (เช่น cron jobs) ตรวจสอบจาก path แทน
+if (php_sapi_name() === 'cli') {
+    $is_production = (strpos(__DIR__, '/home/primacom/domains/prima49.com/') !== false);
+}
+
 if ($is_production) {
     // Production Configuration
     define('DB_HOST', 'localhost');
@@ -84,4 +89,4 @@ foreach ($directories as $dir) {
         mkdir($dir, 0755, true);
     }
 }
-?> 
+?>

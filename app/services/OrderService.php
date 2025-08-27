@@ -91,11 +91,14 @@ class OrderService {
                 $this->db->insert('order_items', $itemData);
             }
             
-            // อัปเดตประวัติการซื้อของลูกค้า
-            $this->updateCustomerPurchaseHistory($orderData['customer_id'], $netAmount);
-            
-            // รีเซ็ตตัวนับการต่อเวลาการนัดหมายเมื่อมีการขาย
-            $this->resetAppointmentExtensionOnSale($orderData['customer_id'], $createdBy, $orderId);
+                    // อัปเดตประวัติการซื้อของลูกค้า
+        $this->updateCustomerPurchaseHistory($orderData['customer_id'], $netAmount);
+        
+        // ล้าง next_followup_at เพื่อให้ลูกค้าออกจาก Do tab หลังจากสั่งซื้อ
+        $this->clearCustomerFollowUp($orderData['customer_id']);
+        
+        // รีเซ็ตตัวนับการต่อเวลาการนัดหมายเมื่อมีการขาย
+        $this->resetAppointmentExtensionOnSale($orderData['customer_id'], $createdBy, $orderId);
             
             // บันทึกกิจกรรม
             $this->logOrderActivity($orderId, $createdBy, 'created', 
@@ -441,6 +444,9 @@ class OrderService {
             // อัปเดตประวัติการซื้อของลูกค้า
             $this->updateCustomerPurchaseHistory($orderData['customer_id'], $netAmount);
             
+            // ล้าง next_followup_at เพื่อให้ลูกค้าออกจาก Do tab หลังจากสั่งซื้อ
+            $this->clearCustomerFollowUp($orderData['customer_id']);
+            
             // บันทึกกิจกรรม
             $this->logOrderActivity($orderData['order_id'], $orderData['updated_by'], 'updated', 
                 "อัปเดตคำสั่งซื้อ หมายเลข: {$existingOrder['order_number']}");
@@ -521,6 +527,33 @@ class OrderService {
         return "{$prefix}{$date}{$random}";
     }
     
+    /**
+     * ล้าง next_followup_at เพื่อให้ลูกค้าออกจาก Do tab หลังจากสั่งซื้อ
+     * @param int $customerId ID ของลูกค้า
+     */
+    private function clearCustomerFollowUp($customerId) {
+        try {
+            // ล้าง next_followup_at และรีเซ็ต customer_time_expiry เป็น 90 วันใหม่ (สำหรับลูกค้าที่สั่งซื้อ)
+            $this->db->execute(
+                "UPDATE customers SET 
+                    next_followup_at = NULL,
+                    customer_time_expiry = DATE_ADD(NOW(), INTERVAL 90 DAY)
+                WHERE customer_id = ?",
+                [$customerId]
+            );
+            
+            // ล้าง next_followup_at ใน call_logs ที่ยังค้างอยู่
+            $this->db->execute(
+                "UPDATE call_logs SET next_followup_at = NULL 
+                 WHERE customer_id = ? AND next_followup_at IS NOT NULL",
+                [$customerId]
+            );
+            
+        } catch (Exception $e) {
+            error_log("Error clearing customer follow-up: " . $e->getMessage());
+        }
+    }
+
     /**
      * อัปเดตประวัติการซื้อของลูกค้า
      * @param int $customerId ID ของลูกค้า

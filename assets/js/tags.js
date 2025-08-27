@@ -82,8 +82,12 @@ function renderTagsHTML(tags, customerId) {
 
 /**
  * เพิ่ม tag ให้ลูกค้า
+ * @param {number} customerId - ID ลูกค้า
+ * @param {string} tagName - ชื่อ tag
+ * @param {string} tagColor - สี tag (hex)
+ * @param {boolean} showNotification - แสดง notification หรือไม่ (default: true)
  */
-async function addCustomerTag(customerId, tagName, tagColor = '#007bff') {
+async function addCustomerTag(customerId, tagName, tagColor = '#007bff', showNotification = true) {
     try {
         const response = await fetch('api/tags.php?action=add', {
             method: 'POST',
@@ -106,8 +110,10 @@ async function addCustomerTag(customerId, tagName, tagColor = '#007bff') {
                 await displayCustomerTags(customerId, container);
             }
             
-            // แสดงข้อความสำเร็จ
-            showSuccessMessage(data.message || 'เพิ่ม Tag สำเร็จ');
+            // แสดงข้อความสำเร็จ (ถ้าต้องการ)
+            if (showNotification) {
+                showSuccessMessage(data.message || 'เพิ่ม Tag สำเร็จ');
+            }
             
             // อัปเดต user tags
             await loadUserTags();
@@ -160,14 +166,76 @@ async function removeCustomerTag(customerId, tagName, element) {
             // แสดงข้อความสำเร็จ
             showSuccessMessage(data.message || 'ลบ Tag สำเร็จ');
             
-            // รีเฟรช tag filter dropdown
-            console.log('Refreshing tag filter dropdown after remove...');
-            loadTagFilterOptions();
-            console.log('Tag filter dropdown refreshed after remove');
+            // หมายเหตุ: ไม่ต้องรีเฟรช tag filter dropdown เมื่อลบ tag จากลูกค้า
+            // เพราะจะทำให้สถานะ tag filter ที่เลือกไว้หายไป
+            console.log('Tag removed, preserving tag filter state...');
             
-            // รีเฟรชตารางหลัก (ถ้าอยู่ในหน้า All Customers)
-            if (typeof loadAllCustomers === 'function') {
-                loadAllCustomers();
+            // รักษา tag filter state เมื่อลบ tag จากลูกค้า
+            // ไม่ลบ tag ออกจาก filter เพราะ user อาจต้องการกรอง tag นั้นต่อไป
+            const savedTagFilters = sessionStorage.getItem('selectedTagFilters');
+            console.log('🔍 Preserving tag filter state:', savedTagFilters);
+            console.log('🔍 Tag removed from customer:', tagName, 'but keeping filter active');
+            
+            // รีเฟรชตารางหลัก โดยใช้ tag filter ที่มีอยู่
+            const finalTagFilters = sessionStorage.getItem('selectedTagFilters');
+            console.log('🔍 Final tag filters for refresh:', finalTagFilters);
+            if (finalTagFilters) {
+                try {
+                    const selectedTags = JSON.parse(finalTagFilters);
+                    console.log('🔍 Applying tag filter with tags:', selectedTags);
+                    if (selectedTags.length > 0) {
+                        // ยังมี tag filters ให้ใช้ต่อ
+                        if (typeof searchCustomersByTags === 'function' && typeof renderStandardTable === 'function') {
+                            console.log('🔍 Searching customers by tags...');
+                            searchCustomersByTags(selectedTags).then(customers => {
+                                renderStandardTable(customers, 'allCustomersTable', 'ไม่มีลูกค้าที่มี tags ที่เลือก');
+                                
+                                // อัปเดต all customers count
+                                const allCountBadge = document.getElementById('allCustomersCount');
+                                if (allCountBadge) {
+                                    allCountBadge.textContent = customers.length;
+                                }
+                                
+                                // เพิ่ม pagination
+                                setTimeout(() => {
+                                    const table = document.querySelector('#allCustomersTable table');
+                                    const paginationContainer = document.getElementById('allCustomersTable-pagination');
+                                    if (table && paginationContainer) {
+                                        paginationContainer.innerHTML = '';
+                                        if (typeof paginateTable === 'function') {
+                                            paginateTable(table, 'allCustomersTable-pagination', 10, 'customers_page_allCustomersTable');
+                                        }
+                                    }
+                                }, 100);
+                            });
+                        }
+                    } else {
+                        // ไม่มี tag filters แล้ว โหลดลูกค้าทั้งหมด
+                        if (typeof getAllCustomersFilters === 'function' && typeof loadAllCustomersWithFilters === 'function') {
+                            const currentFilters = getAllCustomersFilters();
+                            loadAllCustomersWithFilters(currentFilters);
+                        } else if (typeof loadAllCustomers === 'function') {
+                            loadAllCustomers();
+                        }
+                    }
+                } catch (e) {
+                    console.error('Error applying updated tag filter:', e);
+                    // fallback ใช้ filters ปกติ
+                    if (typeof getAllCustomersFilters === 'function' && typeof loadAllCustomersWithFilters === 'function') {
+                        const currentFilters = getAllCustomersFilters();
+                        loadAllCustomersWithFilters(currentFilters);
+                    } else if (typeof loadAllCustomers === 'function') {
+                        loadAllCustomers();
+                    }
+                }
+            } else {
+                // ไม่มี tag filters โหลดลูกค้าทั้งหมด
+                if (typeof getAllCustomersFilters === 'function' && typeof loadAllCustomersWithFilters === 'function') {
+                    const currentFilters = getAllCustomersFilters();
+                    loadAllCustomersWithFilters(currentFilters);
+                } else if (typeof loadAllCustomers === 'function') {
+                    loadAllCustomers();
+                }
             }
         } else {
             showErrorMessage(data.message || 'เกิดข้อผิดพลาดในการลบ Tag');
@@ -631,6 +699,9 @@ function showTagFilterModal() {
     // แสดง modal
     const modal = new bootstrap.Modal(document.getElementById('tagFilterModal'));
     modal.show();
+    
+    // โหลดสถานะ tag filters ที่เลือกไว้ก่อนหน้า
+    loadPreviousTagFilters();
 }
 
 /**
@@ -721,6 +792,25 @@ function getOppositeColor(hexColor) {
     return '#000000';
 }
 
+/**
+ * คำนวณสีข้อความที่เหมาะสมสำหรับพื้นหลัง
+ */
+function getTextColor(backgroundColor) {
+    // Remove # if present
+    const hex = backgroundColor.replace('#', '');
+    
+    // Convert to RGB
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // Calculate brightness
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    
+    // Return white text for dark backgrounds, black for light backgrounds
+    return brightness > 128 ? '#000000' : '#ffffff';
+}
+
 function toggleTagSelectionNew(tagName, tagColor, element) {
     const isSelected = element.classList.contains('selected');
     
@@ -746,6 +836,469 @@ function updateModalSelectedCountNew() {
     if (countSpan) {
         countSpan.textContent = selectedTags.length;
     }
+}
+
+// ===== TAG PREVIEW FUNCTIONALITY FOR CALL LOG FORMS =====
+
+/**
+ * แสดง Modal เลือก Tag สำหรับฟอร์มบันทึกการโทร
+ */
+function showAddTagModalFromCall() {
+    const modalHtml = `
+        <div class="modal fade" id="callLogTagModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">เพิ่ม Tag สำหรับการโทร</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <!-- Tab Navigation -->
+                        <ul class="nav nav-tabs" id="tagModalTabs" role="tablist">
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link active" id="existing-tags-tab" data-bs-toggle="tab" data-bs-target="#existing-tags" type="button" role="tab">
+                                    เลือก Tag ที่มีอยู่
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="new-tag-tab" data-bs-toggle="tab" data-bs-target="#new-tag" type="button" role="tab">
+                                    สร้าง Tag ใหม่
+                                </button>
+                            </li>
+                        </ul>
+                        
+                        <!-- Tab Content -->
+                        <div class="tab-content mt-3" id="tagModalTabContent">
+                            <!-- Existing Tags Tab -->
+                            <div class="tab-pane fade show active" id="existing-tags" role="tabpanel">
+                                <div class="mb-3">
+                                    <input type="text" class="form-control" id="tagSearchInput" placeholder="ค้นหา tag...">
+                                </div>
+                                <div id="existingTagsList" style="max-height: 300px; overflow-y: auto;">
+                                    <!-- Tags will be loaded here -->
+                                </div>
+                            </div>
+                            
+                            <!-- New Tag Tab -->
+                            <div class="tab-pane fade" id="new-tag" role="tabpanel">
+                                <form>
+                                    <div class="mb-3">
+                                        <label for="newTagName" class="form-label">ชื่อ Tag</label>
+                                        <input type="text" class="form-control" id="newTagName" placeholder="ชื่อ tag..." maxlength="50">
+                                    </div>
+                                    <div class="mb-3">
+                                        <label class="form-label">สี</label>
+                                        <div class="d-flex flex-wrap gap-2">
+                                            ${renderColorPicker()}
+                                        </div>
+                                        <input type="hidden" id="newTagColor" value="#007bff">
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                        <button type="button" class="btn btn-primary" onclick="addSelectedTagsToCallLog()">เพิ่ม Tag</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // ลบ modal เก่า (ถ้ามี)
+    const existingModal = document.getElementById('callLogTagModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // เพิ่ม modal ใหม่
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // โหลด existing tags
+    loadExistingTagsForCallLog();
+    
+    // แสดง modal
+    const modal = new bootstrap.Modal(document.getElementById('callLogTagModal'));
+    modal.show();
+    
+    // Add search functionality
+    document.getElementById('tagSearchInput').addEventListener('input', function() {
+        filterCallLogTags(this.value);
+    });
+    
+    // Add color picker functionality for new tag
+    document.querySelectorAll('.color-picker').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const color = this.getAttribute('data-color');
+            selectCallLogTagColor(color);
+        });
+    });
+}
+
+/**
+ * โหลด Tags ที่มีอยู่สำหรับ Call Log Modal
+ */
+async function loadExistingTagsForCallLog() {
+    try {
+        const response = await fetch('api/tags.php?action=user_tags');
+        const data = await response.json();
+        
+        if (response.ok) {
+            const container = document.getElementById('existingTagsList');
+            let html = '';
+            
+            // User tags
+            if (data.user_tags && data.user_tags.length > 0) {
+                html += '<h6 class="text-muted mb-2">Tags ของฉัน</h6>';
+                data.user_tags.forEach(tag => {
+                    html += `
+                        <div class="tag-item mb-1" data-tag-name="${tag.tag_name.toLowerCase()}">
+                            <span class="badge tag-selectable" 
+                                  style="background-color: ${tag.tag_color}; color: ${getTextColor(tag.tag_color)}; cursor: pointer; padding: 8px 12px;"
+                                  onclick="toggleCallLogTagSelection('${tag.tag_name}', '${tag.tag_color}', this)">
+                                ${escapeHtml(tag.tag_name)} <small>(${tag.usage_count || 0})</small>
+                            </span>
+                        </div>
+                    `;
+                });
+            }
+            
+            // Predefined tags
+            if (data.predefined_tags && data.predefined_tags.length > 0) {
+                html += '<h6 class="text-muted mb-2 mt-3">Tags ของระบบ</h6>';
+                data.predefined_tags.forEach(tag => {
+                    html += `
+                        <div class="tag-item mb-1" data-tag-name="${tag.tag_name.toLowerCase()}">
+                            <span class="badge tag-selectable" 
+                                  style="background-color: ${tag.tag_color}; color: ${getTextColor(tag.tag_color)}; cursor: pointer; padding: 8px 12px;"
+                                  onclick="toggleCallLogTagSelection('${tag.tag_name}', '${tag.tag_color}', this)">
+                                ${escapeHtml(tag.tag_name)}
+                            </span>
+                        </div>
+                    `;
+                });
+            }
+            
+            if (html === '') {
+                html = '<p class="text-muted">ยังไม่มี tags ในระบบ</p>';
+            }
+            
+            container.innerHTML = html;
+        }
+    } catch (error) {
+        console.error('Error loading tags for call log:', error);
+        document.getElementById('existingTagsList').innerHTML = '<p class="text-danger">เกิดข้อผิดพลาดในการโหลด tags</p>';
+    }
+}
+
+/**
+ * Toggle Tag Selection ใน Call Log Modal
+ */
+let selectedCallLogTags = [];
+
+function toggleCallLogTagSelection(tagName, tagColor, element) {
+    const index = selectedCallLogTags.findIndex(tag => tag.name === tagName);
+    
+    if (index > -1) {
+        // ยกเลิกการเลือก
+        selectedCallLogTags.splice(index, 1);
+        element.style.border = '2px solid transparent';
+        element.style.boxShadow = 'none';
+    } else {
+        // เลือก tag
+        selectedCallLogTags.push({ name: tagName, color: tagColor });
+        element.style.border = '3px solid #000';
+        element.style.boxShadow = '0 0 0 1px #000';
+    }
+}
+
+/**
+ * กรอง Tags ใน Call Log Modal
+ */
+function filterCallLogTags(searchTerm) {
+    const tagItems = document.querySelectorAll('#existingTagsList .tag-item');
+    const lowerSearchTerm = searchTerm.toLowerCase();
+    
+    tagItems.forEach(item => {
+        const tagName = item.getAttribute('data-tag-name');
+        if (tagName.includes(lowerSearchTerm)) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+/**
+ * เลือกสีสำหรับ Tag ใหม่ใน Call Log Modal
+ */
+function selectCallLogTagColor(color) {
+    document.getElementById('newTagColor').value = color;
+    
+    // Update visual feedback
+    document.querySelectorAll('.color-picker').forEach(btn => {
+        btn.style.border = '2px solid #ddd';
+    });
+    document.querySelector(`[data-color="${color}"]`).style.border = '3px solid #000';
+}
+
+/**
+ * เพิ่ม Tags ที่เลือกไปยัง Call Log Preview
+ */
+function addSelectedTagsToCallLog() {
+    // Add selected existing tags
+    selectedCallLogTags.forEach(tag => {
+        addCallLogTag(tag.name, tag.color);
+    });
+    
+    // Add new tag if specified
+    const newTagName = document.getElementById('newTagName').value.trim();
+    const newTagColor = document.getElementById('newTagColor').value;
+    
+    if (newTagName) {
+        addCallLogTag(newTagName, newTagColor);
+    }
+    
+    // Close modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('callLogTagModal'));
+    modal.hide();
+    
+    // Clear selections
+    selectedCallLogTags = [];
+}
+
+// Global array สำหรับเก็บ tags ที่เพิ่มในฟอร์มบันทึกการโทร
+window.callLogTags = window.callLogTags || [];
+
+/**
+ * แสดง Tag Preview ในฟอร์มบันทึกการโทร
+ */
+function updateCallTagsPreview() {
+    const previewContainer = document.getElementById('callTagsPreview');
+    if (!previewContainer) return;
+    
+    if (window.callLogTags.length === 0) {
+        previewContainer.innerHTML = '<small class="text-muted">Tags ที่เพิ่มจะแสดงที่นี่</small>';
+        return;
+    }
+    
+    let html = '';
+    window.callLogTags.forEach((tag, index) => {
+        html += `
+            <span class="badge me-1 mb-1" style="background-color: ${tag.color}; color: ${getTextColor(tag.color)};">
+                ${escapeHtml(tag.name)}
+                <i class="fas fa-times ms-1" onclick="removeCallLogTag(${index})" style="cursor: pointer;" title="ลบ tag"></i>
+            </span>
+        `;
+    });
+    
+    previewContainer.innerHTML = html;
+}
+
+/**
+ * เพิ่ม Tag ใน Preview (ไม่บันทึกลงฐานข้อมูลทันที)
+ */
+function addCallLogTag(tagName, tagColor) {
+    // ตรวจสอบว่ามี tag นี้แล้วหรือไม่
+    const existingTag = window.callLogTags.find(tag => tag.name === tagName);
+    if (existingTag) {
+        showErrorMessage(`Tag "${tagName}" มีอยู่แล้ว`);
+        return;
+    }
+    
+    window.callLogTags.push({
+        name: tagName,
+        color: tagColor || '#007bff'
+    });
+    
+    updateCallTagsPreview();
+    // ไม่แสดง notification ที่นี่ เพราะจะแสดงตอนบันทึกรวม
+    // showSuccessMessage(`เพิ่ม Tag "${tagName}" แล้ว`);
+}
+
+/**
+ * ลบ Tag จาก Preview
+ */
+function removeCallLogTag(index) {
+    if (index >= 0 && index < window.callLogTags.length) {
+        const removedTag = window.callLogTags.splice(index, 1)[0];
+        updateCallTagsPreview();
+        // ไม่แสดง notification ที่นี่ เพราะเป็นการลบ preview
+        // showSuccessMessage(`ลบ Tag "${removedTag.name}" แล้ว`);
+    }
+}
+
+/**
+ * ล้าง Tags Preview (เรียกใช้เมื่อเปิด modal ใหม่)
+ */
+function clearCallLogTags() {
+    window.callLogTags = [];
+    updateCallTagsPreview();
+}
+
+/**
+ * บันทึก Tags ทั้งหมดหลังจากบันทึกการโทรสำเร็จ
+ */
+async function saveCallLogTags(customerId) {
+    if (!window.callLogTags || window.callLogTags.length === 0) {
+        return true; // ไม่มี tags ให้บันทึก
+    }
+    
+    try {
+        const tagCount = window.callLogTags.length;
+        
+        for (const tag of window.callLogTags) {
+            // ส่ง showNotification = false เพื่อไม่ให้แสดง notification แยก
+            await addCustomerTag(customerId, tag.name, tag.color, false);
+        }
+        
+        // แสดง notification รวมครั้งเดียว
+        if (tagCount === 1) {
+            showSuccessMessage(`บันทึก Tag สำเร็จ`);
+        } else {
+            showSuccessMessage(`บันทึก ${tagCount} Tags สำเร็จ`);
+        }
+        
+        // ล้าง preview หลังบันทึกสำเร็จ
+        clearCallLogTags();
+        return true;
+    } catch (error) {
+        console.error('Error saving call log tags:', error);
+        showErrorMessage('เกิดข้อผิดพลาดในการบันทึก Tags');
+        return false;
+    }
+}
+
+/**
+ * คำนวณสีตัวอักษรที่เหมาะสมตามพื้นหลัง
+ */
+function getTextColor(backgroundColor) {
+    // แปลง hex เป็น RGB
+    const hex = backgroundColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    
+    // คำนวณ brightness
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    
+    // ถ้า brightness มาก ใช้ตัวอักษรสีดำ ถ้าน้อย ใช้สีขาว
+    return brightness > 128 ? '#000000' : '#ffffff';
+}
+
+/**
+ * แสดง modal สำหรับเพิ่ม tag ในฟอร์มบันทึกการโทร (Preview mode)
+ */
+function showAddTagModalForCallLog() {
+    const modalHtml = `
+        <div class="modal fade" id="addTagCallLogModal" tabindex="-1">
+            <div class="modal-dialog">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">เพิ่ม Tag สำหรับการโทร</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info">
+                            <i class="fas fa-info-circle"></i> 
+                            Tag จะถูกบันทึกหลังจากที่คุณบันทึกการโทรสำเร็จ
+                        </div>
+                        <form id="addTagCallLogForm">
+                            <div class="mb-3">
+                                <label for="tagNameCallLog" class="form-label">ชื่อ Tag</label>
+                                <input type="text" class="form-control" id="tagNameCallLog" placeholder="ใส่ชื่อ tag" required>
+                                <div class="form-text">หรือเลือกจาก tags ที่เคยใช้:</div>
+                                <div id="suggestedTagsCallLog" class="mt-2">
+                                    ${renderSuggestedTags()}
+                                </div>
+                            </div>
+                            <div class="mb-3">
+                                <label for="tagColorCallLog" class="form-label">สี</label>
+                                <div class="d-flex flex-wrap gap-2">
+                                    ${renderColorPickerForCallLog()}
+                                </div>
+                                <input type="hidden" id="selectedColorCallLog" value="#007bff">
+                            </div>
+                        </form>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                        <button type="button" class="btn btn-primary" onclick="submitAddTagForCallLog()">เพิ่ม Tag</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // ลบ modal เก่า (ถ้ามี)
+    const existingModal = document.getElementById('addTagCallLogModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // เพิ่ม modal ใหม่
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+    
+    // แสดง modal
+    const modal = new bootstrap.Modal(document.getElementById('addTagCallLogModal'));
+    modal.show();
+}
+
+/**
+ * สร้าง Color Picker สำหรับ Call Log Modal
+ */
+function renderColorPickerForCallLog() {
+    let html = '';
+    TAG_COLORS.forEach((color, index) => {
+        const isSelected = index === 0 ? 'selected' : '';
+        html += `
+            <div class="color-option ${isSelected}" 
+                 style="background-color: ${color}; width: 30px; height: 30px; border-radius: 50%; cursor: pointer; border: 3px solid ${index === 0 ? '#000' : 'transparent'};"
+                 onclick="selectColorForCallLog('${color}', this)">
+            </div>
+        `;
+    });
+    return html;
+}
+
+/**
+ * เลือกสีสำหรับ Call Log Tag
+ */
+function selectColorForCallLog(color, element) {
+    // ลบการเลือกสีเก่า
+    document.querySelectorAll('#addTagCallLogModal .color-option').forEach(option => {
+        option.style.border = '3px solid transparent';
+        option.classList.remove('selected');
+    });
+    
+    // เลือกสีใหม่
+    element.style.border = '3px solid #000';
+    element.classList.add('selected');
+    document.getElementById('selectedColorCallLog').value = color;
+}
+
+/**
+ * บันทึก Tag ใน Preview (Call Log Modal)
+ */
+function submitAddTagForCallLog() {
+    const tagName = document.getElementById('tagNameCallLog').value.trim();
+    const tagColor = document.getElementById('selectedColorCallLog').value;
+    
+    if (!tagName) {
+        showErrorMessage('กรุณาใส่ชื่อ Tag');
+        return;
+    }
+    
+    // เพิ่มใน Preview
+    addCallLogTag(tagName, tagColor);
+    
+    // ปิด modal
+    const modal = bootstrap.Modal.getInstance(document.getElementById('addTagCallLogModal'));
+    modal.hide();
+    
+    // ล้างฟอร์ม
+    document.getElementById('addTagCallLogForm').reset();
 }
 
 // เก็บฟังก์ชันเก่าไว้เผื่อใช้ที่อื่น
@@ -810,15 +1363,71 @@ function applyModalTagFilter() {
     // ใช้การกรอง
     if (selectedTags.length > 0) {
         searchCustomersByTags(selectedTags).then(customers => {
-            if (typeof renderAllCustomersTable === 'function') {
-                renderAllCustomersTable(customers);
+            // ใช้ renderStandardTable แทน renderAllCustomersTable ที่ไม่มีอยู่
+            if (typeof renderStandardTable === 'function') {
+                renderStandardTable(customers, 'allCustomersTable', 'ไม่มีลูกค้าที่มี tags ที่เลือก');
+                
+                // อัปเดต badge count
+                const countBadge = document.getElementById('allCustomersCount');
+                if (countBadge) {
+                    countBadge.textContent = customers.length;
+                }
+                
+                // เพิ่ม pagination
+                setTimeout(() => {
+                    const table = document.querySelector('#allCustomersTable table');
+                    const paginationContainer = document.getElementById('allCustomersTable-pagination');
+                    if (table && paginationContainer) {
+                        paginationContainer.innerHTML = ''; // ลบ pagination เก่า
+                        if (typeof paginateTable === 'function') {
+                            paginateTable(table, 'allCustomersTable-pagination', 10, 'customers_page_allCustomersTable');
+                        }
+                    }
+                }, 100);
+            } else {
+                console.error('renderStandardTable function not found');
             }
+        }).catch(error => {
+            console.error('Error applying tag filter:', error);
+            alert('เกิดข้อผิดพลาดในการกรอง tags');
         });
     } else {
+        // ถ้าไม่มี tag ที่เลือก ให้โหลดลูกค้าทั้งหมด
         if (typeof loadAllCustomers === 'function') {
             loadAllCustomers();
         }
     }
+}
+
+/**
+ * โหลดสถานะ tag filters ที่เลือกไว้ก่อนหน้า
+ */
+function loadPreviousTagFilters() {
+    setTimeout(() => {
+        try {
+            const savedTags = sessionStorage.getItem('selectedTagFilters');
+            if (savedTags) {
+                const selectedTags = JSON.parse(savedTags);
+                
+                selectedTags.forEach(tagName => {
+                    const tagElement = document.querySelector(`#modalTagFilterOptions .tag-selectable[data-tag-name="${tagName}"]`);
+                    if (tagElement) {
+                        // เลือก tag
+                        tagElement.classList.add('selected');
+                        const tagColor = tagElement.dataset.tagColor || '#007bff';
+                        const oppositeColor = getOppositeColor(tagColor);
+                        tagElement.style.border = `3px solid ${oppositeColor}`;
+                        tagElement.style.boxShadow = `0 0 0 1px ${oppositeColor}`;
+                    }
+                });
+                
+                // อัปเดต count
+                updateModalSelectedCountNew();
+            }
+        } catch (error) {
+            console.error('Error loading previous tag filters:', error);
+        }
+    }, 500); // รอให้ modal โหลดเสร็จก่อน
 }
 
 // โหลด user tags เมื่อเริ่มต้น

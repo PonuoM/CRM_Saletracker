@@ -394,28 +394,142 @@ class CronJobService {
     }
 
     /**
-     * ระบบจัดการตะกร้าลูกค้าอัตโนมัติ (Customer Basket Management)
+     * จัดการตะกร้าลูกค้าอัตโนมัติ
+     * 
+     * Flow:
+     * 1. ลูกค้าใหม่ → distribution (พร้อมแจก)
+     * 2. ลูกค้าที่ถูกมอบหมาย (มี assigned_to + assigned_at) → assigned (มีวันหมดอายุ 30 วัน)
+     * 3. ลูกค้าที่มีออเดอร์แต่ไม่มีผู้ติดตาม → waiting (CD 30 วัน) → กลับไป distribution
+     * 4. ลูกค้าที่โดนดึงคืนจาก assigned → waiting (CD 30 วัน) → กลับไป distribution
      */
     public function customerBasketManagement() {
         $this->log("Starting customer basket management...");
 
         try {
             $results = [
-                'new_customers_recalled' => 0,
-                'existing_customers_recalled' => 0,
-                'moved_to_distribution' => 0
+                'assigned_customers_recalled' => 0,
+                'customers_with_orders_recalled' => 0,
+                'moved_to_distribution' => 0,
+                'fixed_basket_types' => 0,
+                'expired_customers_deactivated' => 0,
+                'timeout_customers_moved_to_waiting' => 0
             ];
 
-            // 1. ดึงลูกค้าใหม่ที่หมดเวลาถือครอง (>30 วัน) กลับไป distribution
+            // 0. แก้ไข basket_type และ assigned_at ให้ถูกต้อง
+            // ลูกค้าที่มี assigned_to แต่ assigned_at = NULL ให้ตั้ง assigned_at = NOW()
+            $sql0a = "
+                UPDATE customers
+                SET assigned_at = NOW()
+                WHERE assigned_to IS NOT NULL 
+                AND assigned_at IS NULL
+            ";
+            
+            $stmt0a = $this->db->prepare($sql0a);
+            $stmt0a->execute();
+            $fixed_assigned_at = $stmt0a->rowCount();
+            $this->log("Fixed assigned_at: {$fixed_assigned_at} records");
+            
+            // แก้ไข basket_type ให้ถูกต้องตาม assigned_to และ assigned_at (แยก SQL เพื่อความเร็ว)
+            $fixedCount = 0;
+            
+            // แก้ไขลูกค้าที่มี assigned_to แต่ basket_type ไม่ใช่ assigned
+            $sql0_1 = "
+                UPDATE customers
+                SET basket_type = 'assigned'
+                WHERE assigned_to IS NOT NULL 
+                AND assigned_at IS NOT NULL 
+                AND basket_type != 'assigned'
+            ";
+            $stmt0_1 = $this->db->prepare($sql0_1);
+            $stmt0_1->execute();
+            $fixedCount += $stmt0_1->rowCount();
+            
+            // แก้ไขลูกค้าที่ไม่มี assigned_to และไม่อยู่ใน waiting แต่ basket_type ไม่ใช่ distribution
+            $sql0_2 = "
+                UPDATE customers
+                SET basket_type = 'distribution'
+                WHERE assigned_to IS NULL 
+                AND (recall_at IS NULL OR recall_at < DATE_SUB(NOW(), INTERVAL 30 DAY))
+                AND basket_type != 'distribution'
+            ";
+            $stmt0_2 = $this->db->prepare($sql0_2);
+            $stmt0_2->execute();
+            $fixedCount += $stmt0_2->rowCount();
+            
+            // แก้ไขลูกค้าที่อยู่ใน waiting (recall_at ยังไม่ครบ 30 วัน)
+            // หมายเหตุ: ลูกค้าที่มี assigned_to ต้องอยู่ใน assigned basket เท่านั้น
+            $sql0_3 = "
+                UPDATE customers
+                SET basket_type = 'waiting'
+                WHERE recall_at IS NOT NULL 
+                AND recall_at >= DATE_SUB(NOW(), INTERVAL 30 DAY)
+                AND basket_type != 'waiting'
+                AND assigned_to IS NULL
+            ";
+            $stmt0_3 = $this->db->prepare($sql0_3);
+            $stmt0_3->execute();
+            $fixedCount += $stmt0_3->rowCount();
+            
+            $results['fixed_basket_types'] = $fixedCount;
+            $this->log("Fixed basket_types: {$fixedCount} records");
+
+            // NEW: ปิดลูกค้าที่หมดอายุ (customer_time_expiry <= NOW)
+            $sqlExpire = "
+                UPDATE customers
+                SET is_active = 0,
+                    basket_type = 'expired',
+                    assigned_to = NULL,
+                    assigned_at = NULL,
+                    recall_at = NOW(),
+                    recall_reason = 'customer_time_expired'
+                WHERE is_active = 1
+                AND customer_time_expiry IS NOT NULL
+                AND customer_time_expiry <= NOW()
+                AND DATEDIFF(NOW(), customer_time_expiry) > 30
+            ";
+            
+            $stmtExpire = $this->db->prepare($sqlExpire);
+            $stmtExpire->execute();
+            $results['expired_customers_deactivated'] = $stmtExpire->rowCount();
+            $this->log("Expired customers deactivated: {$results['expired_customers_deactivated']} records");
+
+            // 1. ดึงลูกค้าที่หมดเวลาถือครอง (customer_time_expiry <= NOW) ไปตะกร้ารอ (waiting)
+            // FIXED: เอาไว้ก่อนข้อ 1 เพื่อให้ดักจับลูกค้าที่หมดอายุใหม่ๆ ก่อน
+            $sql2 = "
+                UPDATE customers
+                SET basket_type = 'waiting',
+                    assigned_to = NULL,
+                    assigned_at = NULL,
+                    recall_at = NOW(),
+                    recall_reason = 'assigned_customer_timeout'
+                WHERE basket_type = 'assigned'
+                AND assigned_to IS NOT NULL
+                AND assigned_at IS NOT NULL
+                AND customer_time_expiry IS NOT NULL
+                AND customer_time_expiry <= NOW()
+            ";
+
+            $stmt2 = $this->db->prepare($sql2);
+            $stmt2->execute();
+            $results['timeout_customers_moved_to_waiting'] = $stmt2->rowCount();
+            $this->log("Timeout customers moved to waiting: {$results['timeout_customers_moved_to_waiting']} records");
+
+            // 2. ดึงลูกค้าที่ถูกมอบหมายแล้วและหมดเวลา (>30 วัน) กลับไป distribution
+            // เงื่อนไข: ต้องมี assigned_to และ assigned_at เกิน 30 วัน และไม่มีออเดอร์หรือนัดหมายใหม่
+            // (ลูกค้าที่มีผู้ติดตามจริงและหมดเวลา)
+            // เพิ่มเงื่อนไข: ลูกค้าต้องยังไม่หมดอายุ
             $sql1 = "
                 UPDATE customers
                 SET basket_type = 'distribution',
                     assigned_to = NULL,
                     assigned_at = NULL,
                     recall_at = NOW(),
-                    recall_reason = 'new_customer_timeout'
+                    recall_reason = 'assigned_customer_timeout'
                 WHERE basket_type = 'assigned'
+                AND assigned_to IS NOT NULL
+                AND assigned_at IS NOT NULL
                 AND assigned_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
+                AND (customer_time_expiry IS NULL OR customer_time_expiry > NOW())
                 AND customer_id NOT IN (
                     SELECT DISTINCT customer_id FROM orders
                     WHERE created_at > assigned_at
@@ -428,32 +542,12 @@ class CronJobService {
 
             $stmt1 = $this->db->prepare($sql1);
             $stmt1->execute();
-            $results['new_customers_recalled'] = $stmt1->rowCount();
+            $results['assigned_customers_recalled'] = $stmt1->rowCount();
+            $this->log("Assigned customers recalled: {$results['assigned_customers_recalled']} records");
 
-            // 2. ดึงลูกค้าเก่าที่ไม่มีออเดอร์ใน 90 วัน ไปตะกร้ารอ (waiting)
-            $sql2 = "
-                UPDATE customers
-                SET basket_type = 'waiting',
-                    assigned_to = NULL,
-                    assigned_at = NULL,
-                    recall_at = NOW(),
-                    recall_reason = 'existing_customer_timeout'
-                WHERE basket_type = 'assigned'
-                AND customer_id IN (
-                    SELECT customer_id FROM (
-                        SELECT customer_id
-                        FROM orders
-                        GROUP BY customer_id
-                        HAVING MAX(order_date) < DATE_SUB(NOW(), INTERVAL 90 DAY)
-                    ) as old_customers
-                )
-            ";
-
-            $stmt2 = $this->db->prepare($sql2);
-            $stmt2->execute();
-            $results['existing_customers_recalled'] = $stmt2->rowCount();
-
-            // 3. ย้ายลูกค้าจากตะกร้ารอ (waiting) ไปตะกร้าพร้อมแจก (distribution) หลัง 30 วัน
+            // 3. ย้ายลูกค้าจากตะกร้ารอ (waiting) ไปตะกร้าพร้อมแจก (distribution) หลังครบ 30 วัน
+            // (ลูกค้าที่รอครบ 30 วันแล้วพร้อมกลับไปรอการมอบหมายใหม่)
+            // FIXED: เพิ่มเงื่อนไขให้ลูกค้าที่หมดอายุจริง (customer_time_expiry <= NOW) ไม่ถูกย้ายไป distribution
             $sql3 = "
                 UPDATE customers
                 SET basket_type = 'distribution',
@@ -461,36 +555,76 @@ class CronJobService {
                     recall_reason = NULL
                 WHERE basket_type = 'waiting'
                 AND recall_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
+                AND (customer_time_expiry IS NULL OR customer_time_expiry > NOW())
             ";
 
             $stmt3 = $this->db->prepare($sql3);
             $stmt3->execute();
             $results['moved_to_distribution'] = $stmt3->rowCount();
+            $this->log("Moved to distribution: {$results['moved_to_distribution']} records");
+
+            // 4. ย้ายลูกค้าที่หมดอายุจาก waiting ไป distribution (ถ้าไม่ใช่ลูกค้าที่หมดอายุจริง)
+            // แต่ลูกค้าที่หมดอายุจริง (customer_time_expiry <= NOW) จะไม่ถูกย้าย
+            $sql4 = "
+                UPDATE customers
+                SET basket_type = 'distribution',
+                    recall_at = NULL,
+                    recall_reason = NULL
+                WHERE basket_type = 'waiting'
+                AND customer_time_expiry IS NOT NULL
+                AND customer_time_expiry > NOW()
+                AND (recall_at IS NULL OR recall_at < DATE_SUB(NOW(), INTERVAL 30 DAY))
+            ";
+
+            $stmt4 = $this->db->prepare($sql4);
+            $stmt4->execute();
+            $waitingToDistribution = $stmt4->rowCount();
+            $this->log("Waiting customers moved to distribution (not expired): {$waitingToDistribution} records");
 
             // บันทึก activity logs
-            if ($results['new_customers_recalled'] > 0) {
-                $this->logBasketActivity('new_customer_recall', $results['new_customers_recalled']);
+            if ($fixed_assigned_at > 0) {
+                $this->logBasketActivity('fixed_assigned_at', $fixed_assigned_at);
+            }
+            
+            if ($results['fixed_basket_types'] > 0) {
+                $this->logBasketActivity('fixed_basket_types', $results['fixed_basket_types']);
+            }
+            
+            if ($results['assigned_customers_recalled'] > 0) {
+                $this->logBasketActivity('assigned_customer_recall', $results['assigned_customers_recalled']);
             }
 
-            if ($results['existing_customers_recalled'] > 0) {
-                $this->logBasketActivity('existing_customer_recall', $results['existing_customers_recalled']);
+            if ($results['timeout_customers_moved_to_waiting'] > 0) {
+                $this->logBasketActivity('timeout_customers_moved_to_waiting', $results['timeout_customers_moved_to_waiting']);
             }
 
             if ($results['moved_to_distribution'] > 0) {
                 $this->logBasketActivity('waiting_to_distribution', $results['moved_to_distribution']);
             }
 
-            $this->log("Customer basket management completed. New recalled: {$results['new_customers_recalled']}, Existing recalled: {$results['existing_customers_recalled']}, Moved to distribution: {$results['moved_to_distribution']}");
+            if ($waitingToDistribution > 0) {
+                $this->logBasketActivity('waiting_to_distribution_not_expired', $waitingToDistribution);
+            }
+
+            if ($results['expired_customers_deactivated'] > 0) {
+                $this->logBasketActivity('expired_customers_deactivated', $results['expired_customers_deactivated']);
+            }
+
+            $this->log("Customer basket management completed. Fixed assigned_at: {$fixed_assigned_at}, Fixed basket types: {$results['fixed_basket_types']}, Assigned customers recalled: {$results['assigned_customers_recalled']}, Timeout customers moved to waiting: {$results['timeout_customers_moved_to_waiting']}, Moved to distribution: {$results['moved_to_distribution']}, Waiting to distribution (not expired): {$waitingToDistribution}, Expired customers deactivated: {$results['expired_customers_deactivated']}");
 
             return [
                 'success' => true,
-                'new_customers_recalled' => $results['new_customers_recalled'],
-                'existing_customers_recalled' => $results['existing_customers_recalled'],
-                'moved_to_distribution' => $results['moved_to_distribution']
+                'fixed_assigned_at' => $fixed_assigned_at,
+                'fixed_basket_types' => $results['fixed_basket_types'],
+                'assigned_customers_recalled' => $results['assigned_customers_recalled'],
+                'timeout_customers_moved_to_waiting' => $results['timeout_customers_moved_to_waiting'],
+                'moved_to_distribution' => $results['moved_to_distribution'],
+                'waiting_to_distribution_not_expired' => $waitingToDistribution,
+                'expired_customers_deactivated' => $results['expired_customers_deactivated']
             ];
 
         } catch (Exception $e) {
-            $this->log("Error in customer basket management: " . $e->getMessage());
+            $this->log("Error in customerBasketManagement: " . $e->getMessage());
             return [
                 'success' => false,
                 'error' => $e->getMessage()
@@ -694,20 +828,32 @@ class CronJobService {
      */
     private function logBasketActivity($activityType, $count) {
         try {
+            // ตรวจสอบว่าตาราง activity_logs มีอยู่หรือไม่
+            $checkTable = $this->db->prepare("SHOW TABLES LIKE 'activity_logs'");
+            $checkTable->execute();
+            
+            if ($checkTable->rowCount() == 0) {
+                $this->log("Warning: activity_logs table not found, skipping activity logging");
+                return;
+            }
+
             $sql = "INSERT INTO activity_logs (user_id, activity_type, table_name, action, description, created_at)
                     VALUES (NULL, 'basket_management', 'customers', ?, ?, NOW())";
 
             $descriptions = [
-                'new_customer_recall' => "ดึงลูกค้าใหม่ {$count} รายกลับไปตะกร้าพร้อมแจก (หมดเวลาถือครอง 30 วัน)",
-                'existing_customer_recall' => "ดึงลูกค้าเก่า {$count} รายไปตะกร้ารอ (ไม่มีออเดอร์ 90 วัน)",
-                'waiting_to_distribution' => "ย้ายลูกค้า {$count} รายจากตะกร้ารอไปตะกร้าพร้อมแจก (รอครบ 30 วัน)"
+                'fixed_assigned_at' => "แก้ไข assigned_at ให้ถูกต้อง {$count} รายการ (ลูกค้าที่มี assigned_to แต่ไม่มี assigned_at)",
+                'fixed_basket_types' => "แก้ไข basket_type ให้ถูกต้อง {$count} รายการ (ตาม assigned_to และ assigned_at)",
+                'assigned_customer_recall' => "ดึงลูกค้าที่ถูกมอบหมายแล้ว {$count} รายกลับไปตะกร้าพร้อมแจก (หมดเวลาถือครอง 30 วัน)",
+                'timeout_customers_recall' => "ดึงลูกค้าที่หมดเวลาถือครอง {$count} รายไปตะกร้ารอ (หมดเวลา customer_time_expiry)",
+                'waiting_to_distribution' => "ย้ายลูกค้า {$count} รายจากตะกร้ารอไปตะกร้าพร้อมแจก (รอครบ 30 วัน)",
+                'customers_with_orders_recall' => "ดึงลูกค้าที่หมดเวลาถือครอง {$count} รายไปตะกร้ารอ (หมดเวลา customer_time_expiry)",
+                'expired_customers_deactivated' => "ปิดการใช้งานลูกค้าที่หมดอายุ {$count} ราย (customer_time_expired)"
             ];
 
             $description = $descriptions[$activityType] ?? "จัดการตะกร้าลูกค้า: {$activityType} ({$count} รายการ)";
 
             $stmt = $this->db->prepare($sql);
             $stmt->execute([$activityType, $description]);
-
         } catch (Exception $e) {
             $this->log("Error logging basket activity: " . $e->getMessage());
         }
@@ -725,5 +871,12 @@ class CronJobService {
         if (php_sapi_name() === 'cli') {
             echo $logMessage;
         }
+    }
+    
+    /**
+     * ดึง Database connection
+     */
+    public function getDatabase() {
+        return $this->db;
     }
 }

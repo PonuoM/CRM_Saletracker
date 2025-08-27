@@ -4,7 +4,10 @@
  * จัดการ API calls สำหรับ Customer Management
  */
 
-session_start();
+// Start session only if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Include required files
 require_once __DIR__ . '/../config/config.php';
@@ -28,49 +31,86 @@ try {
     $controller = new CustomerController();
     
     // Get action from query string or request body
-    $action = $_GET['action'] ?? '';
+    $action = $_GET['action'] ?? $_POST['action'] ?? '';
     
-    switch ($action) {
-        case 'assign':
-            $controller->assignCustomers();
-            break;
+    // Handle POST requests
+    if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        switch ($action) {
+            case 'assign':
+                $controller->assignCustomers();
+                break;
+                
+            case 'recall':
+                $controller->recallCustomer();
+                break;
+                
+            case 'update_status':
+                $controller->updateStatus();
+                break;
+                
+            case 'log_call':
+                $controller->logCall();
+                break;
+                
+            case 'change_assignee':
+                // เปลี่ยนผู้ดูแลลูกค้า
+                $controller->changeCustomerAssignee();
+                break;
+                
+            default:
+                http_response_code(405);
+                echo json_encode(['error' => 'Method not allowed', 'message' => 'Action not supported for POST method']);
+                break;
+        }
+    }
+    // Handle GET requests
+    else if ($_SERVER['REQUEST_METHOD'] === 'GET') {
+        switch ($action) {
+            case 'show':
+                // Handle customer detail view (redirect to page)
+                $customerId = $_GET['id'] ?? null;
+                if ($customerId) {
+                    $controller->show($customerId);
+                } else {
+                    http_response_code(400);
+                    echo json_encode(['error' => 'Missing customer ID']);
+                }
+                break;
+                
+            case 'export':
+                // Handle export functionality
+                handleExport($controller);
+                break;
             
-        case 'recall':
-            $controller->recallCustomer();
-            break;
-            
-        case 'update_status':
-            $controller->updateStatus();
-            break;
-            
-        case 'log_call':
-            $controller->logCall();
-            break;
-            
-        case 'show':
-            // Handle customer detail view (redirect to page)
-            $customerId = $_GET['id'] ?? null;
-            if ($customerId) {
-                $controller->show($customerId);
-            } else {
-                http_response_code(400);
-                echo json_encode(['error' => 'Missing customer ID']);
-            }
-            break;
-            
-        case 'export':
-            // Handle export functionality
-            handleExport($controller);
-            break;
-        
-        case 'followups':
-            $controller->getFollowups();
-            break;
-            
-        default:
-            // Default action: get customers by basket
-            $controller->getCustomersByBasket();
-            break;
+            case 'followups':
+                $controller->getFollowups();
+                break;
+                
+            case 'get_customer':
+                // ดึงข้อมูลลูกค้าพร้อม tags สำหรับอัพเดทตาราง
+                if (isset($_GET['id'])) {
+                    $customerId = (int)$_GET['id'];
+                    $controller->getCustomerWithTags($customerId);
+                } else {
+                    echo json_encode(['success' => false, 'message' => 'Customer ID required']);
+                }
+                break;
+                
+            case 'get_telesales':
+                // ดึงรายการ Telesales สำหรับการเปลี่ยนผู้ดูแล
+                $controller->getTelesalesList();
+                break;
+                
+            default:
+                // Default action: get customers by basket
+                $controller->getCustomersByBasket();
+                break;
+        }
+    }
+    // Handle other methods
+    else {
+        http_response_code(405);
+        echo json_encode(['error' => 'Method not allowed', 'message' => 'Only GET and POST methods are supported']);
     }
     
 } catch (Exception $e) {

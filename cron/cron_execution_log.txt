@@ -1,0 +1,4 @@
+CRM SalesTracker Cron Job Execution Log
+=======================================
+
+This file will contain detailed logs of cron job executions for debugging purposes.

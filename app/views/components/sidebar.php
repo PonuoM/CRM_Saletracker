@@ -48,6 +48,15 @@ $userId = $_SESSION['user_id'] ?? 0;
                 </a>
             </li>
 
+            <?php if (in_array($roleName, ['supervisor', 'telesales', 'admin', 'super_admin'])): ?>
+            <li class="nav-item">
+                <a class="nav-link <?php echo ($currentPage === 'search') ? 'active' : ''; ?>" href="search.php" data-tooltip="ค้นหาลูกค้าและยอดขาย">
+                    <i class="fas fa-search nav-icon"></i>
+                    <span class="nav-text">ค้นหา</span>
+                </a>
+            </li>
+            <?php endif; ?>
+
             <?php if (in_array($roleName, ['admin', 'super_admin'])): ?>
             <li class="nav-item">
                 <a class="nav-link <?php echo ($currentPage === 'admin') ? 'active' : ''; ?>" href="admin.php" data-tooltip="Admin Dashboard">
@@ -105,11 +114,12 @@ $userId = $_SESSION['user_id'] ?? 0;
                 </li>
                 <li class="nav-item">
                     <a class="nav-link <?php echo ($currentPage === 'admin' && $currentAction === 'customer_distribution') ? 'active' : ''; ?>" href="admin.php?action=customer_distribution" data-tooltip="ระบบแจกลูกค้า">
-                        <i class="fas fa-users nav-icon"></i>
-                        <span class="nav-text">ระบบแจกลูกค้า</span>
+                        <i class="fas fa-share-alt me-2"></i>
+                        <span>ระบบแจกลูกค้า</span>
                     </a>
                 </li>
                 <?php endif; ?>
+                
         </ul>
     </div>
 

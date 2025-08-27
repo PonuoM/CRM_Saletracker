@@ -289,9 +289,9 @@ class CustomerService {
                 AND c.basket_type = 'assigned'
                 AND c.is_active = 1
                 AND (
-                    c.next_followup_at IS NOT NULL OR
                     c.customer_status = 'new' OR
-                    c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 7 DAY)
+                    c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 3 DAY) OR
+                    (c.next_followup_at IS NOT NULL AND c.next_followup_at <= DATE_ADD(NOW(), INTERVAL 1 DAY))
                 )
                 ";
 

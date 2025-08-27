@@ -33,23 +33,7 @@ $userId = $_SESSION['user_id'] ?? '';
                     </li>
                     <?php endif; ?>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link <?php echo ($roleName !== 'telesales' && $roleName !== 'supervisor') ? 'active' : ''; ?>" id="new-tab" data-bs-toggle="tab" data-bs-target="#new" type="button" role="tab">
-                            <i class="fas fa-user-plus me-1"></i>ลูกค้าใหม่
-                        </button>
-                    </li>
-
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="followup-tab" data-bs-toggle="tab" data-bs-target="#followup" type="button" role="tab">
-                            <i class="fas fa-clock me-1"></i>ติดตาม
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="existing-tab" data-bs-toggle="tab" data-bs-target="#existing" type="button" role="tab">
-                            <i class="fas fa-user me-1"></i>ลูกค้าเก่า
-                        </button>
-                    </li>
-                    <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="all-tab" data-bs-toggle="tab" data-bs-target="#all" type="button" role="tab">
+                        <button class="nav-link <?php echo ($roleName !== 'telesales' && $roleName !== 'supervisor') ? 'active' : ''; ?>" id="all-tab" data-bs-toggle="tab" data-bs-target="#all" type="button" role="tab">
                             <i class="fas fa-users me-1"></i>ลูกค้าทั้งหมด
                             <span class="badge bg-info ms-1" id="allCustomersCount">0</span>
                         </button>
@@ -197,162 +181,8 @@ $userId = $_SESSION['user_id'] ?? '';
                     </div>
                     <?php endif; ?>
 
-                    <!-- New Customers Tab -->
-                    <div class="tab-pane fade <?php echo ($roleName !== 'telesales' && $roleName !== 'supervisor') ? 'show active' : ''; ?>" id="new" role="tabpanel">
-                        <div class="card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <h5 class="card-title mb-0">
-                                    <i class="fas fa-user-plus me-2"></i>ลูกค้าใหม่
-                                </h5>
-                                <?php if (in_array($roleName, ['supervisor', 'admin', 'super_admin'])): ?>
-                                <div>
-                                    <button class="btn btn-primary btn-sm" onclick="showAssignModal()">
-                                        <i class="fas fa-user-plus me-1"></i>มอบหมายลูกค้า
-                                    </button>
-                                </div>
-                                <?php endif; ?>
-                                <form class="d-flex gap-2 flex-wrap ms-auto" onsubmit="event.preventDefault(); applyFilters();">
-                                    <input type="text" class="form-control form-control-sm" style="width: 160px;" id="nameFilter_new" placeholder="ชื่อลูกค้า">
-                                    <input type="text" class="form-control form-control-sm" style="width: 140px;" id="phoneFilter_new" placeholder="เบอร์โทร">
-                                    <select class="form-select form-select-sm" style="width: 120px;" id="tempFilter_new">
-                                        <option value="">สถานะ</option>
-                                        <option value="hot">Hot</option>
-                                        <option value="warm">Warm</option>
-                                        <option value="cold">Cold</option>
-                                        <option value="frozen">Frozen</option>
-                                    </select>
-                                    <select class="form-select form-select-sm" style="width: 100px;" id="gradeFilter_new">
-                                        <option value="">เกรด</option>
-                                        <option value="A+">A+</option>
-                                        <option value="A">A</option>
-                                        <option value="B">B</option>
-                                        <option value="C">C</option>
-                                        <option value="D">D</option>
-                                    </select>
-                                    <select class="form-select form-select-sm" style="width: 140px;" id="provinceFilter_new">
-                                        <option value="">จังหวัด</option>
-                                        <?php foreach ($provinces as $province): ?>
-                                        <option value="<?php echo htmlspecialchars($province['province']); ?>"><?php echo htmlspecialchars($province['province']); ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTabFilters('new')">
-                                        <i class="fas fa-times"></i> ล้าง
-                                    </button>
-                                </form>
-                            </div>
-                            <div class="card-body">
-                                <div id="newCustomersTable">
-                                    <!-- Customer table will be loaded here -->
-                                </div>
-                                <div class="d-flex justify-content-end mt-3">
-                                    <nav>
-                                        <ul class="pagination pagination-sm mb-0" id="newCustomersTable-pagination"></ul>
-                                    </nav>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Follow-up Tab -->
-                    <div class="tab-pane fade" id="followup" role="tabpanel">
-                        <div class="card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <h5 class="card-title mb-0">
-                                    <i class="fas fa-clock me-2"></i>ลูกค้าที่ต้องติดตาม
-                                </h5>
-                                <form class="d-flex gap-2 flex-wrap ms-auto" onsubmit="event.preventDefault(); applyFilters();">
-                                    <input type="text" class="form-control form-control-sm" style="width: 160px;" id="nameFilter_followup" placeholder="ชื่อลูกค้า">
-                                    <input type="text" class="form-control form-control-sm" style="width: 140px;" id="phoneFilter_followup" placeholder="เบอร์โทร">
-                                    <select class="form-select form-select-sm" style="width: 120px;" id="tempFilter_followup">
-                                        <option value="">สถานะ</option>
-                                        <option value="hot">Hot</option>
-                                        <option value="warm">Warm</option>
-                                        <option value="cold">Cold</option>
-                                        <option value="frozen">Frozen</option>
-                                    </select>
-                                    <select class="form-select form-select-sm" style="width: 100px;" id="gradeFilter_followup">
-                                        <option value="">เกรด</option>
-                                        <option value="A+">A+</option>
-                                        <option value="A">A</option>
-                                        <option value="B">B</option>
-                                        <option value="C">C</option>
-                                        <option value="D">D</option>
-                                    </select>
-                                    <select class="form-select form-select-sm" style="width: 140px;" id="provinceFilter_followup">
-                                        <option value="">จังหวัด</option>
-                                        <?php foreach ($provinces as $province): ?>
-                                        <option value="<?php echo htmlspecialchars($province['province']); ?>"><?php echo htmlspecialchars($province['province']); ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTabFilters('followup')">
-                                        <i class="fas fa-times"></i> ล้าง
-                                    </button>
-                                </form>
-                            </div>
-                            <div class="card-body">
-                                <div id="followupCustomersTable">
-                                    <!-- Customer table will be loaded here -->
-                                </div>
-                                <div class="d-flex justify-content-end mt-3">
-                                    <nav>
-                                        <ul class="pagination pagination-sm mb-0" id="followupCustomersTable-pagination"></ul>
-                                    </nav>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <!-- Existing Customers Tab -->
-                    <div class="tab-pane fade" id="existing" role="tabpanel">
-                        <div class="card">
-                            <div class="card-header d-flex justify-content-between align-items-center">
-                                <h5 class="card-title mb-0">
-                                    <i class="fas fa-user me-2"></i>ลูกค้าเก่า
-                                </h5>
-                                <form class="d-flex gap-2 flex-wrap ms-auto" onsubmit="event.preventDefault(); applyFilters();">
-                                    <input type="text" class="form-control form-control-sm" style="width: 160px;" id="nameFilter_existing" placeholder="ชื่อลูกค้า">
-                                    <input type="text" class="form-control form-control-sm" style="width: 140px;" id="phoneFilter_existing" placeholder="เบอร์โทร">
-                                    <select class="form-select form-select-sm" style="width: 120px;" id="tempFilter_existing">
-                                        <option value="">สถานะ</option>
-                                        <option value="hot">Hot</option>
-                                        <option value="warm">Warm</option>
-                                        <option value="cold">Cold</option>
-                                        <option value="frozen">Frozen</option>
-                                    </select>
-                                    <select class="form-select form-select-sm" style="width: 100px;" id="gradeFilter_existing">
-                                        <option value="">เกรด</option>
-                                        <option value="A+">A+</option>
-                                        <option value="A">A</option>
-                                        <option value="B">B</option>
-                                        <option value="C">C</option>
-                                        <option value="D">D</option>
-                                    </select>
-                                    <select class="form-select form-select-sm" style="width: 140px;" id="provinceFilter_existing">
-                                        <option value="">จังหวัด</option>
-                                        <?php foreach ($provinces as $province): ?>
-                                        <option value="<?php echo htmlspecialchars($province['province']); ?>"><?php echo htmlspecialchars($province['province']); ?></option>
-                                        <?php endforeach; ?>
-                                    </select>
-                                    <button type="button" class="btn btn-sm btn-outline-secondary" onclick="clearTabFilters('existing')">
-                                        <i class="fas fa-times"></i> ล้าง
-                                    </button>
-                                </form>
-                            </div>
-                            <div class="card-body">
-                                <div id="existingCustomersTable">
-                                    <!-- Customer table will be loaded here -->
-                                </div>
-                                <div class="d-flex justify-content-end mt-3">
-                                    <nav>
-                                        <ul class="pagination pagination-sm mb-0" id="existingCustomersTable-pagination"></ul>
-                                    </nav>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-
                     <!-- All Customers Tab -->
-                    <div class="tab-pane fade" id="all" role="tabpanel">
+                    <div class="tab-pane fade <?php echo ($roleName !== 'telesales' && $roleName !== 'supervisor') ? 'show active' : ''; ?>" id="all" role="tabpanel">
                         <div class="card">
                             <div class="card-header">
                                 <div class="d-flex justify-content-between align-items-center flex-wrap">
@@ -519,44 +349,39 @@ $userId = $_SESSION['user_id'] ?? '';
                     <input type="hidden" id="callCustomerId">
                     <div class="row">
                         <div class="col-md-6">
-                            <label for="callType" class="form-label">ประเภทการโทร</label>
-                            <select class="form-select" id="callType" required>
-                                <option value="outbound">โทรออก</option>
-                                <option value="inbound">โทรเข้า</option>
+                            <label for="callStatus" class="form-label">สถานะการโทร</label>
+                            <select class="form-select" id="callStatus" required>
+                                <option value="">เลือกสถานะการโทร</option>
+                                <option value="answered">รับสาย</option>
+                                <option value="no_answer">ไม่รับสาย</option>
+                                <option value="busy">สายไม่ว่าง</option>
+                                <option value="invalid">เบอร์ผิด</option>
+                                <option value="hang_up">ตัดสายทิ้ง</option>
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label for="callStatus" class="form-label">สถานะการโทร</label>
-                            <select class="form-select" id="callStatus" required>
-                                <option value="รับสาย">รับสาย</option>
+                            <label for="callResult" class="form-label">ผลการโทร</label>
+                            <select class="form-select" id="callResult">
+                                <option value="">เลือกผลการโทร</option>
+                                <option value="สนใจ">สนใจ</option>
+                                <option value="ไม่สนใจ">ไม่สนใจ</option>
+                                <option value="ลังเล">ลังเล</option>
+                                <option value="เบอร์ผิด">เบอร์ผิด</option>
+                                <option value="ได้คุย">ได้คุย</option>
+                                <option value="ตัดสายทิ้ง">ตัดสายทิ้ง</option>
                                 <option value="ไม่รับสาย">ไม่รับสาย</option>
                                 <option value="สายไม่ว่าง">สายไม่ว่าง</option>
-                                <option value="ตัดสายทิ้ง">ตัดสายทิ้ง</option>
-                                <option value="ติดต่อไม่ได้">ติดต่อไม่ได้</option>
                             </select>
                         </div>
                     </div>
                     <div class="row mt-3">
                         <div class="col-md-6">
-                            <label for="callResult" class="form-label">ผลการโทร</label>
-                            <select class="form-select" id="callResult">
-                                <option value="">เลือกผลการโทร</option>
-                                <option value="สั่งซื้อ">สั่งซื้อ</option>
-                                <option value="สนใจ">สนใจ</option>
-                                <option value="Add Line แล้ว">Add Line แล้ว</option>
-                                <option value="ต้องการซื้อทางเพจ">ต้องการซื้อทางเพจ</option>
-                                <option value="น้ำท่วม">น้ำท่วม</option>
-                                <option value="รอติดต่อใหม่">รอติดต่อใหม่</option>
-                                <option value="นัดหมาย">นัดหมาย</option>
-                                <option value="เบอร์ไม่ถูก">เบอร์ไม่ถูก</option>
-                                <option value="ไม่สะดวกคุย">ไม่สะดวกคุย</option>
-                                <option value="ไม่สนใจ">ไม่สนใจ</option>
-                                <option value="อย่าโทรมาอีก">อย่าโทรมาอีก</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
                             <label for="callDuration" class="form-label">ระยะเวลา (นาที)</label>
                             <input type="number" class="form-control" id="callDuration" min="0" value="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="nextFollowup" class="form-label">วันที่คาดว่าจะติดต่อครั้งถัดไป</label>
+                            <input type="datetime-local" class="form-control" id="nextFollowup">
                         </div>
                     </div>
                     <div class="mt-3">
@@ -564,16 +389,17 @@ $userId = $_SESSION['user_id'] ?? '';
                         <textarea class="form-control" id="callNotes" rows="3"></textarea>
                     </div>
                     <div class="row mt-3">
-                        <div class="col-md-6">
+                        <div class="col-md-12">
                             <label for="callTags" class="form-label">เพิ่ม Tag</label>
-                            <div class="d-flex gap-1">
+                            <div class="d-flex gap-1 mb-2">
                                 <button type="button" class="btn btn-outline-primary btn-sm flex-grow-1" onclick="showAddTagModalFromCall()">
                                     <i class="fas fa-plus"></i> เพิ่ม Tag
                                 </button>
                             </div>
-                        </div>
-                        <div class="col-md-6">
-                            <!-- Reserved for future use -->
+                            <!-- Preview area สำหรับ Tags ที่เพิ่มแล้ว -->
+                            <div id="callTagsPreview" class="border rounded p-2 bg-light min-height-40" style="min-height: 40px;">
+                                <small class="text-muted">Tags ที่เพิ่มจะแสดงที่นี่</small>
+                            </div>
                         </div>
                     </div>
                 </form>
@@ -589,4 +415,32 @@ $userId = $_SESSION['user_id'] ?? '';
 <script>
     // Set user role for JavaScript
     window.currentUserRole = '<?php echo $_SESSION["role_name"] ?? ""; ?>';
+    
+    // Auto-fill ผลการโทรเมื่อเปลี่ยนสถานะการโทร (สำหรับ static modal)
+    document.addEventListener('DOMContentLoaded', function() {
+        const callStatus = document.getElementById('callStatus');
+        const callResult = document.getElementById('callResult');
+        
+        if (callStatus && callResult) {
+            callStatus.addEventListener('change', function() {
+                // ถ้าเลือกสถานะที่ไม่ใช่ "รับสาย" ให้ auto-fill ผลการโทร
+                if (this.value && this.value !== 'answered') {
+                    const statusValueMap = {
+                        'no_answer': 'ไม่รับสาย',
+                        'busy': 'สายไม่ว่าง',
+                        'invalid': 'เบอร์ผิด',
+                        'hang_up': 'ตัดสายทิ้ง'
+                    };
+                    const autoFillValue = statusValueMap[this.value];
+                    if (autoFillValue) {
+                        // ตรวจสอบว่ามี option นี้อยู่ใน callResult หรือไม่
+                        const option = Array.from(callResult.options).find(opt => opt.value === autoFillValue);
+                        if (option) {
+                            callResult.value = autoFillValue;
+                        }
+                    }
+                }
+            });
+        }
+    });
 </script>

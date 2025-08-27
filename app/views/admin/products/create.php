@@ -17,7 +17,7 @@
                 <?php if (!empty($error)): ?>
                     <div class="alert alert-danger alert-dismissible fade show" role="alert">
                         <i class="fas fa-exclamation-triangle me-2"></i>
-                        <?php echo htmlspecialchars($error); ?>
+                        <strong>เกิดข้อผิดพลาด:</strong> <?php echo htmlspecialchars($error); ?>
                         <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
                     </div>
                 <?php endif; ?>
@@ -174,4 +174,52 @@
                         </form>
                     </div>
                 </div>
+                
+                <!-- JavaScript Validation -->
+                <script>
+                document.addEventListener("DOMContentLoaded", function() {
+                    const productCodeInput = document.getElementById("product_code");
+                    const productForm = document.getElementById("productForm");
+                    
+                    if (productCodeInput && productForm) {
+                        // ตรวจสอบรหัสสินค้าที่ซ้ำก่อนส่งฟอร์ม
+                        productForm.addEventListener("submit", function(e) {
+                            const productCode = productCodeInput.value.trim();
+                            
+                            if (productCode === "") {
+                                e.preventDefault();
+                                alert("กรุณากรอกรหัสสินค้า");
+                                productCodeInput.focus();
+                                return false;
+                            }
+                            
+                            // ตรวจสอบรูปแบบรหัสสินค้า
+                            if (productCode.length < 3) {
+                                e.preventDefault();
+                                alert("รหัสสินค้าต้องมีความยาวอย่างน้อย 3 ตัวอักษร");
+                                productCodeInput.focus();
+                                return false;
+                            }
+                        });
+                        
+                        // แสดงข้อความแนะนำเมื่อ focus ที่ input
+                        productCodeInput.addEventListener("focus", function() {
+                            const helpText = this.parentNode.querySelector(".form-text");
+                            if (helpText) {
+                                helpText.style.color = "#007bff";
+                                helpText.style.fontWeight = "bold";
+                            }
+                        });
+                        
+                        // ซ่อนข้อความแนะนำเมื่อ blur
+                        productCodeInput.addEventListener("blur", function() {
+                            const helpText = this.parentNode.querySelector(".form-text");
+                            if (helpText) {
+                                helpText.style.color = "#6c757d";
+                                helpText.style.fontWeight = "normal";
+                            }
+                        });
+                    }
+                });
+                </script>
             

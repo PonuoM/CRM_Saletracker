@@ -209,16 +209,37 @@ class WorkflowService {
             $results = [
                 'new_customers_recalled' => 0,
                 'existing_customers_recalled' => 0,
-                'moved_to_distribution' => 0
+                'moved_to_distribution' => 0,
+                'expired_customers_deactivated' => 0
             ];
             
-            // Recall ลูกค้าใหม่
+            // 🚨 CRITICAL: ปิดลูกค้าที่หมดอายุ (customer_time_expiry <= NOW)
+            $sql0 = "
+                UPDATE customers 
+                SET is_active = 0,
+                    basket_type = 'expired',
+                    assigned_to = NULL,
+                    assigned_at = NULL,
+                    recall_at = NOW(),
+                    recall_reason = 'customer_time_expired'
+                WHERE is_active = 1
+                AND customer_time_expiry IS NOT NULL
+                AND customer_time_expiry <= NOW()
+            ";
+            
+            $results['expired_customers_deactivated'] = $this->db->execute($sql0);
+            
+            // Recall ลูกค้าใหม่ (เพิ่มเงื่อนไข customer_time_expiry)
             $sql1 = "
                 UPDATE customers 
                 SET basket_type = 'distribution',
                     assigned_to = NULL,
-                    recall_at = NOW()
+                    assigned_at = NULL,
+                    recall_at = NOW(),
+                    recall_reason = 'new_customer_timeout'
                 WHERE basket_type = 'assigned'
+                AND is_active = 1
+                AND (customer_time_expiry IS NULL OR customer_time_expiry > NOW())
                 AND assigned_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
                 AND customer_id NOT IN (
                     SELECT DISTINCT customer_id FROM orders 
@@ -232,13 +253,17 @@ class WorkflowService {
             
             $results['new_customers_recalled'] = $this->db->execute($sql1);
             
-            // Recall ลูกค้าเก่า
+            // Recall ลูกค้าเก่า (เพิ่มเงื่อนไข customer_time_expiry)
             $sql2 = "
                 UPDATE customers 
                 SET basket_type = 'waiting',
                     assigned_to = NULL,
-                    recall_at = NOW()
+                    assigned_at = NULL,
+                    recall_at = NOW(),
+                    recall_reason = 'existing_customer_timeout'
                 WHERE basket_type = 'assigned'
+                AND is_active = 1
+                AND (customer_time_expiry IS NULL OR customer_time_expiry > NOW())
                 AND customer_id IN (
                     SELECT customer_id FROM orders 
                     GROUP BY customer_id 
@@ -248,11 +273,15 @@ class WorkflowService {
             
             $results['existing_customers_recalled'] = $this->db->execute($sql2);
             
-            // ย้ายจาก waiting ไป distribution
+            // ย้ายจาก waiting ไป distribution (เพิ่มเงื่อนไข customer_time_expiry)
             $sql3 = "
                 UPDATE customers 
-                SET basket_type = 'distribution'
+                SET basket_type = 'distribution',
+                    recall_at = NULL,
+                    recall_reason = NULL
                 WHERE basket_type = 'waiting'
+                AND is_active = 1
+                AND (customer_time_expiry IS NULL OR customer_time_expiry > NOW())
                 AND recall_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
             ";
             
@@ -262,7 +291,7 @@ class WorkflowService {
             
             return [
                 'success' => true,
-                'message' => 'รัน Manual Recall สำเร็จ',
+                'message' => 'รัน Manual Recall สำเร็จ (รวม 90-day CAP)',
                 'results' => $results
             ];
             

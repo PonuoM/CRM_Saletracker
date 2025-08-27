@@ -14,7 +14,10 @@ require_once __DIR__ . '/../app/core/Database.php';
 require_once __DIR__ . '/../app/services/AppointmentService.php';
 
 // เริ่ม session
-session_start();
+// Start session only if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // ตรวจสอบการ login
 if (!isset($_SESSION['user_id'])) {

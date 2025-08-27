@@ -43,14 +43,21 @@
     <script src="assets/js/tags.js"></script>
     <?php if (isset($bodyClass) && $bodyClass === 'customer-page-body'): ?>
         <script src="assets/js/customers.js"></script>
+        <script src="assets/js/customer-detail.js"></script>
+    <?php elseif (isset($bodyClass) && $bodyClass === 'search-page-body'): ?>
+        <script src="assets/js/search.js"></script>
+    <?php elseif (isset($bodyClass) && strpos($bodyClass, 'customer-detail') !== false): ?>
+        <script src="assets/js/customer-detail.js"></script>
+    <?php elseif (isset($bodyClass) && $bodyClass === 'transfer-page-body'): ?>
+        <script src="assets/js/customer-transfer.js"></script>
     <?php endif; ?>
-    <script src="assets/js/customer-detail.js"></script>
     
     <script>
-        // Global event listeners for customer detail page
+        // Global event listeners - only load for appropriate pages
         document.addEventListener('DOMContentLoaded', function() {
             console.log('Main layout loaded');
             
+            <?php if (isset($bodyClass) && ($bodyClass === 'customer-page-body' || strpos($bodyClass, 'customer-detail') !== false)): ?>
             // Log Call Buttons (support multiple on page)
             document.querySelectorAll('.log-call-btn').forEach(function(btn){
                 btn.addEventListener('click', function() {
@@ -151,6 +158,7 @@
                     console.log('All required functions are loaded successfully');
                 }
             }, 1000);
+            <?php endif; ?>
             
             // Add global error handler
             window.addEventListener('error', function(event) {

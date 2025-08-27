@@ -240,6 +240,7 @@ class CustomerController {
         
         // ใช้ layout ที่ถูกต้อง
         $pageTitle = 'รายละเอียดลูกค้า - CRM SalesTracker';
+        $bodyClass = 'customer-detail-page'; // Set bodyClass for proper JavaScript loading
         
         // เริ่ม output buffering
         ob_start();
@@ -1262,6 +1263,214 @@ class CustomerController {
         } else {
             http_response_code(400);
             echo json_encode($result);
+        }
+    }
+
+    /**
+     * API: ดึงข้อมูลลูกค้าพร้อม tags สำหรับอัพเดทตาราง
+     */
+    public function getCustomerWithTags($customerId) {
+        try {
+            if (!isset($_SESSION['user_id'])) {
+                echo json_encode(['success' => false, 'message' => 'Authentication required']);
+                return;
+            }
+            
+            // ดึงข้อมูลลูกค้า
+            $customer = $this->db->fetchOne(
+                "SELECT c.*, u.full_name as assigned_to_name 
+                 FROM customers c 
+                 LEFT JOIN users u ON c.assigned_to = u.user_id 
+                 WHERE c.customer_id = ?",
+                [$customerId]
+            );
+            
+            if (!$customer) {
+                echo json_encode(['success' => false, 'message' => 'Customer not found']);
+                return;
+            }
+            
+            // ดึง tags ของลูกค้า
+            $tags = $this->db->fetchAll(
+                "SELECT ct.tag_name, ct.tag_color 
+                 FROM customer_tags ct 
+                 WHERE ct.customer_id = ? 
+                 ORDER BY ct.created_at DESC",
+                [$customerId]
+            );
+            
+            $customer['tags'] = $tags;
+            
+            echo json_encode([
+                'success' => true,
+                'customer' => $customer
+            ]);
+            
+        } catch (Exception $e) {
+            error_log("Error in getCustomerWithTags: " . $e->getMessage());
+            echo json_encode([
+                'success' => false,
+                'message' => 'เกิดข้อผิดพลาดในการดึงข้อมูล'
+            ]);
+        }
+    }
+
+    /**
+     * API: ดึงรายการ Telesales สำหรับการเปลี่ยนผู้ดูแล
+     */
+    public function getTelesalesList() {
+        try {
+            if (!isset($_SESSION['user_id'])) {
+                echo json_encode(['success' => false, 'message' => 'Authentication required']);
+                return;
+            }
+
+            // ตรวจสอบสิทธิ์ (เฉพาะ Admin และ Super Admin)
+            $roleName = $_SESSION['role_name'] ?? '';
+            if (!in_array($roleName, ['admin', 'super_admin'])) {
+                echo json_encode(['success' => false, 'message' => 'Insufficient permissions']);
+                return;
+            }
+
+            // ดึงรายการ Telesales พร้อมข้อมูลบริษัท
+            $telesales = $this->db->fetchAll(
+                "SELECT u.user_id, u.full_name, u.email, 
+                        c.company_name, c.company_code
+                 FROM users u
+                 JOIN companies c ON u.company_id = c.company_id
+                 WHERE u.role_id = 4 AND u.is_active = 1
+                 ORDER BY c.company_name, u.full_name"
+            );
+
+            echo json_encode([
+                'success' => true,
+                'data' => $telesales
+            ]);
+
+        } catch (Exception $e) {
+            error_log("Error in getTelesalesList: " . $e->getMessage());
+            echo json_encode([
+                'success' => false,
+                'message' => 'เกิดข้อผิดพลาดในการดึงรายการ Telesales'
+            ]);
+        }
+    }
+
+    /**
+     * API: เปลี่ยนผู้ดูแลลูกค้า
+     */
+    public function changeCustomerAssignee() {
+        try {
+            if (!isset($_SESSION['user_id'])) {
+                echo json_encode(['success' => false, 'message' => 'Authentication required']);
+                return;
+            }
+
+            // ตรวจสอบสิทธิ์ (Admin, Super Admin, และ Role ID 1)
+            $roleName = $_SESSION['role_name'] ?? '';
+            $roleId = $_SESSION['role_id'] ?? 0;
+            
+            // อนุญาตให้ admin, super_admin และ role_id = 1 เข้าถึงได้
+            if (!in_array($roleName, ['admin', 'super_admin']) && $roleId != 1) {
+                echo json_encode(['success' => false, 'message' => 'Insufficient permissions']);
+                return;
+            }
+
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                echo json_encode(['success' => false, 'message' => 'Method not allowed']);
+                return;
+            }
+
+            $customerId = $_POST['customer_id'] ?? null;
+            $newAssignee = $_POST['new_assignee'] ?? null;
+            $changeReason = $_POST['change_reason'] ?? '';
+
+            if (!$customerId || !$newAssignee) {
+                echo json_encode(['success' => false, 'message' => 'Missing required parameters']);
+                return;
+            }
+
+            // ตรวจสอบว่าลูกค้ามีอยู่จริง
+            $customer = $this->db->fetchOne(
+                "SELECT customer_id, assigned_to, first_name, last_name FROM customers WHERE customer_id = ?",
+                [$customerId]
+            );
+
+            if (!$customer) {
+                echo json_encode(['success' => false, 'message' => 'Customer not found']);
+                return;
+            }
+
+            // ตรวจสอบว่า Telesales มีอยู่จริง
+            $telesales = $this->db->fetchOne(
+                "SELECT user_id, full_name FROM users WHERE user_id = ? AND role_id = 4 AND is_active = 1",
+                [$newAssignee]
+            );
+
+            if (!$telesales) {
+                echo json_encode(['success' => false, 'message' => 'Telesales not found']);
+                return;
+            }
+
+            $oldAssignee = $customer['assigned_to'];
+            $oldAssigneeName = '';
+            if ($oldAssignee) {
+                $oldUser = $this->db->fetchOne(
+                    "SELECT full_name FROM users WHERE user_id = ?",
+                    [$oldAssignee]
+                );
+                $oldAssigneeName = $oldUser['full_name'] ?? 'ไม่ระบุ';
+            }
+
+            // เริ่ม transaction
+            $this->db->beginTransaction();
+
+            try {
+                // อัปเดตผู้ดูแลลูกค้า
+                $this->db->update('customers', 
+                    [
+                        'assigned_to' => $newAssignee,
+                        'assigned_at' => date('Y-m-d H:i:s'),
+                        'updated_at' => date('Y-m-d H:i:s')
+                    ],
+                    'customer_id = ?',
+                    [$customerId]
+                );
+
+                // บันทึกประวัติการเปลี่ยนแปลง
+                $this->db->insert('customer_activities', [
+                    'customer_id' => $customerId,
+                    'user_id' => $_SESSION['user_id'],
+                    'activity_type' => 'assignee_changed',
+                    'activity_description' => "เปลี่ยนผู้ดูแลจาก {$oldAssigneeName} เป็น {$telesales['full_name']}" . 
+                                            ($changeReason ? " - เหตุผล: {$changeReason}" : ''),
+                    'created_at' => date('Y-m-d H:i:s')
+                ]);
+
+                $this->db->commit();
+
+                echo json_encode([
+                    'success' => true,
+                    'message' => "เปลี่ยนผู้ดูแลลูกค้า {$customer['first_name']} {$customer['last_name']} สำเร็จ",
+                    'data' => [
+                        'customer_id' => $customerId,
+                        'old_assignee' => $oldAssignee,
+                        'new_assignee' => $newAssignee,
+                        'change_reason' => $changeReason
+                    ]
+                ]);
+
+            } catch (Exception $e) {
+                $this->db->rollback();
+                throw $e;
+            }
+
+        } catch (Exception $e) {
+            error_log("Error in changeCustomerAssignee: " . $e->getMessage());
+            echo json_encode([
+                'success' => false,
+                'message' => 'เกิดข้อผิดพลาดในการเปลี่ยนผู้ดูแล: ' . $e->getMessage()
+            ]);
         }
     }
 

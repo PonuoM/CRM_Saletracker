@@ -1,3 +1,74 @@
+/* Customer Transfer Page CSS */
+.border-left-primary {
+    border-left: 4px solid #007bff !important;
+}
+
+.border-left-success {
+    border-left: 4px solid #28a745 !important;
+}
+
+.border-left-info {
+    border-left: 4px solid #17a2b8 !important;
+}
+
+.border-left-warning {
+    border-left: 4px solid #ffc107 !important;
+}
+
+.customer-row:hover {
+    background-color: #f5f5f5;
+    cursor: pointer;
+}
+
+.customer-selected {
+    background-color: #e3f2fd !important;
+}
+
+.transfer-animation {
+    animation: pulse 1s infinite;
+}
+
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.05); }
+    100% { transform: scale(1); }
+}
+
+.loading {
+    opacity: 0.6;
+    pointer-events: none;
+    position: relative;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(255, 255, 255, 0.8);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 999;
+}
+
+.loading::before {
+    content: 'กำลังโหลด...';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 1000;
+    background: #007bff;
+    color: white;
+    padding: 10px 20px;
+    border-radius: 5px;
+    font-weight: bold;
+}
+
+/* Original CSS */
 .dropdown-menu {
 	max-height: 240px;
 	overflow-y: auto;
@@ -1510,4 +1581,45 @@ h1, h2, h3, h4, h5, h6 {
 /* Additional Text Colors */
 .text-purple {
   color: #6f42c1 !important;
+}
+
+/* ==== CUSTOMER TRANSFER MODAL FIX ==== */
+/* Force cleanup modal backdrop issues on transfer page (only after transfer) */
+.transfer-page-body .modal-backdrop.transfer-cleanup {
+    display: none !important;
+    visibility: hidden !important;
+    opacity: 0 !important;
+    z-index: -1 !important;
+}
+
+.transfer-page-body.modal-open {
+    overflow: auto !important;
+    padding-right: 0 !important;
+    margin-right: 0 !important;
+}
+
+/* Ensure transfer page doesn't get stuck */
+.transfer-page-body {
+    overflow: auto !important;
+}
+
+/* Hide any stuck modal backdrops */
+body.transfer-page-body .modal-backdrop.fade.show {
+    animation: fadeOutBackdrop 0.3s ease-out forwards !important;
+}
+
+@keyframes fadeOutBackdrop {
+    from { opacity: 0.5; }
+    to { opacity: 0; visibility: hidden; display: none; }
+}
+
+/* Emergency fallback for stuck modals */
+.transfer-page-body .modal.show {
+    z-index: 1050 !important;
+}
+
+.transfer-page-body .modal-backdrop.show {
+    opacity: 0 !important;
+    visibility: hidden !important;
+    pointer-events: none !important;
 }

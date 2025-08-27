@@ -4,7 +4,10 @@
  * จัดการ API calls สำหรับ Call Management
  */
 
-session_start();
+// Start session only if not already started
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 // Include required files
 require_once __DIR__ . '/../config/config.php';
@@ -239,10 +242,10 @@ function logCall($db) {
             'call_type' => $input['call_type'] ?? 'outbound',
             'call_status' => $callStatus,
             'call_result' => $callResult,
-            'duration_minutes' => $input['duration_minutes'] ?? 0,
+            'duration_minutes' => $input['duration_minutes'] ?? ($input['duration'] ?? 0),
             'notes' => $input['notes'] ?? null,
             'next_action' => $input['next_action'] ?? null,
-            'next_followup_at' => $input['next_followup'] ?? null,
+            'next_followup_at' => $input['next_followup'] ?? ($input['next_followup_at'] ?? null),
         ];
         
         // Validate required fields
@@ -268,17 +271,59 @@ function logCall($db) {
         
         $callLogId = $db->insert('call_logs', $callData);
         
-        // Update customer's last_contact_at
-        $db->execute(
-            "UPDATE customers SET last_contact_at = NOW() WHERE customer_id = ?",
-            [$data['customer_id']]
-        );
+        // Update customer's last_contact_at, next_followup_at, and extend time_expiry with 90-day cap
+        if ($data['next_followup_at']) {
+            // ถ้ามีการนัดติดตาม = เพิ่มเวลา 30 วัน แต่ไม่เกิน 90 วัน
+            $db->execute(
+                "UPDATE customers SET 
+                    last_contact_at = NOW(), 
+                    next_followup_at = ?,
+                    customer_time_expiry = LEAST(DATE_ADD(customer_time_expiry, INTERVAL 30 DAY), DATE_ADD(NOW(), INTERVAL 90 DAY))
+                WHERE customer_id = ?",
+                [$data['next_followup_at'], $data['customer_id']]
+            );
+            
+            // 🔄 SYNC: สร้าง appointment อัตโนมัติเมื่อมี next_followup_at
+            createAppointmentFromCall($data['customer_id'], $data['next_followup_at'], $data['notes'], $callLogId);
+            
+        } else {
+            $db->execute(
+                "UPDATE customers SET last_contact_at = NOW() WHERE customer_id = ?",
+                [$data['customer_id']]
+            );
+        }
         
-        // If first activity for NEW, move to followup (except order)
+        // Clear follow-up for call results that indicate customer interaction is complete
+        $clearFollowupResults = ['ไม่สนใจ', 'เบอร์ผิด'];
+        if (in_array($data['call_result'], $clearFollowupResults)) {
+            try {
+                // ล้าง next_followup_at ในตาราง customers
+                $db->execute(
+                    "UPDATE customers SET next_followup_at = NULL WHERE customer_id = ?",
+                    [$data['customer_id']]
+                );
+                
+                // ล้าง next_followup_at ใน call_logs ที่ยังค้างอยู่
+                $db->execute(
+                    "UPDATE call_logs SET next_followup_at = NULL 
+                     WHERE customer_id = ? AND next_followup_at IS NOT NULL",
+                    [$data['customer_id']]
+                );
+            } catch (Exception $e) { /* ignore */ }
+        }
+        
+        // Handle customer status changes based on call result
         try {
             $cust = $db->fetchOne("SELECT customer_status FROM customers WHERE customer_id = ?", [$data['customer_id']]);
-            if (($cust['customer_status'] ?? '') === 'new' && $data['call_result'] !== 'order') {
+            
+            // If first activity for NEW customer, move to followup (except for final results)
+            if (($cust['customer_status'] ?? '') === 'new' && !in_array($data['call_result'], $clearFollowupResults)) {
                 $db->execute("UPDATE customers SET customer_status = 'followup' WHERE customer_id = ?", [$data['customer_id']]);
+            }
+            
+            // For NEW customers with final call results, mark as existing to remove from Do tab
+            if (($cust['customer_status'] ?? '') === 'new' && in_array($data['call_result'], ['ไม่สนใจ', 'เบอร์ผิด'])) {
+                $db->execute("UPDATE customers SET customer_status = 'existing' WHERE customer_id = ?", [$data['customer_id']]);
             }
         } catch (Exception $e) { /* ignore */ }
 
@@ -294,6 +339,57 @@ function logCall($db) {
             'success' => false,
             'error' => $e->getMessage()
         ]);
+    }
+}
+
+/**
+ * สร้าง appointment อัตโนมัติจากการบันทึกการโทร
+ */
+function createAppointmentFromCall($customerId, $appointmentDateTime, $notes, $callLogId) {
+    global $db;
+    
+    try {
+        // ตรวจสอบว่ามี appointment ที่วันเวลาเดียวกันแล้วหรือไม่
+        $existingAppointment = $db->fetchOne(
+            "SELECT appointment_id FROM appointments 
+             WHERE customer_id = ? AND appointment_date = ? AND appointment_status != 'cancelled'",
+            [$customerId, $appointmentDateTime]
+        );
+        
+        if ($existingAppointment) {
+            // มี appointment อยู่แล้ว ไม่ต้องสร้างใหม่
+            return $existingAppointment['appointment_id'];
+        }
+        
+        // สร้าง appointment ใหม่
+        $appointmentData = [
+            'customer_id' => $customerId,
+            'user_id' => $_SESSION['user_id'] ?? 1,
+            'appointment_date' => $appointmentDateTime,
+            'appointment_type' => 'follow_up_call', // ประเภทนัดหมายจากการโทร
+            'appointment_status' => 'scheduled',
+            'description' => $notes ? "ติดตาม: {$notes}" : 'ติดตามจากการบันทึกการโทร',
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+        
+        $appointmentId = $db->insert('appointments', $appointmentData);
+        
+        // Log กิจกรรม
+        $activityData = [
+            'customer_id' => $customerId,
+            'user_id' => $_SESSION['user_id'] ?? 1,
+            'activity_type' => 'appointment_created',
+            'description' => "สร้างนัดหมายจากการบันทึกการโทร: " . date('d/m/Y H:i', strtotime($appointmentDateTime)),
+            'created_at' => date('Y-m-d H:i:s')
+        ];
+        
+        $db->insert('activity_logs', $activityData);
+        
+        return $appointmentId;
+        
+    } catch (Exception $e) {
+        error_log("Error creating appointment from call: " . $e->getMessage());
+        return false;
     }
 }
 ?>

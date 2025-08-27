@@ -318,13 +318,19 @@ class AdminController {
                 'stock_quantity' => $_POST['stock_quantity'] ?? 0
             ];
             
-            $result = $this->createProductRecord($productData);
-            
-            if ($result['success']) {
-                header('Location: admin.php?action=products&message=product_created');
-                exit;
+            // ตรวจสอบรหัสสินค้าที่ซ้ำก่อนสร้าง
+            $duplicateCheck = $this->checkDuplicateProductCode($productData['product_code']);
+            if ($duplicateCheck['exists']) {
+                $error = 'รหัสสินค้า "' . $productData['product_code'] . '" มีอยู่แล้วในระบบ กรุณาใช้รหัสใหม่';
             } else {
-                $error = $result['message'];
+                $result = $this->createProductRecord($productData);
+                
+                if ($result['success']) {
+                    header('Location: admin.php?action=products&message=product_created');
+                    exit;
+                } else {
+                    $error = $result['message'];
+                }
             }
         }
         
@@ -879,6 +885,20 @@ class AdminController {
             'ชีวภัณฑ์',
             'ของแถม'
         ];
+    }
+    
+    /**
+     * ตรวจสอบรหัสสินค้าที่ซ้ำ
+     */
+    private function checkDuplicateProductCode($productCode) {
+        try {
+            $sql = "SELECT COUNT(*) as count FROM products WHERE product_code = :product_code";
+            $result = $this->db->fetchOne($sql, ['product_code' => $productCode]);
+            
+            return ['exists' => $result['count'] > 0, 'count' => $result['count']];
+        } catch (Exception $e) {
+            return ['exists' => false, 'count' => 0, 'error' => $e->getMessage()];
+        }
     }
     
     /**

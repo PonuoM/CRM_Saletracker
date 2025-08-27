@@ -32,6 +32,55 @@ $ordersOffset = ($currentPage - 1) * $itemsPerPage;
 $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
 ?>
 
+<style>
+/* CSS สำหรับแก้ปัญหา modal-backdrop */
+.modal-backdrop {
+    z-index: 1040 !important;
+}
+
+.modal-backdrop.fade {
+    opacity: 0.5 !important;
+}
+
+.modal-backdrop.show {
+    opacity: 0.5 !important;
+}
+
+/* ตรวจสอบและลบ backdrop ที่ซ้อนกัน */
+.modal-backdrop + .modal-backdrop {
+    display: none !important;
+}
+
+/* ป้องกันการซ้อนทับของ backdrop */
+body.modal-open {
+    overflow: auto !important;
+    padding-right: 0 !important;
+}
+
+/* ตรวจสอบ backdrop ที่เหลืออยู่ */
+.modal-backdrop:not(:first-child) {
+    display: none !important;
+}
+
+/* CSS สำหรับ tabs */
+.nav-tabs .nav-link {
+    cursor: pointer;
+}
+
+.nav-tabs .nav-link.active {
+    background-color: #f8f9fa;
+    border-color: #dee2e6 #dee2e6 #f8f9fa;
+}
+
+.tab-content {
+    padding: 20px 0;
+}
+
+.tab-pane {
+    min-height: 200px;
+}
+</style>
+
 <!-- Customer Detail Content -->
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <h1 class="h2">รายละเอียดลูกค้า</h1>
@@ -110,10 +159,28 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                         </p>
                         <p><strong>จำนวนครั้งที่ซื้อ:</strong> <?php echo count($orders); ?> ครั้ง</p>
                         <p><strong>จำนวนครั้งที่ติดต่อ:</strong> <?php echo count($callLogs); ?> ครั้ง</p>
-                        <p><strong>ผู้ดูแล:</strong> <?php echo htmlspecialchars($customer['assigned_to_name'] ?? 'ไม่ระบุ'); ?></p>
+                        <p><strong>ผู้ดูแล:</strong> 
+                            <?php echo htmlspecialchars($customer['assigned_to_name'] ?? 'ไม่ระบุ'); ?>
+                            <?php if (in_array($_SESSION['role_name'] ?? '', ['admin', 'super_admin'])): ?>
+                                <button class="btn btn-sm btn-outline-primary ms-2" onclick="showChangeAssigneeModal(<?php echo $customer['customer_id']; ?>, '<?php echo htmlspecialchars($customer['assigned_to_name'] ?? 'ไม่ระบุ'); ?>')">
+                                    <i class="fas fa-exchange-alt me-1"></i>เปลี่ยนผู้ดูแล
+                                </button>
+                            <?php endif; ?>
+                        </p>
                         <p><strong>วันที่ลงทะเบียน:</strong> <?php echo date('d/m/Y H:i', strtotime($customer['created_at'])); ?></p>
+                        <?php if ($customer['next_followup_at']): ?>
+                        <p><strong>ติดตามถัดไป:</strong> 
+                            <span class="badge bg-<?php echo strtotime($customer['next_followup_at']) < time() ? 'danger' : 'info'; ?>">
+                                <?php echo date('d/m/Y H:i', strtotime($customer['next_followup_at'])); ?>
+                            </span>
+                        </p>
+                        <script>
+                            // ส่งข้อมูลไปให้ JavaScript ใช้แสดงในหน้านัดหมาย
+                            window.customerNextFollowup = '<?php echo $customer['next_followup_at']; ?>';
+                        </script>
+                        <?php endif; ?>
                         <?php if ($customer['recall_at']): ?>
-                        <p><strong>นัดติดตาม:</strong> 
+                        <p><strong>นัดติดตาม (เก่า):</strong> 
                             <span class="badge bg-<?php echo strtotime($customer['recall_at']) < time() ? 'danger' : 'warning'; ?>">
                                 <?php echo date('d/m/Y H:i', strtotime($customer['recall_at'])); ?>
                             </span>
@@ -248,8 +315,17 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                                                 <td style="font-size: 13px;"><?php echo date('d/m/Y H:i', strtotime($log['created_at'])); ?></td>
                                                 <td style="font-size: 13px;"><?php echo htmlspecialchars($log['user_name'] ?? 'ไม่ระบุ'); ?></td>
                                                 <td style="font-size: 13px;">
-                                                    <span class="badge bg-<?php echo $log['call_status'] === 'answered' ? 'success' : ($log['call_status'] === 'no_answer' ? 'danger' : 'warning'); ?>">
-                                                        <?php echo $log['call_status'] === 'answered' ? 'รับสาย' : ($log['call_status'] === 'no_answer' ? 'ไม่รับสาย' : 'สายไม่ว่าง'); ?>
+                                                    <span class="badge bg-<?php 
+                                                        echo $log['call_status'] === 'answered' ? 'success' : 
+                                                            ($log['call_status'] === 'no_answer' ? 'danger' : 
+                                                            ($log['call_status'] === 'hang_up' ? 'secondary' : 'warning')); 
+                                                    ?>">
+                                                        <?php 
+                                                            echo $log['call_status'] === 'answered' ? 'รับสาย' : 
+                                                                ($log['call_status'] === 'no_answer' ? 'ไม่รับสาย' : 
+                                                                ($log['call_status'] === 'hang_up' ? 'ตัดสายทิ้ง' : 
+                                                                ($log['call_status'] === 'invalid' ? 'เบอร์ผิด' : 'สายไม่ว่าง'))); 
+                                                        ?>
                                                     </span>
                                                 </td>
                                                 <td style="font-size: 13px;">
@@ -258,7 +334,8 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                                                             'order'=>'สั่งซื้อ','interested'=>'สนใจ','add_line'=>'Add Line แล้ว','buy_on_page'=>'ต้องการซื้อทางเพจ',
                                                             'flood'=>'น้ำท่วม','callback'=>'รอติดต่อใหม่','appointment'=>'นัดหมาย','invalid_number'=>'เบอร์ไม่ถูก',
                                                             'not_convenient'=>'ไม่สะดวกคุย','not_interested'=>'ไม่สนใจ','do_not_call'=>'อย่าโทรมาอีก',
-                                                            'busy'=>'สายไม่ว่าง','unable_to_contact'=>'ติดต่อไม่ได้','hangup'=>'ตัดสายทิ้ง'
+                                                            'busy'=>'สายไม่ว่าง','unable_to_contact'=>'ติดต่อไม่ได้','hangup'=>'ตัดสายทิ้ง',
+                                                            'ไม่รับสาย'=>'ไม่รับสาย','สายไม่ว่าง'=>'สายไม่ว่าง','เบอร์ผิด'=>'เบอร์ผิด','ตัดสายทิ้ง'=>'ตัดสายทิ้ง','ได้คุย'=>'ได้คุย','สนใจ'=>'สนใจ','ไม่สนใจ'=>'ไม่สนใจ','ลังเล'=>'ลังเล'
                                                         ];
                                                         $resultKey = $log['call_result'] ?? '';
                                                         echo htmlspecialchars($resultThMap[$resultKey] ?? $resultKey);
@@ -538,44 +615,39 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                     <input type="hidden" id="callCustomerId" value="<?php echo $customer['customer_id']; ?>">
                     <div class="row">
                         <div class="col-md-6">
-                            <label for="callType" class="form-label">ประเภทการโทร</label>
-                            <select class="form-select" id="callType" required>
-                                <option value="outbound">โทรออก</option>
-                                <option value="inbound">โทรเข้า</option>
+                            <label for="callStatus" class="form-label">สถานะการโทร</label>
+                            <select class="form-select" id="callStatus" required>
+                                <option value="">เลือกสถานะการโทร</option>
+                                <option value="answered">รับสาย</option>
+                                <option value="no_answer">ไม่รับสาย</option>
+                                <option value="busy">สายไม่ว่าง</option>
+                                <option value="invalid">เบอร์ผิด</option>
+                                <option value="hang_up">ตัดสายทิ้ง</option>
                             </select>
                         </div>
                         <div class="col-md-6">
-                            <label for="callStatus" class="form-label">สถานะการโทร</label>
-                            <select class="form-select" id="callStatus" required>
-                                <option value="รับสาย">รับสาย</option>
+                            <label for="callResult" class="form-label">ผลการโทร</label>
+                            <select class="form-select" id="callResult">
+                                <option value="">เลือกผลการโทร</option>
+                                <option value="สนใจ">สนใจ</option>
+                                <option value="ไม่สนใจ">ไม่สนใจ</option>
+                                <option value="ลังเล">ลังเล</option>
+                                <option value="เบอร์ผิด">เบอร์ผิด</option>
+                                <option value="ได้คุย">ได้คุย</option>
+                                <option value="ตัดสายทิ้ง">ตัดสายทิ้ง</option>
                                 <option value="ไม่รับสาย">ไม่รับสาย</option>
                                 <option value="สายไม่ว่าง">สายไม่ว่าง</option>
-                                <option value="ตัดสายทิ้ง">ตัดสายทิ้ง</option>
-                                <option value="ติดต่อไม่ได้">ติดต่อไม่ได้</option>
                             </select>
                         </div>
                     </div>
                     <div class="row mt-3">
                         <div class="col-md-6">
-                            <label for="callResult" class="form-label">ผลการโทร</label>
-                            <select class="form-select" id="callResult">
-                                <option value="">เลือกผลการโทร</option>
-                                <option value="สั่งซื้อ">สั่งซื้อ</option>
-                                <option value="สนใจ">สนใจ</option>
-                                <option value="Add Line แล้ว">Add Line แล้ว</option>
-                                <option value="ต้องการซื้อทางเพจ">ต้องการซื้อทางเพจ</option>
-                                <option value="น้ำท่วม">น้ำท่วม</option>
-                                <option value="รอติดต่อใหม่">รอติดต่อใหม่</option>
-                                <option value="นัดหมาย">นัดหมาย</option>
-                                <option value="เบอร์ไม่ถูก">เบอร์ไม่ถูก</option>
-                                <option value="ไม่สะดวกคุย">ไม่สะดวกคุย</option>
-                                <option value="ไม่สนใจ">ไม่สนใจ</option>
-                                <option value="อย่าโทรมาอีก">อย่าโทรมาอีก</option>
-                            </select>
-                        </div>
-                        <div class="col-md-6">
                             <label for="callDuration" class="form-label">ระยะเวลา (นาที)</label>
                             <input type="number" class="form-control" id="callDuration" min="0" value="0">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="nextFollowup" class="form-label">วันที่คาดว่าจะติดต่อครั้งถัดไป</label>
+                            <input type="datetime-local" class="form-control" id="nextFollowup">
                         </div>
                     </div>
                     <div class="mt-3">
@@ -583,13 +655,17 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
                         <textarea class="form-control" id="callNotes" rows="3"></textarea>
                     </div>
                     <div class="row mt-3">
-                        <div class="col-md-6">
-                            <label for="nextAction" class="form-label">การดำเนินการต่อไป</label>
-                            <input type="text" class="form-control" id="nextAction">
-                        </div>
-                        <div class="col-md-6">
-                            <label for="nextFollowup" class="form-label">นัดติดตาม</label>
-                            <input type="datetime-local" class="form-control" id="nextFollowup">
+                        <div class="col-md-12">
+                            <label for="callTags" class="form-label">เพิ่ม Tag</label>
+                            <div class="d-flex gap-1 mb-2">
+                                <button type="button" class="btn btn-outline-primary btn-sm flex-grow-1" onclick="showAddTagModalFromCall()">
+                                    <i class="fas fa-plus"></i> เพิ่ม Tag
+                                </button>
+                            </div>
+                            <!-- Preview area สำหรับ Tags ที่เพิ่มแล้ว -->
+                            <div id="callTagsPreview" class="border rounded p-2 bg-light min-height-40" style="min-height: 40px;">
+                                <small class="text-muted">Tags ที่เพิ่มจะแสดงที่นี่</small>
+                            </div>
                         </div>
                     </div>
                 </form>
@@ -602,8 +678,139 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
     </div>
 </div>
 
+<!-- Create Appointment Modal -->
+<div class="modal fade" id="createAppointmentModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">สร้างนัดหมาย</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="createAppointmentForm">
+                    <input type="hidden" id="appointmentCustomerId" value="<?php echo $customer['customer_id']; ?>">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label for="appointmentDate" class="form-label">วันที่นัดหมาย</label>
+                            <input type="datetime-local" class="form-control" id="appointmentDate" required>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="appointmentType" class="form-label">ประเภทนัดหมาย</label>
+                            <select class="form-select" id="appointmentType" required>
+                                <option value="">เลือกประเภทนัดหมาย</option>
+                                <option value="meeting">ประชุม</option>
+                                <option value="call">โทรติดตาม</option>
+                                <option value="visit">เยี่ยมลูกค้า</option>
+                                <option value="other">อื่นๆ</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="mt-3">
+                        <label for="appointmentDescription" class="form-label">รายละเอียด</label>
+                        <textarea class="form-control" id="appointmentDescription" rows="3"></textarea>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-12">
+                            <label for="appointmentTags" class="form-label">เพิ่ม Tag</label>
+                            <div class="d-flex gap-1 mb-2">
+                                <button type="button" class="btn btn-outline-primary btn-sm flex-grow-1" onclick="showAddTagModalFromCall()">
+                                    <i class="fas fa-plus"></i> เพิ่ม Tag
+                                </button>
+                            </div>
+                            <!-- Preview area สำหรับ Tags ที่เพิ่มแล้ว -->
+                            <div id="appointmentTagsPreview" class="border rounded p-2 bg-light min-height-40" style="min-height: 40px;">
+                                <small class="text-muted">Tags ที่เพิ่มจะแสดงที่นี่</small>
+                            </div>
+                        </div>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                <button type="button" class="btn btn-primary" id="submitAppointmentBtn">สร้างนัดหมาย</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal สำหรับเปลี่ยนผู้ดูแล -->
+<?php if (in_array($_SESSION['role_name'] ?? '', ['admin', 'super_admin'])): ?>
+<div class="modal fade" id="changeAssigneeModal" tabindex="-1" aria-labelledby="changeAssigneeModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="changeAssigneeModalLabel">เปลี่ยนผู้ดูแลลูกค้า</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <form id="changeAssigneeForm">
+                    <input type="hidden" id="customerId" name="customer_id">
+                    <div class="mb-3">
+                        <label for="currentAssignee" class="form-label">ผู้ดูแลปัจจุบัน</label>
+                        <input type="text" class="form-control" id="currentAssignee" readonly>
+                    </div>
+                    <div class="mb-3">
+                        <label for="newAssignee" class="form-label">ผู้ดูแลใหม่</label>
+                        <select class="form-select" id="newAssignee" name="new_assignee" required>
+                            <option value="">เลือกผู้ดูแลใหม่</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="changeReason" class="form-label">เหตุผลในการเปลี่ยน</label>
+                        <textarea class="form-control" id="changeReason" name="change_reason" rows="3" placeholder="ระบุเหตุผลในการเปลี่ยนผู้ดูแล"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">ยกเลิก</button>
+                <button type="button" class="btn btn-primary" onclick="changeCustomerAssignee()">บันทึกการเปลี่ยนแปลง</button>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Activity Timeline -->
 <script>
+// Pass customer data to JavaScript
+window.customerNextFollowup = <?php echo json_encode($customer['next_followup_at']); ?>;
+window.customerId = <?php echo json_encode($customer['customer_id']); ?>;
+
+// Auto-fill ผลการโทรเมื่อเปลี่ยนสถานะการโทร
+function setupCallStatusAutoFill() {
+    const callStatus = document.getElementById('callStatus');
+    const callResult = document.getElementById('callResult');
+    
+    if (callStatus && callResult) {
+        callStatus.addEventListener('change', function() {
+            // ถ้าเลือกสถานะที่ไม่ใช่ "รับสาย" ให้ auto-fill ผลการโทร
+            if (this.value && this.value !== 'answered') {
+                const statusValueMap = {
+                    'no_answer': 'ไม่รับสาย',
+                    'busy': 'สายไม่ว่าง',
+                    'invalid': 'เบอร์ผิด',
+                    'hang_up': 'ตัดสายทิ้ง'
+                };
+                const autoFillValue = statusValueMap[this.value];
+                if (autoFillValue) {
+                    // ตรวจสอบว่ามี option นี้อยู่ใน callResult หรือไม่
+                    const option = Array.from(callResult.options).find(opt => opt.value === autoFillValue);
+                    if (option) {
+                        callResult.value = autoFillValue;
+                    }
+                }
+            }
+        });
+    }
+}
+
 document.addEventListener('DOMContentLoaded', function() {
+    // เพิ่ม Auto-fill functionality
+    setupCallStatusAutoFill();
+    
+    // ตั้งค่า Tabs
+    setupTabs();
+    
     // Activity Timeline Scroll Enhancement
     const timelineContainer = document.querySelector('.activity-timeline-container');
 
@@ -633,6 +840,206 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// ฟังก์ชันตั้งค่า Tabs
+function setupTabs() {
+    const tabLinks = document.querySelectorAll('#historyTabs .nav-link');
+    const tabPanes = document.querySelectorAll('.tab-pane');
+    
+    console.log('Setting up tabs:', tabLinks.length, 'tabs found');
+    console.log('Tab panes found:', tabPanes.length);
+    
+    // ตรวจสอบว่า tabs ถูกตั้งค่าถูกต้องหรือไม่
+    if (tabLinks.length === 0) {
+        console.error('No tab links found!');
+        return;
+    }
+    
+    if (tabPanes.length === 0) {
+        console.error('No tab panes found!');
+        return;
+    }
+    
+    // ใช้ Bootstrap 5 Tab API
+    tabLinks.forEach((link, index) => {
+        const targetId = link.getAttribute('data-bs-target');
+        const targetPane = document.querySelector(targetId);
+        
+        console.log(`Tab ${index + 1}:`, link.textContent.trim(), '->', targetId, 'Pane found:', !!targetPane);
+        
+        link.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Tab clicked:', this.textContent.trim(), 'Target:', targetId);
+            
+            // ใช้ Bootstrap Tab API
+            if (targetPane) {
+                // ลบ active class จากทุก tab
+                tabLinks.forEach(tab => tab.classList.remove('active'));
+                tabPanes.forEach(pane => pane.classList.remove('show', 'active'));
+                
+                // เพิ่ม active class ให้ tab ที่คลิก
+                this.classList.add('active');
+                targetPane.classList.add('show', 'active');
+                
+                // โหลดข้อมูลตาม tab ที่เลือก
+                loadTabContent(targetId);
+            } else {
+                console.error('Target pane not found:', targetId);
+            }
+        });
+    });
+    
+    // โหลดข้อมูลเริ่มต้นสำหรับ tab แรก (Call History)
+    console.log('Loading initial tab content for call-history');
+    loadTabContent('#call-history');
+    
+    // เพิ่ม Bootstrap 5 Tab initialization
+    if (typeof bootstrap !== 'undefined' && bootstrap.Tab) {
+        console.log('Bootstrap 5 Tabs found, initializing...');
+        tabLinks.forEach(link => {
+            const tab = new bootstrap.Tab(link);
+            link.addEventListener('shown.bs.tab', function(event) {
+                const targetId = event.target.getAttribute('data-bs-target');
+                console.log('Bootstrap tab shown:', targetId);
+                loadTabContent(targetId);
+            });
+        });
+    } else {
+        console.log('Bootstrap 5 Tabs not found, using custom implementation');
+    }
+}
+
+// ฟังก์ชันโหลดข้อมูลตาม tab
+function loadTabContent(tabId) {
+    console.log('Loading tab content for:', tabId);
+    
+    switch(tabId) {
+        case '#appointments':
+            console.log('Loading appointments tab');
+            loadAppointments();
+            break;
+        case '#orders':
+            console.log('Loading orders tab');
+            loadOrders();
+            break;
+        case '#call-history':
+            // Call history ถูกโหลดแล้วจาก PHP
+            console.log('Call history tab - data already loaded from PHP');
+            break;
+        default:
+            console.log('Unknown tab:', tabId);
+    }
+}
+
+// ฟังก์ชันโหลดข้อมูลนัดหมาย
+function loadAppointments() {
+    const appointmentsList = document.getElementById('appointmentsList');
+    if (!appointmentsList) {
+        console.error('Appointments list element not found');
+        return;
+    }
+    
+    console.log('Loading appointments for customer:', window.customerId);
+    
+    appointmentsList.innerHTML = `
+        <div class="text-center">
+            <div class="spinner-border spinner-border-sm" role="status">
+                <span class="visually-hidden">กำลังโหลด...</span>
+            </div>
+            <span class="ms-2">กำลังโหลดรายการนัดหมาย...</span>
+        </div>
+    `;
+    
+    // เรียก API สำหรับดึงข้อมูลนัดหมาย
+    const customerId = window.customerId || <?php echo $customer['customer_id']; ?>;
+    const apiUrl = `api/appointments.php?action=get_by_customer&customer_id=${customerId}&limit=5`;
+    
+    console.log('Fetching from:', apiUrl);
+    
+    fetch(apiUrl)
+        .then(response => {
+            console.log('API response status:', response.status);
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('API response data:', data);
+            if (data.success && data.data && data.data.length > 0) {
+                const appointments = data.data;
+                let html = '<div class="table-responsive">';
+                html += '<table class="table table-hover table-sm">';
+                html += '<thead class="table-light"><tr><th>วันที่</th><th>ประเภท</th><th>รายละเอียด</th><th>สถานะ</th></tr></thead>';
+                html += '<tbody>';
+                
+                appointments.forEach(appointment => {
+                    const date = new Date(appointment.appointment_date);
+                    const formattedDate = date.toLocaleDateString('th-TH', {
+                        year: 'numeric',
+                        month: '2-digit',
+                        day: '2-digit',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                    });
+                    
+                    html += `<tr>
+                        <td>${formattedDate}</td>
+                        <td>${getAppointmentTypeText(appointment.appointment_type)}</td>
+                        <td>${appointment.description || 'ไม่มีรายละเอียด'}</td>
+                        <td><span class="badge bg-success">นัดหมาย</span></td>
+                    </tr>`;
+                });
+                
+                html += '</tbody></table></div>';
+                appointmentsList.innerHTML = html;
+                console.log(`Loaded ${appointments.length} appointments`);
+            } else {
+                appointmentsList.innerHTML = '<p class="text-muted text-center mb-0">ไม่มีรายการนัดหมาย</p>';
+                console.log('No appointments found');
+            }
+        })
+        .catch(error => {
+            console.error('Error loading appointments:', error);
+            appointmentsList.innerHTML = `
+                <div class="text-center">
+                    <p class="text-danger mb-2">เกิดข้อผิดพลาดในการโหลดข้อมูล</p>
+                    <small class="text-muted d-block mb-2">${error.message}</small>
+                    <button class="btn btn-sm btn-outline-primary" onclick="loadAppointments()">ลองใหม่</button>
+                </div>
+            `;
+        });
+}
+
+// ฟังก์ชันแปลงประเภทนัดหมายเป็นข้อความภาษาไทย
+function getAppointmentTypeText(type) {
+    const typeMap = {
+        'meeting': 'ประชุม',
+        'call': 'โทรติดตาม',
+        'visit': 'เยี่ยมลูกค้า',
+        'other': 'อื่นๆ'
+    };
+    return typeMap[type] || type || 'ไม่ระบุ';
+}
+
+// ฟังก์ชันโหลดข้อมูลคำสั่งซื้อ
+function loadOrders() {
+    const ordersTab = document.getElementById('orders');
+    if (!ordersTab) return;
+    
+    console.log('Orders tab loaded - data already loaded from PHP');
+    
+    // ข้อมูลคำสั่งซื้อถูกโหลดแล้วจาก PHP ใน tab content
+    // เพิ่มเติม: สามารถเพิ่มการ refresh ข้อมูลได้ที่นี่
+    
+    // ตรวจสอบว่ามีข้อมูลคำสั่งซื้อหรือไม่
+    const orderRows = ordersTab.querySelectorAll('tbody tr');
+    if (orderRows.length === 0) {
+        console.log('No orders found in the table');
+    } else {
+        console.log(`Found ${orderRows.length} order rows`);
+    }
+}
 </script>
 <script>
 function viewOrderItems(orderId) {
@@ -677,6 +1084,9 @@ function escapeHtml(text) {
 }
 
 function showModal(title, bodyHtml) {
+    // Clean up any existing backdrops first
+    cleanupModalBackdrops();
+    
     const id = 'orderItemsModal';
     let modal = document.getElementById(id);
     if (!modal) {
@@ -694,10 +1104,213 @@ function showModal(title, bodyHtml) {
                 </div>
             </div>`;
         document.body.appendChild(modal);
+        
+        // Add event listeners for proper cleanup
+        modal.addEventListener('hidden.bs.modal', function() {
+            setTimeout(cleanupModalBackdrops, 100);
+        });
+        
+        modal.addEventListener('hide.bs.modal', function() {
+            cleanupModalBackdrops();
+        });
     }
     modal.querySelector('.modal-title').textContent = title;
     modal.querySelector('.modal-body').innerHTML = bodyHtml;
     const bsModal = new bootstrap.Modal(modal);
     bsModal.show();
+}
+
+// ฟังก์ชันสำหรับแสดง Modal เปลี่ยนผู้ดูแล
+function showChangeAssigneeModal(customerId, currentAssignee) {
+    // Clean up any existing backdrops first
+    cleanupModalBackdrops();
+    
+    document.getElementById('customerId').value = customerId;
+    document.getElementById('currentAssignee').value = currentAssignee;
+    
+    // โหลดรายการ Telesales
+    loadTelesalesList();
+    
+    // แสดง Modal
+    const modal = new bootstrap.Modal(document.getElementById('changeAssigneeModal'));
+    modal.show();
+}
+
+// โหลดรายการ Telesales
+function loadTelesalesList() {
+    fetch('api/customers.php?action=get_telesales')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const select = document.getElementById('newAssignee');
+                select.innerHTML = '<option value="">เลือกผู้ดูแลใหม่</option>';
+                
+                data.data.forEach(telesales => {
+                    const option = document.createElement('option');
+                    option.value = telesales.user_id;
+                    option.textContent = telesales.full_name + ' (' + telesales.company_name + ')';
+                    select.appendChild(option);
+                });
+            } else {
+                console.error('Error loading telesales:', data.message);
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+        });
+}
+
+// เปลี่ยนผู้ดูแลลูกค้า
+function changeCustomerAssignee() {
+    const customerId = document.getElementById('customerId').value;
+    const newAssignee = document.getElementById('newAssignee').value;
+    const changeReason = document.getElementById('changeReason').value;
+    
+    if (!newAssignee) {
+        alert('กรุณาเลือกผู้ดูแลใหม่');
+        return;
+    }
+    
+    const formData = new FormData();
+    formData.append('action', 'change_assignee');
+    formData.append('customer_id', customerId);
+    formData.append('new_assignee', newAssignee);
+    formData.append('change_reason', changeReason);
+    
+    fetch('api/customers.php', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert('เปลี่ยนผู้ดูแลสำเร็จ');
+            // ปิด Modal และทำความสะอาด backdrop
+            const modal = bootstrap.Modal.getInstance(document.getElementById('changeAssigneeModal'));
+            if (modal) {
+                modal.hide();
+            }
+            // รีโหลดหน้า
+            location.reload();
+        } else {
+            alert('เกิดข้อผิดพลาด: ' + (data.message || 'ไม่สามารถเปลี่ยนผู้ดูแลได้'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('เกิดข้อผิดพลาดในการเชื่อมต่อ');
+    });
+}
+
+// ฟังก์ชันทำความสะอาด modal backdrop
+function cleanupModalBackdrops() {
+    // ลบ backdrop ที่เหลืออยู่ทั้งหมด
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    let removedCount = 0;
+    
+    backdrops.forEach(backdrop => {
+        backdrop.remove();
+        removedCount++;
+    });
+    
+    // ลบ body class ที่ Bootstrap เพิ่มเข้ามา
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+    
+    // แสดง log ถ้ามีการลบ backdrop
+    if (removedCount > 0) {
+        console.log(`Cleaned up ${removedCount} modal backdrop(s)`);
+    }
+    
+    return removedCount;
+}
+
+// ฟังก์ชันทำความสะอาดแบบ aggressive สำหรับกรณีที่ backdrop ยังคงอยู่
+function forceCleanupBackdrops() {
+    // ลบ backdrop ทั้งหมด
+    const backdrops = document.querySelectorAll('.modal-backdrop');
+    backdrops.forEach(backdrop => {
+        backdrop.remove();
+    });
+    
+    // ลบ body classes และ styles ทั้งหมด
+    document.body.classList.remove('modal-open');
+    document.body.style.overflow = '';
+    document.body.style.paddingRight = '';
+    
+    // ลบ backdrop ที่อาจซ่อนอยู่
+    const hiddenBackdrops = document.querySelectorAll('.modal-backdrop[style*="display: none"]');
+    hiddenBackdrops.forEach(backdrop => {
+        backdrop.remove();
+    });
+    
+    // ตรวจสอบและลบ backdrop ที่เหลืออยู่
+    setTimeout(() => {
+        const remainingBackdrops = document.querySelectorAll('.modal-backdrop');
+        remainingBackdrops.forEach(backdrop => {
+            backdrop.remove();
+        });
+    }, 100);
+}
+
+// เพิ่ม global function สำหรับเรียกใช้จาก console
+window.cleanupBackdrops = cleanupModalBackdrops;
+window.forceCleanupBackdrops = forceCleanupBackdrops;
+
+// เพิ่ม event listener สำหรับ modal events
+document.addEventListener('DOMContentLoaded', function() {
+    // Clean up backdrops when modals are hidden
+    const modals = document.querySelectorAll('.modal');
+    modals.forEach(modal => {
+        modal.addEventListener('hidden.bs.modal', function() {
+            setTimeout(cleanupModalBackdrops, 100);
+        });
+        
+        modal.addEventListener('hide.bs.modal', function() {
+            // Clean up immediately when hiding starts
+            cleanupModalBackdrops();
+        });
+    });
+    
+    // Global backdrop cleanup on page load
+    cleanupModalBackdrops();
+    
+    // Clean up backdrops every few seconds as a safety measure
+    setInterval(cleanupModalBackdrops, 5000);
+    
+    // เพิ่ม keyboard shortcut สำหรับทำความสะอาด backdrop (Ctrl+Shift+B)
+    document.addEventListener('keydown', function(e) {
+        if (e.ctrlKey && e.shiftKey && e.key === 'B') {
+            e.preventDefault();
+            forceCleanupBackdrops();
+            console.log('Backdrop cleanup triggered by keyboard shortcut');
+        }
+    });
+    
+    // เพิ่ม click handler สำหรับ backdrop ที่อาจเหลืออยู่
+    document.addEventListener('click', function(e) {
+        if (e.target.classList.contains('modal-backdrop')) {
+            e.target.remove();
+            cleanupModalBackdrops();
+        }
+    });
+    
+    // เพิ่ม error handler สำหรับ modal events
+    window.addEventListener('error', function(e) {
+        if (e.message.includes('modal') || e.message.includes('backdrop')) {
+            setTimeout(forceCleanupBackdrops, 100);
+        }
+    });
+});
+
+// Override Bootstrap modal hide to ensure proper cleanup
+if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
+    const originalHide = bootstrap.Modal.prototype.hide;
+    bootstrap.Modal.prototype.hide = function() {
+        const result = originalHide.call(this);
+        setTimeout(cleanupModalBackdrops, 100);
+        return result;
+    };
 }
 </script>

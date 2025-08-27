@@ -16,10 +16,9 @@ document.addEventListener('DOMContentLoaded', function() {
         if (isReload) {
             // เก็บ active tab ไว้หลัง reload (สำหรับการบันทึกการโทร)
             // sessionStorage.removeItem('customers_active_tab'); // ไม่ลบเพื่อให้จำ tab ได้
-            sessionStorage.removeItem('customers_filters');
-            sessionStorage.removeItem('customers_page_newCustomersTable');
-            sessionStorage.removeItem('customers_page_followupCustomersTable');
-            sessionStorage.removeItem('customers_page_existingCustomersTable');
+            // sessionStorage.removeItem('customers_filters'); // ไม่ลบ filters เพื่อให้จำได้
+            // sessionStorage.removeItem('customers_all_filters'); // ไม่ลบ filters เพื่อให้จำได้
+            sessionStorage.removeItem('customers_page_allCustomersTable');
             const params = new URLSearchParams(window.location.search);
             params.delete('page');
             // เก็บ tab parameter ไว้
@@ -32,17 +31,22 @@ document.addEventListener('DOMContentLoaded', function() {
             history.replaceState(null, '', window.location.pathname + (params.toString()?('?'+params.toString()):''));
         }
     } catch(_) {}
-    // Load initial data
+    
+    // Restore filters from storage instead of clearing them
     restoreFiltersFromStorage();
-    // ลูกค้าใหม่: แสดงตามสถานะ customer_status = 'new'
-    const basketType = (window.currentUserRole === 'telesales' || window.currentUserRole === 'supervisor') ? 'assigned' : 'all';
-    loadCustomersByBasket(basketType, 'newCustomersTable', { customer_status: 'new' });
-    // ติดตาม: ใช้ API เฉพาะ followups เพื่อดึงลูกค้าที่มีนัด/ครบกำหนด
-    loadFollowups('followupCustomersTable');
-    // ลูกค้าเก่า: เฉพาะสถานะ customer_status = 'existing' (ใน assigned)
-    loadCustomersByBasket('assigned', 'existingCustomersTable', { customer_status: 'existing' });
-    // ลูกค้าทั้งหมด: แสดงลูกค้าทั้งหมดที่ user มีสิทธิ์เข้าถึง
-    loadAllCustomers();
+    
+    // Initialize tags
+    if (typeof loadUserTags === 'function') {
+        loadUserTags();
+    }
+    
+    // โหลด tag filter state ที่บันทึกไว้ หรือ โหลดลูกค้าทั้งหมด
+    const hasSavedTagFilters = loadSavedTagFilters();
+    
+    // ถ้าไม่มี saved tag filters ให้โหลดลูกค้าทั้งหมดตามปกติ
+    if (!hasSavedTagFilters) {
+        loadAllCustomers();
+    }
     
     // Add event listeners
     addEventListeners();
@@ -58,6 +62,7 @@ function addEventListeners() {
         tab.addEventListener('shown.bs.tab', function(e) {
             const target = e.target.getAttribute('data-bs-target');
             const targetId = (target || '').replace('#','');
+            
             // persist active tab
             try {
                 sessionStorage.setItem('customers_active_tab', targetId);
@@ -66,32 +71,27 @@ function addEventListeners() {
                 history.replaceState(null, '', window.location.pathname + '?' + params.toString());
             } catch(_) {}
 
-            switch(target) {
-                case '#new':
-                    const basketType = (window.currentUserRole === 'telesales' || window.currentUserRole === 'supervisor') ? 'assigned' : 'all';
-                    loadCustomersByBasket(basketType, 'newCustomersTable', { customer_status: 'new' });
-                    break;
-                case '#followup':
-                    loadFollowups('followupCustomersTable');
-                    // paginate similar to new
-                    setTimeout(() => {
-                        const followTable = document.querySelector('#followupCustomersTable table');
-                        if (followTable) paginateTable(followTable, 'followupCustomersTable-pagination', 10, 'customers_page_followupCustomersTable');
-                    }, 100);
-                    break;
-                case '#existing':
-                    loadCustomersByBasket('assigned', 'existingCustomersTable', { customer_status: 'existing' });
-                    break;
-
-                case '#all':
-                    loadAllCustomers();
-                    break;
+            // Restore filters when switching tabs instead of clearing them
+            if (target === '#all') {
+                restoreFiltersFromStorage();
+                // Apply the restored filters to load filtered data
+                setTimeout(() => {
+                    const filters = getAllCustomersFilters();
+                    if (filters && Object.values(filters).some(v => v !== '' && v !== false)) {
+                        loadAllCustomersWithFilters(filters);
+                    } else {
+                        loadAllCustomers();
+                    }
+                }, 100);
+            } else if (target === '#do') {
+                // For Do tab, load customers without clearing filters
+                loadAllCustomers();
             }
         });
     });
 
     // Header filters: listen for changes in each tab
-    const prefixes = ['do','new','followup','existing'];
+    const prefixes = ['do'];
     prefixes.forEach(p => {
         ['tempFilter','gradeFilter','provinceFilter'].forEach(id => {
             const el = document.getElementById(`${id}_${p}`);
@@ -124,7 +124,8 @@ function addEventListeners() {
         const element = document.getElementById(id);
         if (element) {
             element.addEventListener('change', function() {
-                saveFiltersToStorage();
+                const filters = getAllCustomersFilters();
+                saveFiltersToStorage(filters);
                 applyFilters();
             });
         }
@@ -136,9 +137,43 @@ function addEventListeners() {
         const element = document.getElementById(id);
         if (element) {
             element.addEventListener('input', function() {
-                saveFiltersToStorage();
+                const filters = getAllCustomersFilters();
+                saveFiltersToStorage(filters);
                 applyFilters();
             });
+        }
+    });
+    
+    // Add event listeners for "All Customers" tab filters
+    const allTabFilterIds = ['nameFilter_all', 'phoneFilter_all', 'temperatureFilter_all', 'gradeFilter_all', 'provinceFilter_all', 'customerTypeFilter_all'];
+    allTabFilterIds.forEach(id => {
+        const element = document.getElementById(id);
+        if (element) {
+            if (id.includes('Filter_all') && (id.includes('name') || id.includes('phone'))) {
+                // Text filters (name, phone) - use input event
+                element.addEventListener('input', function() {
+                    const filters = getAllCustomersFilters();
+                    saveFiltersToStorage(filters);
+                    // Apply filters automatically after a short delay
+                    setTimeout(() => {
+                        if (filters && Object.values(filters).some(v => v !== '' && v !== false)) {
+                            loadAllCustomersWithFilters(filters);
+                        }
+                    }, 500);
+                });
+            } else {
+                // Select filters (temperature, grade, province, customerType) - use change event
+                element.addEventListener('change', function() {
+                    const filters = getAllCustomersFilters();
+                    saveFiltersToStorage(filters);
+                    // Apply filters automatically
+                    if (filters && Object.values(filters).some(v => v !== '' && v !== false)) {
+                        loadAllCustomersWithFilters(filters);
+                    } else {
+                        loadAllCustomers();
+                    }
+                });
+            }
         }
     });
     
@@ -171,6 +206,7 @@ function addEventListeners() {
             // Apply filter ทันทีหลัง restore
             setTimeout(() => {
                 const filters = getAllCustomersFilters();
+                saveFiltersToStorage(filters);
                 loadAllCustomersWithFilters(filters);
             }, 200);
         }
@@ -203,6 +239,7 @@ function addEventListeners() {
             
             // อัปเดตข้อมูลทันทีโดยไม่ต้องกดปุ่มกรอง
             const filters = getAllCustomersFilters();
+            saveFiltersToStorage(filters);
             loadAllCustomersWithFilters(filters);
         });
     }
@@ -280,6 +317,7 @@ function addEventListeners() {
             // Apply filter ทันทีหลัง restore
             setTimeout(() => {
                 const filters = getAllCustomersFilters();
+                saveFiltersToStorage(filters);
                 loadAllCustomersWithFilters(filters);
             }, 200);
         }
@@ -323,6 +361,29 @@ function addEventListeners() {
                 });
             }
         });
+    });
+    
+    // Event listeners สำหรับ "All Customers" tab filters
+    const allCustomersFilters = [
+        'nameFilter_all', 'phoneFilter_all', 'temperatureFilter_all', 
+        'gradeFilter_all', 'provinceFilter_all', 'customerTypeFilter_all'
+    ];
+    
+    allCustomersFilters.forEach(filterId => {
+        const element = document.getElementById(filterId);
+        if (element) {
+            const eventType = element.tagName === 'SELECT' ? 'change' : 'input';
+            element.addEventListener(eventType, function() {
+                console.log(`All customers filter ${filterId} changed:`, this.value);
+                // ใช้ getAllCustomersFilters แทน applyFilters
+                const filters = getAllCustomersFilters();
+                
+                // บันทึก filters ลง sessionStorage
+                saveFiltersToStorage(filters);
+                
+                loadAllCustomersWithFilters(filters);
+            });
+        }
     });
 }
 
@@ -732,13 +793,12 @@ function clearFilters() {
  */
 function getCurrentTableId() {
     const activeTab = document.querySelector('.tab-pane.active');
-    if (!activeTab) return 'newCustomersTable';
+    if (!activeTab) return 'allCustomersTable';
     
     switch (activeTab.id) {
-        case 'new': return 'newCustomersTable';
-        case 'followup': return 'followupCustomersTable';
-        case 'existing': return 'existingCustomersTable';
-        default: return 'newCustomersTable';
+        case 'all': return 'allCustomersTable';
+        case 'do': return 'doTable';
+        default: return 'allCustomersTable';
     }
 }
 
@@ -758,15 +818,62 @@ function saveFiltersToStorage() {
 
 function restoreFiltersFromStorage() {
     try {
-        const raw = sessionStorage.getItem('customers_filters');
+        const raw = sessionStorage.getItem('customers_all_filters');
         if (!raw) return;
         const f = JSON.parse(raw);
-        if (document.getElementById('tempFilter')) document.getElementById('tempFilter').value = f.temp || '';
-        if (document.getElementById('gradeFilter')) document.getElementById('gradeFilter').value = f.grade || '';
-        if (document.getElementById('provinceFilter')) document.getElementById('provinceFilter').value = f.province || '';
-        if (document.getElementById('nameFilter')) document.getElementById('nameFilter').value = f.name || '';
-        if (document.getElementById('phoneFilter')) document.getElementById('phoneFilter').value = f.phone || '';
-    } catch(_) {}
+        
+        // Restore "All Customers" tab filters
+        if (document.getElementById('nameFilter_all')) document.getElementById('nameFilter_all').value = f.name || '';
+        if (document.getElementById('phoneFilter_all')) document.getElementById('phoneFilter_all').value = f.phone || '';
+        if (document.getElementById('temperatureFilter_all')) document.getElementById('temperatureFilter_all').value = f.temperature || '';
+        if (document.getElementById('gradeFilter_all')) document.getElementById('gradeFilter_all').value = f.grade || '';
+        if (document.getElementById('provinceFilter_all')) document.getElementById('provinceFilter_all').value = f.province || '';
+        if (document.getElementById('customerTypeFilter_all')) document.getElementById('customerTypeFilter_all').value = f.customerType || '';
+        
+        // Restore checkboxes
+        if (document.getElementById('hideCalledToday')) document.getElementById('hideCalledToday').checked = f.hideCalledToday || false;
+        if (document.getElementById('hideDateRange')) document.getElementById('hideDateRange').checked = f.hideDateRange || false;
+        if (document.getElementById('hideDateFrom')) document.getElementById('hideDateFrom').value = f.hideDateFrom || '';
+        if (document.getElementById('hideDateTo')) document.getElementById('hideDateTo').value = f.hideDateTo || '';
+        
+        // Enable/disable date inputs based on checkbox
+        const hideDateRange = document.getElementById('hideDateRange');
+        const hideDateFrom = document.getElementById('hideDateFrom');
+        const hideDateTo = document.getElementById('hideDateTo');
+        
+        if (hideDateRange && hideDateFrom && hideDateTo) {
+            const isEnabled = hideDateRange.checked;
+            hideDateFrom.disabled = !isEnabled;
+            hideDateTo.disabled = !isEnabled;
+        }
+        
+        console.log('Restored filters from storage:', f);
+        
+        // Apply the restored filters automatically to load filtered data
+        setTimeout(() => {
+            const filters = getAllCustomersFilters();
+            if (filters && Object.values(filters).some(v => v !== '' && v !== false)) {
+                loadAllCustomersWithFilters(filters);
+            } else {
+                loadAllCustomers();
+            }
+        }, 200);
+        
+    } catch(e) {
+        console.error('Error restoring filters:', e);
+    }
+}
+
+/**
+ * บันทึก filters ลง sessionStorage
+ */
+function saveFiltersToStorage(filters) {
+    try {
+        sessionStorage.setItem('customers_all_filters', JSON.stringify(filters));
+        console.log('Saved filters to storage:', filters);
+    } catch(e) {
+        console.error('Error saving filters:', e);
+    }
 }
 
 /**
@@ -1014,6 +1121,16 @@ function viewOrder(orderId) {
  */
 function logCall(customerId) {
     try {
+        // ตรวจสอบว่ามี modal อยู่แล้วหรือไม่
+        const existingModal = document.getElementById('logCallModal');
+        if (!existingModal) {
+            // ถ้าไม่มี modal ให้สร้างใหม่
+            console.log('Creating new call log modal for customer:', customerId);
+            showLogCallModal(customerId);
+            return;
+        }
+        
+        // ถ้ามี modal แล้ว ให้ใช้ modal นั้น
         const idField = document.getElementById('callCustomerId');
         const modalEl = document.getElementById('logCallModal');
         if (!idField || !modalEl) {
@@ -1024,8 +1141,34 @@ function logCall(customerId) {
         idField.value = customerId;
         const form = document.getElementById('logCallForm');
         if (form) form.reset();
+        
+        // ล้าง field นัดติดตาม
+        const nextFollowupField = document.getElementById('nextFollowup');
+        if (nextFollowupField) nextFollowupField.value = '';
+        
+        // ล้าง Tags Preview
+        if (typeof clearCallLogTags === 'function') {
+            clearCallLogTags();
+        }
+        
         // เตรียมชุดตัวเลือกผลการโทรแบบครบถ้วน (ไม่จำกัดตามสถานะ)
         try { updateCallResultOptions(true); } catch(_) {}
+        
+        // เพิ่ม Event Listener สำหรับ Auto-fill ผลการโทร (สำหรับ existing modal)
+        const callStatusElement = document.getElementById('callStatus');
+        if (callStatusElement) {
+            // ลบ event listener เก่า (ถ้ามี)
+            callStatusElement.removeEventListener('change', window.autoFillCallResult);
+            
+            // สร้าง function สำหรับ auto-fill
+            window.autoFillCallResult = function() {
+                updateCallResultOptions();
+            };
+            
+            // เพิ่ม event listener ใหม่
+            callStatusElement.addEventListener('change', window.autoFillCallResult);
+        }
+        
         // Ensure modal is under <body> to avoid transform/fixed-position issues
         if (modalEl.parentElement !== document.body) {
             document.body.appendChild(modalEl);
@@ -1041,12 +1184,29 @@ function logCall(customerId) {
 function updateCallResultOptions(forceAll = false) {
     try {
         const resultSel = document.getElementById('callResult');
+        const statusSel = document.getElementById('callStatus');
         if (!resultSel) return;
 
         const keep = resultSel.value; // keep current selection if still available
-        const list = ['สั่งซื้อ','สนใจ','Add Line แล้ว','ต้องการซื้อทางเพจ','น้ำท่วม','รอติดต่อใหม่','นัดหมาย','เบอร์ไม่ถูก','ไม่สะดวกคุย','ไม่สนใจ','อย่าโทรมาอีก','ตัดสายทิ้ง','สายไม่ว่าง','ติดต่อไม่ได้'];
+        const list = ['สนใจ','ไม่สนใจ','ลังเล','เบอร์ผิด','ได้คุย','ตัดสายทิ้ง'];
         resultSel.innerHTML = '<option value="">เลือกผลการโทร</option>' + list.map(t=>`<option value="${t}">${t}</option>`).join('');
-        // try restore
+        
+        // Auto-fill ผลการโทรเมื่อสถานะการโทรไม่ใช่ "รับสาย"
+        if (statusSel && statusSel.value && statusSel.value !== 'answered') {
+            const statusValueMap = {
+                'no_answer': 'ไม่รับสาย',
+                'busy': 'สายไม่ว่าง', 
+                'invalid': 'เบอร์ผิด',
+                'hang_up': 'ตัดสายทิ้ง'
+            };
+            const autoFillValue = statusValueMap[statusSel.value];
+            if (autoFillValue && list.includes(autoFillValue)) {
+                resultSel.value = autoFillValue;
+                return; // ไม่ต้อง restore ค่าเดิม
+            }
+        }
+        
+        // try restore เฉพาะเมื่อไม่ได้ auto-fill
         if (keep && list.includes(keep)) resultSel.value = keep;
     } catch(_) {}
 }
@@ -1054,14 +1214,14 @@ function updateCallResultOptions(forceAll = false) {
 /**
  * Submit call log
  */
-function submitCallLog() {
+async function submitCallLog() {
     const customerId = document.getElementById('callCustomerId').value;
-    const callType = document.getElementById('callType').value;
+    const callType = document.getElementById('callType')?.value || 'outbound';
     const callStatus = document.getElementById('callStatus').value;
     let callResult = document.getElementById('callResult').value;
     const duration = document.getElementById('callDuration').value;
     const notes = document.getElementById('callNotes').value;
-    // nextAction และ nextFollowup ถูกเอาออกแล้ว
+    const nextFollowup = document.getElementById('nextFollowup').value;
     
     if (!callStatus) {
         showError('กรุณาเลือกสถานะการโทร');
@@ -1074,54 +1234,62 @@ function submitCallLog() {
         call_status: callStatus,
         call_result: callResult || null,
         duration: parseInt(duration) || 0,
-        notes: notes
+        notes: notes,
+        next_followup_at: nextFollowup || null
     };
     
-    const submitBtn = document.querySelector('#logCallModal .btn-primary');
-    if (submitBtn) { submitBtn.disabled = true; submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังบันทึก...'; }
+    const submitBtn = document.querySelector('#logCallModal .btn-success');
+    if (submitBtn) { 
+        submitBtn.disabled = true; 
+        submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังบันทึก...'; 
+    }
 
-    fetch('api/customers.php?action=log_call', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(data)
-    })
-    .then(async response => {
+    try {
+        // บันทึกการโทรก่อน
+        const response = await fetch('api/calls.php?action=log_call', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data)
+        });
+        
         if (!response.ok) {
             const txt = await response.text().catch(()=>'');
             throw new Error(`HTTP ${response.status}: ${txt.substring(0,200)}`);
         }
-        return response.json();
-    })
-    .then(data => {
-        if (data.success) {
-            showSuccess(data.message);
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // บันทึก Tags หลังจากบันทึกการโทรสำเร็จ
+            if (typeof saveCallLogTags === 'function') {
+                const tagsSaved = await saveCallLogTags(customerId);
+                if (!tagsSaved) {
+                    console.warn('Failed to save some tags, but call log was saved successfully');
+                }
+            }
+            
+            showSuccess(result.message || 'บันทึกการโทรสำเร็จ');
             bootstrap.Modal.getInstance(document.getElementById('logCallModal')).hide();
-            // Reload current tab
-            loadCustomersByBasket(currentBasketType, getCurrentTableId());
+            
+            // รีเฟรชตามแท็บปัจจุบัน
+            refreshCurrentTab();
         } else {
-            showError(data.message);
+            showError(result.message || 'เกิดข้อผิดพลาดในการบันทึก');
         }
-    })
-    .catch(error => {
+    } catch (error) {
         console.error('Error:', error);
         showError('เกิดข้อผิดพลาดในการบันทึกการโทร: ' + (error.message || ''));
-    })
-    .finally(() => { if (submitBtn) { submitBtn.disabled = false; submitBtn.innerHTML = 'บันทึก'; } });
+    } finally {
+        if (submitBtn) { 
+            submitBtn.disabled = false; 
+            submitBtn.innerHTML = 'บันทึกการโทร'; 
+        }
+    }
 }
 
-/**
- * เปิด modal เพิ่ม tag จากหน้าบันทึกการโทร
- */
-function showAddTagModalFromCall() {
-    const customerId = document.getElementById('callCustomerId').value;
-    if (!customerId) {
-        alert('ไม่พบ ID ลูกค้า');
-        return;
-    }
-    showAddTagModal(parseInt(customerId));
-}
+// showAddTagModalFromCall() function ถูกย้ายไปใน tags.js แล้ว
 
 /**
  * Recall customer
@@ -1480,14 +1648,10 @@ function formatDate(dateString) {
  */
 function getEmptyMessageForTable(tableId) {
     switch(tableId) {
-        case 'newCustomersTable':
-            return 'ไม่พบลูกค้าใหม่';
-        case 'followupCustomersTable':
-            return 'ไม่พบลูกค้าที่ต้องติดตาม';
-        case 'existingCustomersTable':
-            return 'ไม่พบลูกค้าเก่า';
         case 'allCustomersTable':
             return 'ไม่พบข้อมูลลูกค้า';
+        case 'doTable':
+            return 'ไม่มีงานที่ต้องทำวันนี้';
         default:
             return 'ไม่พบข้อมูล';
     }
@@ -1578,7 +1742,7 @@ function renderStandardTable(customers, tableElementId, emptyMessage = 'ไม�
                             <i class="fas fa-eye"></i>
                         </a>
                         <button class="btn btn-outline-success btn-sm" 
-                                onclick="showLogCallModal(${customer.customer_id})" 
+                                onclick="logCall(${customer.customer_id})" 
                                 title="บันทึกการโทร">
                             <i class="fas fa-phone"></i>
                         </button>
@@ -1825,9 +1989,9 @@ function applyAllFilters() {
  * ล้าง filters ทั้งหมด
  */
 function clearAllFilters() {
-    // ล้างค่า input fields
+    // ล้างค่า input fields สำหรับแท็บ "ลูกค้าทั้งหมด"
     const filterIds = [
-        'nameFilter_all', 'phoneFilter_all', 'tempFilter_all', 
+        'nameFilter_all', 'phoneFilter_all', 'temperatureFilter_all', 
         'gradeFilter_all', 'provinceFilter_all', 'customerTypeFilter_all'
     ];
     
@@ -1837,11 +2001,16 @@ function clearAllFilters() {
     });
     
     // ล้าง tag filters
-    clearTagFilter();
+    if (typeof clearTagFilter === 'function') {
+        clearTagFilter();
+    }
     
     // ล้าง hide called today
     const hideCalledToday = document.getElementById('hideCalledToday');
-    if (hideCalledToday) hideCalledToday.checked = false;
+    if (hideCalledToday) {
+        hideCalledToday.checked = false;
+        sessionStorage.removeItem('hideCalledToday');
+    }
     
     // ล้าง date range filter
     const hideDateRange = document.getElementById('hideDateRange');
@@ -1862,6 +2031,13 @@ function clearAllFilters() {
         hideDateTo.disabled = true;
         sessionStorage.removeItem('hideDateTo');
     }
+    
+    // ลบ saved filters ทั้งหมด
+    sessionStorage.removeItem('customers_all_filters');
+    sessionStorage.removeItem('customers_filters');
+    
+    // ล้างตัวกรองสำหรับแท็บ Do ด้วย
+    clearTabFilters('do');
     
     // โหลดข้อมูลใหม่
     loadAllCustomers();
@@ -1901,10 +2077,15 @@ async function loadAllCustomersWithFilters(filters) {
         const params = new URLSearchParams();
         params.append('basket_type', basketType);
         
-        // เพิ่ม filters
+        // เพิ่ม filters (แต่ไม่รวม client-side filters)
         Object.entries(filters).forEach(([key, value]) => {
             if (value && key !== 'hideCalledToday' && key !== 'hideDateRange' && key !== 'hideDateFrom' && key !== 'hideDateTo') {
-                params.append(key, value);
+                // แปลง customerType เป็น parameter ที่ API เข้าใจ
+                if (key === 'customerType') {
+                    params.append('customer_status', value);
+                } else {
+                    params.append(key, value);
+                }
             }
         });
         
@@ -2094,18 +2275,91 @@ function updateTagFilterCount() {
 }
 
 function clearTagFilter() {
-    // ล้าง tag selections
-    const tagOptions = document.querySelectorAll('#tagFilterOptions input[type="checkbox"]');
-    tagOptions.forEach(option => option.checked = false);
+    // ล้าง tag selections ใน modal แบบใหม่
+    const newTagOptions = document.querySelectorAll('#modalTagFilterOptions .tag-selectable');
+    newTagOptions.forEach(option => {
+        option.classList.remove('selected');
+        option.style.border = '2px solid transparent';
+        option.style.boxShadow = 'none';
+    });
+    
+    // ล้าง tag selections ใน UI แบบเก่า (ถ้ามี)
+    const oldTagOptions = document.querySelectorAll('#tagFilterOptions input[type="checkbox"]');
+    oldTagOptions.forEach(option => option.checked = false);
     
     // ล้าง saved state
     sessionStorage.removeItem('selectedTagFilters');
     
     // อัปเดต badge count
-    updateTagFilterCount();
+    const countBadge = document.getElementById('selectedTagsCount');
+    if (countBadge) {
+        countBadge.textContent = '0';
+    }
+    
+    // อัปเดต modal count (ถ้า modal เปิดอยู่)
+    const modalCountSpan = document.getElementById('modalSelectedCount');
+    if (modalCountSpan) {
+        modalCountSpan.textContent = '0';
+    }
     
     // โหลดข้อมูลใหม่โดยไม่มี tag filter
     loadAllCustomers();
+}
+
+/**
+ * โหลด tag filter state ที่บันทึกไว้เมื่อเริ่มหน้า
+ * @returns {boolean} true ถ้ามี saved tag filters และโหลดแล้ว, false ถ้าไม่มี
+ */
+function loadSavedTagFilters() {
+    try {
+        const savedTags = sessionStorage.getItem('selectedTagFilters');
+        if (savedTags) {
+            const selectedTags = JSON.parse(savedTags);
+            
+            // อัปเดต badge count
+            const countBadge = document.getElementById('selectedTagsCount');
+            if (countBadge) {
+                countBadge.textContent = selectedTags.length;
+            }
+            
+            // ถ้ามี tags ที่เลือกไว้ ให้ใช้กรองทันที
+            if (selectedTags.length > 0) {
+                // เรียกใช้ searchCustomersByTags และแสดงผล
+                if (typeof searchCustomersByTags === 'function') {
+                    searchCustomersByTags(selectedTags).then(customers => {
+                        if (typeof renderStandardTable === 'function') {
+                            renderStandardTable(customers, 'allCustomersTable', 'ไม่มีลูกค้าที่มี tags ที่เลือก');
+                            
+                            // อัปเดต all customers count
+                            const allCountBadge = document.getElementById('allCustomersCount');
+                            if (allCountBadge) {
+                                allCountBadge.textContent = customers.length;
+                            }
+                            
+                            // เพิ่ม pagination
+                            setTimeout(() => {
+                                const table = document.querySelector('#allCustomersTable table');
+                                const paginationContainer = document.getElementById('allCustomersTable-pagination');
+                                if (table && paginationContainer) {
+                                    paginationContainer.innerHTML = '';
+                                    if (typeof paginateTable === 'function') {
+                                        paginateTable(table, 'allCustomersTable-pagination', 10, 'customers_page_allCustomersTable');
+                                    }
+                                }
+                            }, 100);
+                        }
+                    }).catch(error => {
+                        console.error('Error loading saved tag filters:', error);
+                    });
+                }
+                return true; // มี saved tags และโหลดแล้ว
+            }
+        }
+        return false; // ไม่มี saved tags
+    } catch (error) {
+        console.error('Error loading saved tag filters:', error);
+        return false;
+    }
 }
 
 /**
@@ -2211,6 +2465,7 @@ function showLogCallModal(customerId) {
                                     <option value="no_answer">ไม่รับสาย</option>
                                     <option value="busy">สายไม่ว่าง</option>
                                     <option value="invalid">เบอร์ผิด</option>
+                                    <option value="hang_up">ตัดสายทิ้ง</option>
                                 </select>
                             </div>
                             
@@ -2218,11 +2473,12 @@ function showLogCallModal(customerId) {
                                 <label for="callResult" class="form-label">ผลการโทร</label>
                                 <select class="form-select" id="callResult">
                                     <option value="">เลือกผลการโทร</option>
-                                    <option value="interested">สนใจ</option>
-                                    <option value="not_interested">ไม่สนใจ</option>
-                                    <option value="callback">โทรกลับ</option>
-                                    <option value="order">สั่งซื้อ</option>
-                                    <option value="complaint">ร้องเรียน</option>
+                                    <option value="สนใจ">สนใจ</option>
+                                    <option value="ไม่สนใจ">ไม่สนใจ</option>
+                                    <option value="ลังเล">ลังเล</option>
+                                    <option value="เบอร์ผิด">เบอร์ผิด</option>
+                                    <option value="ได้คุย">ได้คุย</option>
+                                    <option value="ตัดสายทิ้ง">ตัดสายทิ้ง</option>
                                 </select>
                             </div>
                             
@@ -2239,6 +2495,19 @@ function showLogCallModal(customerId) {
                             <div class="mb-3">
                                 <label for="nextFollowup" class="form-label">วันที่ติดตามครั้งถัดไป</label>
                                 <input type="datetime-local" class="form-control" id="nextFollowup">
+                            </div>
+                            
+                            <!-- Tags Section -->
+                            <div class="mb-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <label class="form-label mb-0">Tags</label>
+                                    <button type="button" class="btn btn-sm btn-outline-primary" onclick="showAddTagModalFromCall()">
+                                        <i class="fas fa-plus me-1"></i>เพิ่ม Tag
+                                    </button>
+                                </div>
+                                <div id="callTagsPreview" class="d-flex flex-wrap gap-2">
+                                    <!-- Tags จะแสดงที่นี่ -->
+                                </div>
                             </div>
                         </form>
                     </div>
@@ -2260,9 +2529,158 @@ function showLogCallModal(customerId) {
     // เพิ่ม modal ใหม่
     document.body.insertAdjacentHTML('beforeend', modalHtml);
     
+    // โหลด Tags ที่มีอยู่ (ถ้า Tags functionality พร้อมใช้งาน)
+    if (typeof loadUserTags === 'function') {
+        try {
+            loadUserTags();
+            console.log('User tags loaded for call log modal');
+        } catch (e) {
+            console.warn('Failed to load user tags:', e);
+        }
+    }
+    
+    // เพิ่ม Event Listener สำหรับ Auto-fill ผลการโทร
+    const callStatusElement = document.getElementById('callStatus');
+    if (callStatusElement) {
+        callStatusElement.addEventListener('change', function() {
+            updateCallResultOptions();
+        });
+    }
+    
     // แสดง modal
     const modal = new bootstrap.Modal(document.getElementById('logCallModal'));
     modal.show();
+}
+
+/**
+ * รีเฟรช customer ตัวเดียวในตาราง (หลังจากเพิ่ม tags)
+ */
+async function refreshCustomerInTable(customerId) {
+    try {
+        // ดึงข้อมูลลูกค้าล่าสุด (พร้อม tags)
+        const response = await fetch(`api/customers.php?action=get_customer&id=${customerId}`);
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        if (!data.success || !data.customer) return;
+        
+        const customer = data.customer;
+        
+        // หา row ของลูกค้าในทุก table ที่มีอยู่ (Do, New, All, etc.)
+        const allTables = document.querySelectorAll('#allCustomersTable, #doTable, #newTable, #followupTable');
+        
+        for (const table of allTables) {
+            const tableRows = table.querySelectorAll('tbody tr[data-customer-id]');
+            for (const row of tableRows) {
+                if (row.getAttribute('data-customer-id') == customerId) {
+                    
+                    // อัพเดท tags column โดยใช้ data-customer-tags selector
+                    const tagsContainer = row.querySelector(`[data-customer-tags="${customerId}"]`);
+                    if (tagsContainer) {
+                        // สร้าง temporary customer object สำหรับ renderCustomerTags function
+                        const tempCustomer = {
+                            customer_id: customerId
+                        };
+                        
+                        // ถ้ามี tags ให้ใส่ข้อมูล
+                        if (customer.tags && customer.tags.length > 0) {
+                            tempCustomer.customer_tags = customer.tags.map(tag => tag.tag_name).join(',');
+                            tempCustomer.tag_colors = customer.tags.map(tag => tag.tag_color).join(',');
+                        }
+                        
+                        // ใช้ renderCustomerTags function ที่มีอยู่แล้ว
+                        tagsContainer.innerHTML = renderCustomerTags(tempCustomer);
+                    }
+                    
+                    // ไม่ break เพราะลูกค้าอาจอยู่ในหลาย table
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error refreshing customer in table:', error);
+    }
+}
+
+/**
+ * Helper functions สำหรับ status
+ */
+function getStatusClass(status) {
+    const statusClasses = {
+        'new': 'bg-primary',
+        'followup': 'bg-warning text-dark',
+        'existing': 'bg-success',
+        'inactive': 'bg-secondary'
+    };
+    return statusClasses[status] || 'bg-secondary';
+}
+
+function getStatusText(status) {
+    const statusTexts = {
+        'new': 'ลูกค้าใหม่',
+        'followup': 'ติดตาม',
+        'existing': 'ลูกค้าเก่า',
+        'inactive': 'ไม่ใช้งาน'
+    };
+    return statusTexts[status] || status;
+}
+
+/**
+ * คำนวณสีข้อความที่เหมาะสมสำหรับพื้นหลัง tag
+ */
+function getTextColor(backgroundColor) {
+    const hex = backgroundColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16);
+    const b = parseInt(hex.substr(4, 2), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness > 128 ? '#000000' : '#ffffff';
+}
+
+/**
+ * รีเฟรช tab ปัจจุบันที่ user อยู่
+ */
+function refreshCurrentTab() {
+    try {
+        // หาว่า tab ไหนที่ active อยู่
+        const activeTab = document.querySelector('.nav-tabs .nav-link.active');
+        if (!activeTab) {
+            // fallback ถ้าไม่เจอ active tab ให้โหลด tab ที่มีตาราง
+            const visibleTable = document.querySelector('#allCustomersTable, #doTable, #newTable, #followupTable');
+            if (visibleTable && visibleTable.offsetParent !== null) {
+                loadAllCustomers(); // fallback
+            }
+            return;
+        }
+        
+        const tabId = activeTab.getAttribute('data-bs-target') || activeTab.getAttribute('href');
+        console.log('Current active tab:', tabId);
+        
+        // โหลดข้อมูลตาม tab ที่ active
+        switch (tabId) {
+            case '#do':
+                // Tab Do - โหลดลูกค้าที่ต้องติดตาม
+                if (typeof loadFollowups === 'function') {
+                    loadFollowups('doTable');
+                }
+                break;
+                
+            case '#new':
+                // Tab ลูกค้าใหม่
+                loadCustomersByBasket('distribution', 'newTable');
+                break;
+                
+            case '#all':
+            default:
+                // Tab ลูกค้าทั้งหมด (default)
+                loadAllCustomers();
+                break;
+        }
+        
+    } catch (error) {
+        console.error('Error refreshing current tab:', error);
+        // fallback ถ้า error
+        loadAllCustomers();
+    }
 }
 
 /**
@@ -2302,15 +2720,30 @@ async function submitCallLog() {
         const result = await response.json();
         
         if (response.ok && result.success) {
+            // บันทึก Tags ที่เพิ่มใน Preview
+            if (typeof saveCallLogTags === 'function') {
+                const tagsSuccess = await saveCallLogTags(customerId);
+                if (!tagsSuccess) {
+                    // แม้ Tags บันทึกไม่สำเร็จ แต่การโทรบันทึกแล้ว ให้แจ้งเตือน
+                    alert('บันทึกการโทรสำเร็จ แต่มี Tags บางตัวที่บันทึกไม่สำเร็จ');
+                } else {
+                    // บันทึกทั้งการโทรและ Tags สำเร็จ
+                    alert('บันทึกการโทรและ Tags สำเร็จ');
+                }
+            } else {
+                // ไม่มี Tags หรือฟังก์ชัน Tags ไม่พร้อม
+                alert('บันทึกการโทรสำเร็จ');
+            }
+            
             // ปิด modal
             const modal = bootstrap.Modal.getInstance(document.getElementById('logCallModal'));
             modal.hide();
             
-            // แสดงข้อความสำเร็จ
-            alert('บันทึกการโทรสำเร็จ');
+            // รีเฟรชตารางและ tags
+            await refreshCustomerInTable(customerId);
             
-            // รีเฟรชตาราง
-            loadAllCustomers();
+            // รีเฟรช tab ปัจจุบันแทนที่จะไป loadAllCustomers เสมอ
+            refreshCurrentTab();
         } else {
             alert('เกิดข้อผิดพลาด: ' + (result.message || 'ไม่สามารถบันทึกได้'));
         }

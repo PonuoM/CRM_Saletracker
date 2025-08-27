@@ -24,6 +24,12 @@
             <a href="admin.php?action=settings" class="btn btn-sm btn-outline-primary">
                 <i class="fas fa-cog me-1"></i>ตั้งค่าระบบ
             </a>
+            <a href="admin.php?action=customer_distribution" class="btn btn-sm btn-outline-info">
+                <i class="fas fa-share-alt me-1"></i>ระบบแจกลูกค้า
+            </a>
+            <a href="admin.php?action=workflow" class="btn btn-sm btn-outline-warning">
+                <i class="fas fa-project-diagram me-1"></i>Workflow
+            </a>
         </div>
     </div>
 </div>

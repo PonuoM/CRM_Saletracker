@@ -265,7 +265,7 @@ window.submitCallLog = function() {
         const duration = document.getElementById('callDuration').value;
         const notes = document.getElementById('callNotes').value;
         const nextAction = document.getElementById('nextAction')?.value || ''; // optional
-        const nextFollowup = document.getElementById('nextFollowup').value;
+        const nextFollowup = document.getElementById('nextFollowup')?.value || null;
         
         if (!callStatus) {
             alert('กรุณาเลือกสถานะการโทร');
@@ -277,15 +277,15 @@ window.submitCallLog = function() {
             call_type: callType,
             call_status: callStatus,
             call_result: callResult || null,
-            duration: parseInt(duration) || 0,
+            duration_minutes: parseInt(duration) || 0,
             notes: notes,
             next_action: nextAction,
-            next_followup: nextFollowup || null
+            next_followup_at: nextFollowup || null
         };
         
         console.log('Submitting call log data:', data);
         
-        fetch('api/customers.php?action=log_call', {
+        fetch('api/calls.php?action=log_call', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -296,23 +296,28 @@ window.submitCallLog = function() {
             console.log('API response status:', response.status);
             return response.json();
         })
-        .then(data => {
+        .then(async data => {
             console.log('API response data:', data);
             if (data.success) {
-                alert('บันทึกการโทรสำเร็จ');
+                // บันทึก Tags ที่เพิ่มใน Preview (ถ้ามี)
+                let tagsMessage = '';
+                if (typeof saveCallLogTags === 'function') {
+                    const tagsSuccess = await saveCallLogTags(customerId);
+                    if (!tagsSuccess) {
+                        tagsMessage = ' แต่มี Tags บางตัวที่บันทึกไม่สำเร็จ';
+                    }
+                }
+                
+                alert('บันทึกการโทรสำเร็จ' + tagsMessage);
+                
                 const modal = bootstrap.Modal.getInstance(document.getElementById('logCallModal'));
                 if (modal) {
                     modal.hide();
                 }
                 
-                // เก็บสถานะหน้าปัจจุบันก่อน reload
-                const currentTab = document.querySelector('.nav-tabs .nav-link.active')?.getAttribute('data-bs-target');
-                if (currentTab) {
-                    sessionStorage.setItem('customers_active_tab', currentTab.replace('#', ''));
-                }
+                // อัพเดทข้อมูลทันทีแทนการ reload หน้า
+                await refreshCustomerDetailData(customerId);
                 
-                // Reload page to show updated data
-                location.reload();
             } else {
                 alert('เกิดข้อผิดพลาด: ' + (data.message || 'ไม่ทราบสาเหตุ'));
             }
@@ -332,6 +337,159 @@ window.refreshCustomerData = function() {
     console.log('Refreshing customer data...');
     location.reload();
 };
+
+// ฟังก์ชันสำหรับรีเฟรชข้อมูลลูกค้าแบบ real-time (ไม่ reload หน้า)
+async function refreshCustomerDetailData(customerId) {
+    try {
+        console.log('Refreshing customer detail data for ID:', customerId);
+        
+        // รีเฟรช call logs
+        await refreshCallLogs(customerId);
+        
+        // รีเฟรช appointments  
+        await refreshAppointments(customerId);
+        
+        // รีเฟรช customer tags ใน sidebar/header (ถ้ามี)
+        await refreshCustomerTags(customerId);
+        
+        console.log('Customer detail data refreshed successfully');
+        
+    } catch (error) {
+        console.error('Error refreshing customer detail data:', error);
+    }
+}
+
+// รีเฟรช call logs ใน tab
+async function refreshCallLogs(customerId) {
+    try {
+        const response = await fetch(`api/calls.php?customer_id=${customerId}`);
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        if (data.success && data.call_logs) {
+            // อัพเดท call logs table ถ้ามี
+            const callLogsContainer = document.querySelector('#call-logs-content, .call-logs-container');
+            if (callLogsContainer) {
+                // สร้าง HTML สำหรับ call logs ใหม่
+                let callLogsHtml = '';
+                data.call_logs.forEach(log => {
+                    callLogsHtml += `
+                        <div class="call-log-item p-3 border-bottom">
+                            <div class="d-flex justify-content-between">
+                                <span class="fw-bold">${log.call_status}</span>
+                                <small class="text-muted">${formatDateTime(log.created_at)}</small>
+                            </div>
+                            ${log.call_result ? `<div><strong>ผล:</strong> ${log.call_result}</div>` : ''}
+                            ${log.notes ? `<div><strong>หมายเหตุ:</strong> ${log.notes}</div>` : ''}
+                            ${log.next_followup_at ? `<div><strong>ติดตาม:</strong> ${formatDateTime(log.next_followup_at)}</div>` : ''}
+                        </div>
+                    `;
+                });
+                callLogsContainer.innerHTML = callLogsHtml;
+            }
+        }
+    } catch (error) {
+        console.error('Error refreshing call logs:', error);
+    }
+}
+
+// รีเฟรช appointments ใน tab  
+async function refreshAppointments(customerId) {
+    try {
+        const response = await fetch(`api/appointments.php?customer_id=${customerId}`);
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        if (data.success && data.appointments) {
+            // อัพเดท appointments table ถ้ามี
+            const appointmentsContainer = document.querySelector('#appointments-content, .appointments-container');
+            if (appointmentsContainer) {
+                // สร้าง HTML สำหรับ appointments ใหม่
+                let appointmentsHtml = '';
+                data.appointments.forEach(apt => {
+                    const statusBadge = getAppointmentStatusBadge(apt.status);
+                    appointmentsHtml += `
+                        <div class="appointment-item p-3 border-bottom">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <div class="fw-bold">${formatDateTime(apt.appointment_date)}</div>
+                                    ${apt.notes ? `<div class="text-muted">${apt.notes}</div>` : ''}
+                                </div>
+                                <div class="text-end">
+                                    ${statusBadge}
+                                    ${apt.status !== 'completed' ? `
+                                        <button class="btn btn-sm btn-success ms-2" onclick="updateAppointmentStatus(${apt.appointment_id}, 'completed')">
+                                            <i class="fas fa-check"></i> เสร็จ
+                                        </button>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                });
+                appointmentsContainer.innerHTML = appointmentsHtml;
+            }
+        }
+    } catch (error) {
+        console.error('Error refreshing appointments:', error);
+    }
+}
+
+// รีเฟรช customer tags
+async function refreshCustomerTags(customerId) {
+    try {
+        const response = await fetch(`api/customers.php?action=get_customer&id=${customerId}`);
+        if (!response.ok) return;
+        
+        const data = await response.json();
+        if (data.success && data.customer) {
+            // อัพเดท tags display ใน customer info section
+            const tagsContainer = document.querySelector('.customer-tags, #customer-tags');
+            if (tagsContainer && data.customer.tags) {
+                let tagsHtml = '';
+                data.customer.tags.forEach(tag => {
+                    tagsHtml += `<span class="badge me-1" style="background-color: ${tag.tag_color}; color: ${getTextColor(tag.tag_color)};">${tag.tag_name}</span>`;
+                });
+                tagsContainer.innerHTML = tagsHtml || '<small class="text-muted">ไม่มี tag</small>';
+            }
+        }
+    } catch (error) {
+        console.error('Error refreshing customer tags:', error);
+    }
+}
+
+// Helper functions
+function formatDateTime(dateStr) {
+    if (!dateStr) return '';
+    const date = new Date(dateStr);
+    return date.toLocaleString('th-TH', {
+        year: 'numeric',
+        month: '2-digit', 
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+function getAppointmentStatusBadge(status) {
+    const badges = {
+        'pending': '<span class="badge bg-warning text-dark">รอดำเนินการ</span>',
+        'confirmed': '<span class="badge bg-info">ยืนยันแล้ว</span>',
+        'completed': '<span class="badge bg-success">เสร็จสิ้น</span>',
+        'cancelled': '<span class="badge bg-danger">ยกเลิก</span>'
+    };
+    return badges[status] || `<span class="badge bg-secondary">${status}</span>`;
+}
+
+function getTextColor(backgroundColor) {
+    if (!backgroundColor) return '#000000';
+    const hex = backgroundColor.replace('#', '');
+    const r = parseInt(hex.substr(0, 2), 16);
+    const g = parseInt(hex.substr(2, 2), 16); 
+    const b = parseInt(hex.substr(4, 2), 16);
+    const brightness = (r * 299 + g * 587 + b * 114) / 1000;
+    return brightness > 128 ? '#000000' : '#ffffff';
+}
 
 window.showError = function(message) {
     console.error('Error:', message);
@@ -511,11 +669,31 @@ function displayAppointments(appointments) {
         return;
     }
     
-    let html = '<div class="table-responsive"><table class="table table-hover">';
+    // เพิ่มส่วนแสดง next_followup_at ของลูกค้า
+    let headerHtml = '';
+    if (window.customerNextFollowup) {
+        const followupDate = new Date(window.customerNextFollowup);
+        const formattedFollowup = followupDate.toLocaleDateString('th-TH', {
+            day: '2-digit',
+            month: '2-digit', 
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        headerHtml = `<div class="alert alert-info mb-3">
+            <i class="fas fa-info-circle me-2"></i>
+            <strong>วันที่ติดตามถัดไป:</strong> ${formattedFollowup}
+            <small class="ms-2 text-muted">(Sync จากการบันทึกการโทร)</small>
+        </div>`;
+    }
+    
+    let html = headerHtml + '<div class="table-responsive"><table class="table table-hover">';
     html += '<thead><tr>';
-    html += '<th style="font-size: 14px;">วันที่</th>';
+    html += '<th style="font-size: 14px;">วันที่นัดหมาย</th>';
     html += '<th style="font-size: 14px;">ประเภท</th>';
     html += '<th style="font-size: 14px;">สถานะ</th>';
+    html += '<th style="font-size: 14px;">แหล่งที่มา</th>';
     html += '<th style="font-size: 14px;">จัดการ</th>';
     html += '</tr></thead><tbody>';
     
@@ -534,6 +712,7 @@ function displayAppointments(appointments) {
             'meeting': 'ประชุม',
             'presentation': 'นำเสนอ',
             'followup': 'ติดตาม',
+            'follow_up_call': 'ติดตามการโทร',
             'other': 'อื่นๆ'
         }[appointment.appointment_type] || appointment.appointment_type;
         
@@ -553,14 +732,28 @@ function displayAppointments(appointments) {
             'no_show': 'secondary'
         }[appointment.appointment_status] || 'secondary';
         
+        // แหล่งที่มา - ตรวจสอบว่ามาจากการบันทึกการโทรหรือไม่
+        let sourceInfo = '';
+        if (appointment.call_log_id || appointment.appointment_type === 'follow_up_call') {
+            sourceInfo = '<span class="badge bg-info">จากการโทร</span>';
+        } else {
+            sourceInfo = '<span class="badge bg-secondary">สร้างตรง</span>';
+        }
+        
         html += '<tr>';
         html += `<td style="font-size: 14px;">${formattedDate}</td>`;
         html += `<td style="font-size: 14px;">${typeText}</td>`;
         html += `<td><span class="badge bg-${statusClass}" style="font-size: 12px;">${statusText}</span></td>`;
+        html += `<td style="font-size: 14px;">${sourceInfo}</td>`;
         html += `<td style="font-size: 14px;">`;
         html += `<button class="btn btn-sm btn-outline-primary me-1" onclick="viewAppointment(${appointment.appointment_id})">ดู</button>`;
         if (appointment.appointment_status === 'scheduled' || appointment.appointment_status === 'confirmed') {
             html += `<button class="btn btn-sm btn-outline-success me-1" onclick="updateAppointmentStatus(${appointment.appointment_id}, 'completed')">เสร็จ</button>`;
+        } else if (appointment.appointment_status === 'completed') {
+            // แสดงไอคอนติ๊กถูกสำหรับ appointment ที่เสร็จแล้ว
+            html += `<button class="btn btn-sm btn-outline-success me-1" disabled title="เสร็จสิ้นแล้ว">
+                        <i class="fas fa-check-circle text-success"></i>
+                     </button>`;
         }
         html += '</td>';
         html += '</tr>';
@@ -660,6 +853,12 @@ function updateAppointmentStatus(appointmentId, status) {
         return;
     }
     
+    // หาปุ่มที่กดและแสดง loading state
+    const button = event.target;
+    const originalHTML = button.innerHTML;
+    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+    button.disabled = true;
+    
     fetch('api/appointments.php?action=update_status', {
         method: 'POST',
         headers: {
@@ -673,14 +872,108 @@ function updateAppointmentStatus(appointmentId, status) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            alert('อัปเดตสถานะสำเร็จ');
-            loadAppointments(); // Reload the list
+            // อัปเดตทันทีในตาราง โดยไม่ต้องโหลดใหม่
+            updateAppointmentInTable(appointmentId, status);
+            
+            // แสดงข้อความสำเร็จแบบ toast
+            showSuccessToast('อัปเดตสถานะสำเร็จ');
         } else {
+            // คืนสถานะปุ่มเดิม
+            button.innerHTML = originalHTML;
+            button.disabled = false;
             alert('เกิดข้อผิดพลาด: ' + data.message);
         }
     })
     .catch(error => {
         console.error('Error updating appointment status:', error);
+        // คืนสถานะปุ่มเดิม
+        button.innerHTML = originalHTML;
+        button.disabled = false;
         alert('เกิดข้อผิดพลาดในการอัปเดตสถานะ');
     });
+}
+
+// ฟังก์ชันอัปเดตในตารางทันที
+function updateAppointmentInTable(appointmentId, status) {
+    // หา row ที่มี appointment นี้
+    const appointmentTable = document.querySelector('#appointments-tab table tbody');
+    if (!appointmentTable) return;
+    
+    const rows = appointmentTable.querySelectorAll('tr');
+    rows.forEach(row => {
+        const buttons = row.querySelectorAll('button');
+        const viewButton = Array.from(buttons).find(btn => 
+            btn.onclick && btn.onclick.toString().includes(`viewAppointment(${appointmentId})`)
+        );
+        
+        if (viewButton) {
+            // พบ row ที่ต้องอัปเดต
+            const statusCell = row.cells[2]; // คอลัมน์สถานะ
+            const actionCell = row.cells[4]; // คอลัมน์การดำเนินการ
+            
+            if (status === 'completed') {
+                // อัปเดตสถานะเป็นเสร็จสิ้น
+                statusCell.innerHTML = '<span class="badge bg-success" style="font-size: 12px;">เสร็จสิ้น</span>';
+                
+                // เปลี่ยนปุ่ม "เสร็จ" เป็นไอคอนติ๊กถูก
+                const completedButton = Array.from(actionCell.querySelectorAll('button')).find(btn => 
+                    btn.onclick && btn.onclick.toString().includes(`updateAppointmentStatus(${appointmentId}, 'completed')`)
+                );
+                
+                if (completedButton) {
+                    completedButton.innerHTML = '<i class="fas fa-check-circle text-success"></i>';
+                    completedButton.className = 'btn btn-sm btn-outline-success me-1';
+                    completedButton.disabled = true;
+                    completedButton.title = 'เสร็จสิ้นแล้ว';
+                    completedButton.onclick = null;
+                }
+                
+                // เพิ่ม animation effect
+                row.style.transition = 'background-color 0.3s ease';
+                row.style.backgroundColor = '#d4edda';
+                setTimeout(() => {
+                    row.style.backgroundColor = '';
+                }, 1000);
+            }
+        }
+    });
+}
+
+// ฟังก์ชันแสดง Toast แบบง่าย
+function showSuccessToast(message) {
+    // สร้าง toast element
+    const toast = document.createElement('div');
+    toast.className = 'position-fixed';
+    toast.style.cssText = `
+        top: 20px;
+        right: 20px;
+        background: #d4edda;
+        color: #155724;
+        padding: 12px 20px;
+        border-radius: 5px;
+        border: 1px solid #c3e6cb;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        z-index: 9999;
+        transition: all 0.3s ease;
+        opacity: 0;
+        transform: translateY(-20px);
+    `;
+    toast.innerHTML = `<i class="fas fa-check-circle me-2"></i>${message}`;
+    
+    document.body.appendChild(toast);
+    
+    // แสดง toast
+    setTimeout(() => {
+        toast.style.opacity = '1';
+        toast.style.transform = 'translateY(0)';
+    }, 100);
+    
+    // ซ่อน toast หลัง 3 วินาที
+    setTimeout(() => {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateY(-20px)';
+        setTimeout(() => {
+            document.body.removeChild(toast);
+        }, 300);
+    }, 3000);
 } 
