@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../core/Database.php';
+require_once __DIR__ . '/CompanyContext.php';
 
 class ImportExportService {
     private $db;
@@ -105,7 +106,12 @@ class ImportExportService {
 
                 // ตรวจสอบว่าลูกค้ามีอยู่แล้วหรือไม่
                 $phone = $salesData['phone'];
-                $existingCustomer = $this->db->query("SELECT id FROM customers WHERE phone = ?", [$phone])->fetch();
+                // Check duplicates within the same company only
+                $companyId = CompanyContext::getCompanyId($this->db);
+                $existingCustomer = $this->db->fetchOne(
+                    "SELECT customer_id FROM customers WHERE phone = ? AND company_id = ? LIMIT 1",
+                    [$phone, $companyId]
+                );
 
                 if ($existingCustomer) {
                     $results['existing_customers']++;
@@ -238,6 +244,9 @@ class ImportExportService {
         $columnMap = $this->getCustomerColumnMap();
         $mappedHeaders = [];
 
+        error_log("CSV Headers: " . json_encode($headers));
+        error_log("Available column mappings: " . json_encode(array_keys($columnMap)));
+
         foreach ($headers as $header) {
             $header = trim($header);
             // Ensure proper UTF-8 encoding for header
@@ -246,10 +255,14 @@ class ImportExportService {
             }
             if (isset($columnMap[$header])) {
                 $mappedHeaders[] = $columnMap[$header];
+                error_log("Mapped header '$header' to '" . $columnMap[$header] . "'");
             } else {
                 $mappedHeaders[] = null;
+                error_log("No mapping found for header '$header'");
             }
         }
+        
+        error_log("Final mapped headers: " . json_encode($mappedHeaders));
 
         $rowNumber = 1; // Header row
         while (($data = fgetcsv($handle)) !== false) {
@@ -269,9 +282,50 @@ class ImportExportService {
                     }
                 }
 
+                // Debug: log mapped customer data
+                error_log("Row {$rowNumber} - Raw CSV data: " . json_encode($data));
+                error_log("Row {$rowNumber} - Mapped customer data: " . json_encode($customerData));
+                
+                // Additional debugging: check if we have any mapped data at all
+                if (empty($customerData)) {
+                    $results['errors'][] = "แถวที่ {$rowNumber}: ไม่สามารถแมปข้อมูลได้ ตรวจสอบ header ของไฟล์ CSV";
+                    continue;
+                }
+                
                 // Validate required fields
                 if (empty($customerData['first_name']) || empty($customerData['phone'])) {
-                    $results['errors'][] = "แถวที่ {$rowNumber}: ชื่อและเบอร์โทรศัพท์เป็นข้อมูลที่จำเป็น";
+                    $results['errors'][] = "แถวที่ {$rowNumber}: ชื่อและเบอร์โทรศัพท์เป็นข้อมูลที่จำเป็น (ชื่อ: '" . ($customerData['first_name'] ?? '') . "', โทร: '" . ($customerData['phone'] ?? '') . "')";
+                    continue;
+                }
+                
+                // Normalize phone to 9 digits (drop leading 0)
+                $rawPhone = preg_replace('/[^0-9]/', '', $customerData['phone']);
+                if (strlen($rawPhone) === 10 && substr($rawPhone,0,1) === '0') {
+                    $rawPhone = substr($rawPhone,1);
+                }
+                if (strlen($rawPhone) !== 9) {
+                    $results['errors'][] = "แถวที่ {$rowNumber}: รูปแบบเบอร์โทรไม่ถูกต้อง (" . $customerData['phone'] . ") ต้องเป็นมาตรฐาน 9 หลัก (ไม่รวม 0 หน้า)";
+                    continue;
+                }
+                $customerData['phone'] = $rawPhone;
+
+                // Check for duplicate customer within the same company ONLY
+                $companyId = CompanyContext::getCompanyId($this->db);
+                
+                if ($companyId) {
+                    $existingCustomer = $this->db->fetchOne(
+                        "SELECT customer_id FROM customers WHERE (phone = ? OR phone = CONCAT('0', ?)) AND company_id = ? LIMIT 1",
+                        [$rawPhone, $rawPhone, $companyId]
+                    );
+                } else {
+                    // No company_id means we can't determine which company to import to
+                    $results['errors'][] = "แถวที่ {$rowNumber}: ไม่สามารถระบุบริษัทได้ - กรุณาตรวจสอบการเข้าสู่ระบบ";
+                    continue;
+                }
+
+                if ($existingCustomer) {
+                    // Skip duplicate customer within the same company
+                    $results['errors'][] = "แถวที่ {$rowNumber}: ลูกค้าเบอร์ " . $rawPhone . " มีอยู่ในบริษัทนี้แล้ว (ข้าม)";
                     continue;
                 }
 
@@ -286,13 +340,14 @@ class ImportExportService {
                 if (!empty($customerData['assigned_to'])) {
                     // Check if it's a user ID or name
                     if (is_numeric($customerData['assigned_to'])) {
-                        $assignedTo = $customerData['assigned_to'];
+                        $assignedTo = (int)$customerData['assigned_to'];
                     } else {
-                        // Try to find user by name
-                        $userSql = "SELECT user_id FROM users WHERE CONCAT(first_name, ' ', last_name) LIKE ? OR username LIKE ?";
-                        $userResult = $this->db->fetchOne($userSql, [$customerData['assigned_to'], $customerData['assigned_to']]);
+                        // Try to find user by username or full_name
+                        $userSql = "SELECT user_id FROM users WHERE username LIKE ? OR full_name LIKE ? LIMIT 1";
+                        $searchTerm = '%' . $customerData['assigned_to'] . '%';
+                        $userResult = $this->db->fetchOne($userSql, [$searchTerm, $searchTerm]);
                         if ($userResult) {
-                            $assignedTo = $userResult['user_id'];
+                            $assignedTo = (int)$userResult['user_id'];
                         }
                     }
                 }
@@ -301,19 +356,25 @@ class ImportExportService {
                 if ($assignedTo) {
                     $customerData['basket_type'] = 'assigned'; // มีผู้ติดตามแล้ว
                 } else {
-                    $customerData['basket_type'] = 'distribution'; // อยู่ในตะกร้าแจก
+                    $customerData['basket_type'] = 'waiting'; // ไม่มีผู้ติดตาม → ตะกร้ารอแจก
+                    $customerData['assigned_at'] = null;
                 }
 
                 $customerData['is_active'] = 1;
 
-                // Determine company source from current user
+                // Determine company source from current user (company_id already retrieved above)
                 $companySource = $this->getCurrentCompanySource();
+                
+                // Generate customer_code from phone number
+                $customerCode = $this->generateCustomerCode($customerData['phone']);
+                
+                error_log("Import Customer - Company ID: " . ($companyId ?? 'NULL') . ", Source: " . ($companySource ?? 'NULL') . ", Customer Code: " . $customerCode . ", Assigned To: " . ($assignedTo ?? 'NULL'));
 
-                // Insert customer with company source
-                $sql = "INSERT INTO customers (first_name, last_name, phone, email, address, district, province, postal_code, source, customer_status, temperature_status, customer_grade, basket_type, assigned_to, is_active, created_at, updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                // Insert customer with company source, company_id, and customer_code
+                $sql = "INSERT INTO customers (first_name, last_name, phone, email, address, district, province, postal_code, source, customer_status, temperature_status, customer_grade, basket_type, assigned_to, company_id, customer_code, is_active, created_at, updated_at)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
-                $stmt = $this->db->query($sql, [
+                $insertData = [
                     $customerData['first_name'],
                     $customerData['last_name'] ?? '',
                     $customerData['phone'],
@@ -328,12 +389,24 @@ class ImportExportService {
                     $customerData['customer_grade'],
                     $customerData['basket_type'],
                     $assignedTo,
+                    $companyId,
+                    $customerCode,
                     $customerData['is_active'],
                     $customerData['created_at'],
                     $customerData['updated_at']
-                ]);
-
-                $results['success']++;
+                ];
+                
+                error_log("Insert data: " . json_encode($insertData));
+                
+                $stmt = $this->db->query($sql, $insertData);
+                
+                if ($stmt) {
+                    $results['success']++;
+                    error_log("Customer inserted successfully for row {$rowNumber}");
+                } else {
+                    error_log("Failed to insert customer for row {$rowNumber}");
+                    $results['errors'][] = "แถวที่ {$rowNumber}: ไม่สามารถบันทึกลูกค้าได้";
+                }
 
             } catch (Exception $e) {
                 $results['errors'][] = "แถวที่ {$rowNumber}: " . $e->getMessage();
@@ -418,7 +491,7 @@ class ImportExportService {
      */
     public function exportOrdersToCSV($filters = []) {
         $sql = "SELECT o.*, CONCAT(c.first_name, ' ', c.last_name) as customer_name, c.phone as customer_phone,
-                       CONCAT(u.first_name, ' ', u.last_name) as created_by_name
+                       u.full_name as created_by_name
                 FROM orders o
                 LEFT JOIN customers c ON o.customer_id = c.customer_id
                 LEFT JOIN users u ON o.created_by = u.user_id
@@ -536,7 +609,7 @@ class ImportExportService {
     /**
      * นำเข้ายอดขายจาก CSV
      */
-    public function importSalesFromCSV($filePath) {
+    public function importSalesFromCSV($filePath, $updateCustomerTimeExpiry = false) {
         error_log("ImportSalesFromCSV started with file: " . $filePath);
 
         $results = [
@@ -627,7 +700,38 @@ class ImportExportService {
                 }
             }
 
+            // Fallback: if no explicit order_date mapping, try to auto-detect
+            if (!in_array('order_date', $mappedHeaders, true)) {
+                foreach ($headers as $idx => $h) {
+                    $hn = mb_strtolower(trim((string)$h), 'UTF-8');
+                    if ($hn === '') continue;
+                    if (
+                        strpos($hn, 'order date') !== false ||
+                        strpos($hn, 'date') !== false ||
+                        strpos($hn, 'วันที่') !== false ||
+                        strpos($hn, 'วันสั่ง') !== false ||
+                        strpos($hn, 'วันที่สั่งซื้อ') !== false ||
+                        strpos($hn, 'วันที่ทำรายการ') !== false ||
+                        strpos($hn, 'วันที่ออกบิล') !== false
+                    ) {
+                        $mappedHeaders[$idx] = 'order_date';
+                        error_log("Auto-mapped header '{$headers[$idx]}' to 'order_date'");
+                        break;
+                    }
+                }
+            }
+
             error_log("Mapped headers: " . json_encode($mappedHeaders));
+
+            // Prepare optional customer_status override from form (global for this import)
+            $allowedStatuses = ['new','existing','existing_3m','followup','call_followup','daily_distribution'];
+            $statusOverride = null;
+            if (isset($_POST['customer_status'])) {
+                $candidate = trim((string)$_POST['customer_status']);
+                if ($candidate !== '' && in_array($candidate, $allowedStatuses, true)) {
+                    $statusOverride = $candidate;
+                }
+            }
 
             // Grouping: combine rows without order_number by (order_date + phone) into one order
             $rowNumber = 1; // Header row
@@ -662,16 +766,35 @@ class ImportExportService {
                         continue;
                     }
 
-                    // Resolve or create customer by phone
-                    $existingCustomer = $this->db->fetchOne(
-                        "SELECT customer_id FROM customers WHERE phone = ?",
-                        [$salesData['phone']]
-                    );
+                    // Normalize phone to 9 digits (drop leading 0)
+                    $phone9 = preg_replace('/[^0-9]/', '', $salesData['phone']);
+                    if (strlen($phone9) === 10 && substr($phone9,0,1) === '0') { $phone9 = substr($phone9,1); }
+                    if (strlen($phone9) !== 9) {
+                        $results['errors'][] = "แถวที่ {$rowNumber}: รูปแบบเบอร์โทรไม่ถูกต้อง (" . $salesData['phone'] . ") ต้องเป็นมาตรฐาน 9 หลัก (ไม่รวม 0 หน้า)";
+                        continue;
+                    }
+                    $salesData['phone'] = $phone9;
+
+                    // Resolve or create customer by phone + company_id ONLY
+                    $companyId = CompanyContext::getCompanyId($this->db);
+                    
+                    if ($companyId) {
+                        $existingCustomer = $this->db->fetchOne(
+                            "SELECT customer_id FROM customers WHERE (phone = ? OR phone = CONCAT('0', ?)) AND company_id = ? LIMIT 1",
+                            [$salesData['phone'], $salesData['phone'], $companyId]
+                        );
+                    } else {
+                        // No company_id means we can't determine which company to import to
+                        $results['errors'][] = "แถวที่ {$rowNumber}: ไม่สามารถระบุบริษัทได้ - กรุณาตรวจสอบการเข้าสู่ระบบ";
+                        continue;
+                    }
 
                     if ($existingCustomer) {
                         $customerId = (int)$existingCustomer['customer_id'];
                         $results['customers_updated']++;
                     } else {
+                        // Attach optional override to pass into creator
+                        if ($statusOverride) { $salesData['customer_status_override'] = $statusOverride; }
                         $customerId = $this->createNewCustomer($salesData);
                         if ($customerId) {
                             $results['customers_created']++;
@@ -681,12 +804,13 @@ class ImportExportService {
                         }
                     }
 
-                    // Build grouping key
+                    // Build grouping key (ensure one order per customer per number)
                     $providedOrderNumber = trim($salesData['order_number'] ?? '');
                     if ($providedOrderNumber !== '') {
-                        $groupKey = 'NUM:' . $providedOrderNumber;
+                        $groupKey = 'NUM:' . $providedOrderNumber . ':P:' . $salesData['phone'];
                     } else {
-                        $dateStr = trim($salesData['order_date'] ?? date('Y-m-d'));
+                        // Use parsed date; fallback handled inside parseDate
+                        $dateStr = $this->parseDate($salesData['order_date'] ?? '');
                         $dateOnly = substr($dateStr, 0, 10);
                         $phoneDigits = preg_replace('/[^0-9]/', '', $salesData['phone']);
                         $groupKey = 'DP:' . $dateOnly . ':' . $phoneDigits;
@@ -698,12 +822,14 @@ class ImportExportService {
                         // Store meta from first row
                         $groupMeta[$groupKey] = [
                             'order_number' => $providedOrderNumber,
-                            'order_date' => $salesData['order_date'] ?? date('Y-m-d'),
+                            'order_date' => $this->parseDate($salesData['order_date'] ?? ''),
                             'payment_method' => $this->mapPaymentMethod($salesData['payment_method'] ?? 'cash'),
                             'payment_status' => $this->mapPaymentStatus($salesData['payment_status'] ?? 'pending'),
                             'created_by' => $this->getUserIdFromNameOrId($salesData['created_by'] ?? ''),
                             'sales_channel' => $salesData['sales_channel'] ?? 'External',
-                            'notes' => $salesData['notes'] ?? ''
+                            'notes' => $salesData['notes'] ?? '',
+                            'assigned_to_provided' => isset($salesData['assigned_to']) && trim((string)$salesData['assigned_to']) !== '',
+                            'update_customer_time_expiry' => $updateCustomerTimeExpiry
                         ];
                     }
 
@@ -721,15 +847,20 @@ class ImportExportService {
                     $customerId = $groupCustomerId[$groupKey];
                     $meta = $groupMeta[$groupKey];
 
-                    // Determine order number
+                    // Determine order number (tolerant: auto-unique if duplicate)
                     $orderNumber = trim($meta['order_number'] ?? '');
                     if ($orderNumber !== '') {
                         $orderNumber = mb_substr($orderNumber, 0, 50);
                         try {
-                            $exists = $this->db->fetchOne("SELECT order_id FROM orders WHERE order_number = ? LIMIT 1", [$orderNumber]);
-                            if ($exists) {
-                                $orderNumber = mb_substr($orderNumber . '-' . rand(1000, 9999), 0, 50);
+                            $try = $orderNumber;
+                            $attempt = 0;
+                            while ($this->db->fetchOne("SELECT order_id FROM orders WHERE order_number = ? LIMIT 1", [$try])) {
+                                $attempt++;
+                                $suffix = '-' . ($attempt < 5 ? rand(1000, 9999) : $attempt);
+                                $try = mb_substr($orderNumber . $suffix, 0, 50);
+                                if ($attempt > 20) { $try = 'EXT-' . date('YmdHis') . '-' . rand(1000,9999); break; }
                             }
+                            $orderNumber = $try;
                         } catch (Exception $e) { /* ignore */ }
                     } else {
                         $orderNumber = 'EXT-' . date('YmdHis') . '-' . rand(1000, 9999);
@@ -765,13 +896,62 @@ class ImportExportService {
                         ];
                     }
 
+                    // Assignment policy based on current basket/owner and seller timing
+                    $custNow = $this->db->fetchOne("SELECT assigned_to, basket_type FROM customers WHERE customer_id = ?", [$customerId]);
+                    $currentOwner = (int)($custNow['assigned_to'] ?? 0);
+                    $currentBasket = (string)($custNow['basket_type'] ?? '');
+                    $sellerId = (int)($meta['created_by'] ?? 0);
+
+                    if ($sellerId > 0 && ($groupMeta[$groupKey]['assigned_to_provided'] ?? false)) {
+                        // เฉพาะกรณีมีคอลัมน์ผู้ติดตาม/assigned_to ในไฟล์จึงจะตั้งตามผู้ขาย
+                        if (empty($currentOwner) || in_array($currentBasket, ['waiting','distribution'])) {
+                            // ถ้าไม่มีผู้ติดตามอยู่แล้ว (ตะกร้ารอ/แจก) → ตั้งตามผู้ขาย
+                            if ($sellerId !== (int)$currentOwner) {
+                                $this->db->execute("UPDATE customers SET assigned_to = ?, basket_type = 'assigned', assigned_at = NOW(), updated_at = NOW() WHERE customer_id = ?", [$sellerId, $customerId]);
+                                $currentOwner = $sellerId;
+                                $currentBasket = 'assigned';
+                                error_log("Sales Import - Assigned customer {$customerId} to seller {$sellerId}");
+                            }
+                        } else {
+                            // ถ้ามีผู้ติดตามอยู่แล้ว → ตรวจสอบว่าผู้ขายเป็นผู้ดูแลเดิมหรือไม่
+                            if ($currentOwner && $sellerId !== (int)$currentOwner) {
+                                $results['errors'][] = "แจ้งเตือน: ผู้ขาย (ID {$sellerId}) สร้างออเดอร์ให้ลูกค้าที่ดูแลโดยผู้ใช้ ID {$currentOwner} - เก็บสิทธิการดูแลเดิมไว้";
+                                error_log("Sales Import - Preserving existing assigned_to for customer {$customerId}: {$currentOwner} (seller: {$sellerId})");
+                            } else {
+                                // ผู้ขายเป็นผู้ดูแลเดิม → เก็บสิทธิการดูแลไว้
+                                error_log("Sales Import - Preserving existing assigned_to for customer {$customerId}: {$currentOwner}");
+                            }
+                        }
+                    } else if (!($groupMeta[$groupKey]['assigned_to_provided'] ?? false)) {
+                        // ไม่มีผู้ติดตามจากไฟล์ → ตรวจสอบว่าลูกค้ามีผู้ติดตามอยู่แล้วหรือไม่
+                        if (empty($currentOwner) || in_array($currentBasket, ['waiting','distribution'])) {
+                            // ถ้าไม่มีผู้ติดตามอยู่แล้ว → เข้าตะกร้าพร้อมแจก (distribution)
+                            $this->db->execute("UPDATE customers SET assigned_to = NULL, basket_type = 'distribution', assigned_at = NULL, updated_at = NOW() WHERE customer_id = ?", [$customerId]);
+                            $currentOwner = 0;
+                            $currentBasket = 'distribution';
+                        } else {
+                            // ถ้ามีผู้ติดตามอยู่แล้ว → ตรวจสอบว่าผู้ขายเป็นผู้ดูแลเดิมหรือไม่
+                            if ($currentOwner && $sellerId !== (int)$currentOwner) {
+                                // ผู้ขายไม่ใช่ผู้ดูแลเดิม → แจ้งเตือนและเก็บสิทธิการดูแลเดิมไว้
+                                $results['errors'][] = "แจ้งเตือน: ผู้ขาย (ID {$sellerId}) สร้างออเดอร์ให้ลูกค้าที่ดูแลโดยผู้ใช้ ID {$currentOwner} - เก็บสิทธิการดูแลเดิมไว้";
+                                error_log("Sales Import - Preserving existing assigned_to for customer {$customerId}: {$currentOwner} (seller: {$sellerId})");
+                            } else {
+                                // ผู้ขายเป็นผู้ดูแลเดิมหรือไม่มีผู้ขาย → เก็บสิทธิการดูแลไว้
+                                error_log("Sales Import - Preserving existing assigned_to for customer {$customerId}: {$currentOwner}");
+                            }
+                        }
+                    }
+
                     // Insert order
-                    $orderSql = "INSERT INTO orders (customer_id, order_number, order_date, total_amount, net_amount, payment_method, payment_status, delivery_status, notes, created_by, created_at, updated_at)
-                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                    $custRow = $this->db->fetchOne("SELECT company_id FROM customers WHERE customer_id = ?", [$customerId]);
+                    $orderCompanyId = $custRow['company_id'] ?? null;
+                    $orderSql = "INSERT INTO orders (customer_id, company_id, order_number, order_date, total_amount, net_amount, payment_method, payment_status, delivery_status, notes, created_by, created_at, updated_at)
+                                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
                     $orderParams = [
                         $customerId,
+                        $orderCompanyId,
                         $orderNumber,
-                        substr($meta['order_date'] ?? date('Y-m-d'), 0, 10),
+                        ($meta['order_date'] ?: date('Y-m-d')),
                         $orderTotal,
                         $orderTotal,
                         $meta['payment_method'],
@@ -784,6 +964,54 @@ class ImportExportService {
                     ];
                     $this->db->query($orderSql, $orderParams);
                     $orderId = (int)$this->db->lastInsertId();
+                    
+                    // อัปเดต customer_status และ customer_time_expiry หลังจากสร้างออเดอร์
+                    if ($orderId > 0 && in_array($meta['payment_status'], ['paid', 'partial'])) {
+                        try {
+                            $updateCustomerTimeExpiry = $meta['update_customer_time_expiry'] ?? false;
+                            
+                            if ($updateCustomerTimeExpiry) {
+                                // ติ๊กใช่ - อัปเดตวันคงเหลือเป็น 90 วัน (สำหรับข้อมูลใหม่)
+                                $this->db->execute(
+                                    "UPDATE customers 
+                                     SET customer_status = 'existing_3m', 
+                                         customer_time_expiry = DATE_ADD(NOW(), INTERVAL 90 DAY),
+                                         updated_at = NOW()
+                                      WHERE customer_id = ? 
+                                        AND customer_status NOT IN ('followup','call_followup','daily_distribution')",
+                                     [$customerId]
+                                );
+                                error_log("Sales Import - Updated customer {$customerId} status to existing_3m and time_expiry to 90 days after order {$orderId}");
+                            } else {
+                                // ไม่ติ๊ก - เพิ่มประวัติและอัปเดตสถานะเป็น existing_3m (สำหรับข้อมูลเก่า)
+                                // ตรวจสอบว่าอยู่ในกรอบ 90 วันหรือไม่
+                                $customer = $this->db->fetchOne(
+                                    "SELECT customer_time_expiry FROM customers WHERE customer_id = ?",
+                                    [$customerId]
+                                );
+                                
+                                $isWithin90Days = true; // default
+                                if ($customer && $customer['customer_time_expiry']) {
+                                    $isWithin90Days = strtotime($customer['customer_time_expiry']) > time();
+                                }
+                                
+                                if ($isWithin90Days) {
+                                    $this->db->execute(
+                                         "UPDATE customers 
+                                         SET customer_status = 'existing_3m', updated_at = NOW()
+                                         WHERE customer_id = ? 
+                                           AND customer_status NOT IN ('followup','call_followup','daily_distribution')",
+                                         [$customerId]
+                                     );
+                                    error_log("Sales Import - Updated customer {$customerId} status to existing_3m (historical data) after order {$orderId}");
+                                } else {
+                                    error_log("Sales Import - Customer {$customerId} outside 90-day window, skipping status update");
+                                }
+                            }
+                        } catch (Exception $e) {
+                            error_log("Sales Import - Error updating customer status to existing_3m: " . $e->getMessage());
+                        }
+                    }
 
                     // Insert order items if table exists
                     if ($this->tableExists('order_items')) {
@@ -803,6 +1031,51 @@ class ImportExportService {
                             ]);
                         }
                     }
+
+                    // Update 3-month existing status if recent paid/partial order exists
+                    try {
+                        $this->db->execute(
+                            "UPDATE customers c 
+                             SET c.customer_status = 'existing_3m'
+                              WHERE c.customer_id = ?
+                                AND c.assigned_to IS NOT NULL
+                                AND c.customer_status NOT IN ('followup','call_followup','daily_distribution')
+                                AND EXISTS (
+                                    SELECT 1 FROM orders o
+                                    WHERE o.customer_id = c.customer_id
+                                      AND o.order_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                                      AND o.payment_status IN ('paid','partial')
+                                      AND o.created_by = c.assigned_to
+                                )",
+                            [$customerId]
+                        );
+                    } catch (Exception $e) {
+                        error_log('Status promote to existing_3m (grouped) failed for ' . $customerId . ': ' . $e->getMessage());
+                    }
+
+                    // Demote incorrect existing_3m if latest order/owner rule is not satisfied
+                    try {
+                        $this->db->execute(
+                            "UPDATE customers c
+                             LEFT JOIN (
+                               SELECT o.customer_id, o.created_by, o.order_date
+                               FROM orders o
+                               WHERE o.customer_id = ? AND o.payment_status IN ('paid','partial')
+                               ORDER BY o.order_date DESC, o.order_id DESC
+                               LIMIT 1
+                             ) last_paid ON last_paid.customer_id = c.customer_id
+                             SET c.customer_status = 'existing'
+                             WHERE c.customer_id = ?
+                               AND c.customer_status = 'existing_3m'
+                               AND (
+                                   c.assigned_to IS NULL
+                                   OR last_paid.order_date IS NULL
+                                   OR last_paid.order_date < DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                                   OR last_paid.created_by <> c.assigned_to
+                               )",
+                            [$customerId, $customerId]
+                        );
+                    } catch (Exception $e) { /* ignore */ }
 
                     // Update customer totals and grade
                     $this->updateCustomerTotalPurchase($customerId);
@@ -837,13 +1110,14 @@ class ImportExportService {
     /**
      * นำเข้าเฉพาะรายชื่อจาก CSV
      */
-    public function importCustomersOnlyFromCSV($filePath) {
+    public function importCustomersOnlyFromCSV($filePath, $customerStatus = 'new') {
         $results = [
             'success' => 0,
             'errors' => [],
             'total' => 0,
             'customers_created' => 0,
-            'customers_skipped' => 0
+            'customers_skipped' => 0,
+            'customers_assigned' => 0
         ];
 
         if (!file_exists($filePath)) {
@@ -939,20 +1213,62 @@ class ImportExportService {
                     continue;
                 }
 
-                // Check if customer exists (by phone only)
-                $existingCustomer = $this->db->fetchOne(
-                    "SELECT customer_id FROM customers WHERE phone = ?",
-                    [$customerData['phone']]
-                );
+                // Normalize phone to 9 digits (drop leading 0)
+                $phone9 = preg_replace('/[^0-9]/', '', $customerData['phone']);
+                if (strlen($phone9) === 10 && substr($phone9,0,1) === '0') { $phone9 = substr($phone9,1); }
+                if (strlen($phone9) !== 9) {
+                    $results['errors'][] = "แถวที่ {$rowNumber}: รูปแบบเบอร์โทรไม่ถูกต้อง (" . $customerData['phone'] . ") ต้องเป็นมาตรฐาน 9 หลัก (ไม่รวม 0 หน้า)";
+                    continue;
+                }
+                $customerData['phone'] = $phone9;
+
+                // Check if customer exists within the same company ONLY (phone + company_id)
+                $companyId = CompanyContext::getCompanyId($this->db);
+                if ($companyId) {
+                    $existingCustomer = $this->db->fetchOne(
+                        "SELECT customer_id, basket_type, assigned_to FROM customers WHERE (phone = ? OR phone = CONCAT('0', ?)) AND company_id = ? LIMIT 1",
+                        [$phone9, $phone9, $companyId]
+                    );
+                } else {
+                    // No company_id means we can't determine which company to import to
+                    $results['errors'][] = "แถวที่ {$rowNumber}: ไม่สามารถระบุบริษัทได้ - กรุณาตรวจสอบการเข้าสู่ระบบ";
+                    continue;
+                }
 
                 if ($existingCustomer) {
-                    // Skip existing customer
+                    // If existing and currently not under anyone (waiting/distribution) AND CSV provides an assignee
+                    $assignedId = $this->resolveAssignedUserId($customerData['assigned_to'] ?? null, $companyId);
+                    $isUnassigned = empty($existingCustomer['assigned_to']) || ($existingCustomer['basket_type'] !== 'assigned');
+
+                    if ($assignedId && $isUnassigned) {
+                        // Assign existing customer to the provided user
+                        $updateFields = [
+                            'basket_type' => 'assigned',
+                            'assigned_to' => $assignedId,
+                            'assigned_at' => date('Y-m-d H:i:s'),
+                            'customer_time_base' => date('Y-m-d H:i:s'),
+                            'customer_time_expiry' => date('Y-m-d H:i:s', strtotime('+30 days')),
+                            'recall_at' => date('Y-m-d H:i:s', strtotime('+30 days')),
+                            'updated_at' => date('Y-m-d H:i:s')
+                        ];
+                        $resolvedStatus = $this->mapCustomersOnlyStatus($customerData['customer_status'] ?? null, $customerStatus);
+                        if (!empty($resolvedStatus)) { $updateFields['customer_status'] = $resolvedStatus; }
+                        $this->db->update('customers', $updateFields, 'customer_id = ?', [$existingCustomer['customer_id']]);
+
+                        $results['customers_assigned']++;
+                        $results['success']++;
+                        continue;
+                    }
+
+                    // Otherwise skip to avoid duplicates
                     $results['customers_skipped']++;
+                    $results['errors'][] = "แถวที่ {$rowNumber}: ลูกค้าเบอร์ " . $phone9 . " มีอยู่ในบริษัทนี้แล้ว (ข้าม)";
                     continue;
                 }
 
                 // Create new customer in distribution basket
-                $customerId = $this->createNewCustomerOnly($customerData);
+                $customerId = $this->createNewCustomerOnly($customerData, $customerStatus);
+                
                 if ($customerId) {
                     $results['customers_created']++;
                     $results['success']++;
@@ -1036,7 +1352,17 @@ class ImportExportService {
             'ผู้ติดตาม' => 'assigned_to',
             'Follower' => 'assigned_to',
             'Tracker' => 'assigned_to',
-            'หมายเหตุ' => 'notes'
+            'หมายเหตุ' => 'notes',
+            'วันคงเหลือ' => 'remaining_days',
+            'Remaining Days' => 'remaining_days',
+            'Days Left' => 'remaining_days',
+            'สถานะลูกค้า' => 'customer_status',
+            'Customer Status' => 'customer_status',
+            'Status' => 'customer_status',
+            'วันที่มอบหมาย' => 'assigned_at',
+            'Assigned At' => 'assigned_at',
+            'Assignment Date' => 'assigned_at',
+            'วันที่แจก' => 'assigned_at'
         ];
     }
 
@@ -1085,7 +1411,7 @@ class ImportExportService {
     private function getCustomerStatistics($startDate = null, $endDate = null) {
         $sql = "SELECT
                     COUNT(*) as total_customers,
-                    COUNT(CASE WHEN customer_status = 'existing' THEN 1 END) as existing_customers,
+                    COUNT(CASE WHEN customer_status IN ('existing', 'existing_3m') THEN 1 END) as existing_customers,
                     COUNT(CASE WHEN temperature_status = 'hot' THEN 1 END) as hot_customers,
                     COUNT(CASE WHEN temperature_status = 'warm' THEN 1 END) as warm_customers,
                     COUNT(CASE WHEN temperature_status = 'cold' THEN 1 END) as cold_customers,
@@ -1144,8 +1470,8 @@ class ImportExportService {
                 if (is_numeric($salesData['assigned_to'])) {
                     $assignedTo = (int)$salesData['assigned_to'];
                 } else {
-                    // Try to find user by name
-                    $userSql = "SELECT user_id FROM users WHERE CONCAT(first_name, ' ', last_name) LIKE ? OR username LIKE ?";
+                    // Try to find user by username or full_name
+                    $userSql = "SELECT user_id FROM users WHERE username LIKE ? OR full_name LIKE ?";
                     $userResult = $this->db->fetchOne($userSql, [$salesData['assigned_to'], $salesData['assigned_to']]);
                     if ($userResult) {
                         $assignedTo = (int)$userResult['user_id'];
@@ -1154,13 +1480,19 @@ class ImportExportService {
             }
 
             // Set basket_type based on whether a follower is assigned
-            $basketType = $assignedTo ? 'assigned' : 'distribution';
+            $basketType = $assignedTo ? 'assigned' : 'waiting';
 
             // Generate customer_code from phone number
             $customerCode = $this->generateCustomerCode($salesData['phone']);
 
-            // Determine customer_status based on assignment
+            // Determine customer_status based on assignment, allow override from import form
             $customerStatus = $assignedTo ? 'existing' : 'new';
+            if (!empty($salesData['customer_status_override'])) {
+                $allowedStatuses = ['new','existing','existing_3m','followup','call_followup','daily_distribution'];
+                if (in_array($salesData['customer_status_override'], $allowedStatuses, true)) {
+                    $customerStatus = $salesData['customer_status_override'];
+                }
+            }
 
             $customerData = [
                 'first_name' => $salesData['first_name'],
@@ -1176,16 +1508,24 @@ class ImportExportService {
                 'customer_grade' => 'D', // เกรดเริ่มต้น
                 'customer_status' => $customerStatus,
                 'assigned_to' => $assignedTo,
+                'assigned_at' => ($assignedTo ? date('Y-m-d H:i:s') : null),
                 'customer_code' => $customerCode,
                 'is_active' => 1,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s')
             ];
 
-            // Determine company source from current user
-            $companySource = $this->getCurrentCompanySource();
+            // Determine company_id from session/override
+            $companyId = CompanyContext::getCompanyId($this->db);
+            error_log("CompanyContext::getCompanyId() returned: " . ($companyId ?? 'null'));
+            error_log("Session data: " . json_encode([
+                'user_id' => $_SESSION['user_id'] ?? 'null',
+                'company_id' => $_SESSION['company_id'] ?? 'null',
+                'role_name' => $_SESSION['role_name'] ?? 'null',
+                'override_company_id' => $_SESSION['override_company_id'] ?? 'null'
+            ]));
 
-            $sql = "INSERT INTO customers (first_name, last_name, phone, email, address, district, province, postal_code, source, basket_type, temperature_status, customer_grade, customer_status, assigned_to, customer_code, is_active, created_at, updated_at)
+            $sql = "INSERT INTO customers (first_name, last_name, phone, email, address, district, province, postal_code, company_id, basket_type, temperature_status, customer_grade, customer_status, assigned_to, customer_code, is_active, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
             $stmt = $this->db->query($sql, [
@@ -1197,7 +1537,7 @@ class ImportExportService {
                 $customerData['district'],
                 $customerData['province'],
                 $customerData['postal_code'],
-                $companySource,
+                $companyId,
                 $customerData['basket_type'],
                 $customerData['temperature_status'],
                 $customerData['customer_grade'],
@@ -1244,6 +1584,8 @@ class ImportExportService {
 
         } catch (Exception $e) {
             error_log("Error creating new customer: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
+            error_log("Sales data: " . json_encode($salesData));
             return false;
         }
     }
@@ -1251,36 +1593,56 @@ class ImportExportService {
     /**
      * สร้างลูกค้าใหม่สำหรับ Customers Only Import
      */
-    private function createNewCustomerOnly($customerData) {
+    private function createNewCustomerOnly($customerData, $customerStatus = 'new') {
         try {
-            // Handle assigned_to field (convert name to user_id if needed)
-            $assignedTo = null;
-            if (!empty($customerData['assigned_to'])) {
-                // Check if it's a user ID or name
-                if (is_numeric($customerData['assigned_to'])) {
-                    $assignedTo = $customerData['assigned_to'];
-                } else {
-                    // Try to find user by name
-                    $userSql = "SELECT user_id FROM users WHERE CONCAT(first_name, ' ', last_name) LIKE ? OR username LIKE ?";
-                    $userResult = $this->db->fetchOne($userSql, [$customerData['assigned_to'], $customerData['assigned_to']]);
-                    if ($userResult) {
-                        $assignedTo = $userResult['user_id'];
-                    }
-                }
-            }
+            // Resolve assigned_to to user_id if provided
+            $companyId = CompanyContext::getCompanyId($this->db);
+            $assignedTo = $this->resolveAssignedUserId($customerData['assigned_to'] ?? null, $companyId);
 
             // Set basket_type based on whether a follower is assigned
-            $basketType = $assignedTo ? 'assigned' : 'distribution';
+            $basketType = $assignedTo ? 'assigned' : 'waiting';
 
             // Generate customer_code from phone number
             $customerCode = $this->generateCustomerCode($customerData['phone']);
 
-            // Determine customer_status based on assignment
-            $customerStatus = $assignedTo ? 'existing' : 'new';
+            // Resolve customer status (accept Thai/English labels); fallback to method arg
+            $customerStatus = $this->mapCustomersOnlyStatus($customerData['customer_status'] ?? null, $customerStatus);
+            $temperatureStatus = 'hot';
+
+            // Handle remaining days (default 30 if not specified)
+            $remainingDays = 30; // Default
+            if (isset($customerData['remaining_days']) && is_numeric($customerData['remaining_days'])) {
+                $remainingDays = max(1, (int)$customerData['remaining_days']); // Minimum 1 day
+            }
+
+            // Handle assigned_at (วันที่มอบหมาย)
+            $assignedAtDate = null;
+            if (!empty($customerData['assigned_at'])) {
+                try {
+                    // ลองแปลงวันที่หลายรูปแบบ
+                    $dateFormats = ['Y-m-d', 'd/m/Y', 'd-m-Y', 'Y-m-d H:i:s'];
+                    foreach ($dateFormats as $format) {
+                        $date = DateTime::createFromFormat($format, trim($customerData['assigned_at']));
+                        if ($date !== false) {
+                            $assignedAtDate = $date->format('Y-m-d H:i:s');
+                            break;
+                        }
+                    }
+                    // ถ้าแปลงไม่ได้ ให้ใช้วันที่ปัจจุบัน
+                    if (!$assignedAtDate) {
+                        $assignedAtDate = date('Y-m-d H:i:s');
+                    }
+                } catch (Exception $e) {
+                    $assignedAtDate = date('Y-m-d H:i:s');
+                }
+            } else {
+                // ถ้าไม่ได้ระบุวันที่มอบหมาย และไม่มีผู้ติดตาม ให้เว้นว่าง (เข้ารอแจก)
+                $assignedAtDate = $assignedTo ? date('Y-m-d H:i:s') : null;
+            }
 
             $data = [
                 'first_name' => $customerData['first_name'],
-                'last_name' => $customerData['last_name'] ?? '',
+                'last_name' => $customerData['last_name'] ?? '-',
                 'phone' => $customerData['phone'],
                 'email' => $customerData['email'] ?? '',
                 'address' => $customerData['address'] ?? '',
@@ -1288,22 +1650,22 @@ class ImportExportService {
                 'province' => $customerData['province'] ?? '',
                 'postal_code' => $customerData['postal_code'] ?? '',
                 'basket_type' => $basketType, // กำหนดตามการมีผู้ติดตาม
-                'temperature_status' => 'cold', // ลูกค้าเย็น (ยังไม่มียอดขาย)
+                'temperature_status' => $temperatureStatus, // ลูกค้าร้อน (สำหรับ customers-only import)
                 'customer_grade' => 'D', // เกรดเริ่มต้น
-                'customer_status' => $customerStatus,
+                'customer_status' => $customerStatus, // สถานะตามที่เลือก/ส่งมา
                 'assigned_to' => $assignedTo,
+                'assigned_at' => ($assignedTo ? $assignedAtDate : null),
                 'customer_code' => $customerCode,
                 'is_active' => 1,
                 'created_at' => date('Y-m-d H:i:s'),
                 'updated_at' => date('Y-m-d H:i:s')
             ];
 
-            // Determine company source from current user
-            $companySource = $this->getCurrentCompanySource();
+            // Determine company_id from session/override
+            $companyId = CompanyContext::getCompanyId($this->db);
 
-            $sql = "INSERT INTO customers (first_name, last_name, phone, email, address, district, province, postal_code, source, basket_type, temperature_status, customer_grade, customer_status, assigned_to, customer_code, is_active, created_at, updated_at)
+            $sql = "INSERT INTO customers (first_name, last_name, phone, email, address, district, province, postal_code, company_id, basket_type, temperature_status, customer_grade, customer_status, assigned_to, assigned_at, customer_code, is_active, created_at, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-
             $stmt = $this->db->query($sql, [
                 $data['first_name'],
                 $data['last_name'],
@@ -1313,47 +1675,36 @@ class ImportExportService {
                 $data['district'],
                 $data['province'],
                 $data['postal_code'],
-                $companySource,
+                $companyId,
                 $data['basket_type'],
                 $data['temperature_status'],
                 $data['customer_grade'],
                 $data['customer_status'],
                 $data['assigned_to'],
+                $data['assigned_at'],
                 $data['customer_code'],
                 $data['is_active'],
                 $data['created_at'],
                 $data['updated_at']
             ]);
 
+            if (!$stmt) {
+                return false;
+            }
+
             $newCustomerId = $this->db->lastInsertId();
 
-            // ตั้งค่าเวลาฐานและหมดอายุตามกฎการนำเข้า
-            if ($assignedTo) {
-                // มีผู้ติดตาม: 90 วัน และสถานะ existing (ตั้งไว้ด้านบนแล้ว)
-                try {
-                    $this->db->query(
-                        "UPDATE customers
-                         SET customer_time_base = NOW(),
-                             customer_time_expiry = DATE_ADD(NOW(), INTERVAL 90 DAY)
-                         WHERE customer_id = ?",
-                        [$newCustomerId]
-                    );
-                } catch (Exception $e) {
-                    error_log("Failed to set customer time window (90d) for new customer {$newCustomerId}: " . $e->getMessage());
-                }
-            } else {
-                // ไม่มีผู้ติดตาม: 30 วัน และสถานะ new
-                try {
-                    $this->db->query(
-                        "UPDATE customers
-                         SET customer_time_base = NOW(),
-                             customer_time_expiry = DATE_ADD(NOW(), INTERVAL 30 DAY)
-                         WHERE customer_id = ?",
-                        [$newCustomerId]
-                    );
-                } catch (Exception $e) {
-                    error_log("Failed to set customer time window (30d) for new customer {$newCustomerId}: " . $e->getMessage());
-                }
+            // ตั้งค่าเวลาฐานและหมดอายุตามวันคงเหลือที่กำหนด
+            try {
+                $this->db->query(
+                    "UPDATE customers
+                     SET customer_time_base = NOW(),
+                         customer_time_expiry = DATE_ADD(NOW(), INTERVAL ? DAY)
+                     WHERE customer_id = ?",
+                    [$remainingDays, $newCustomerId]
+                );
+            } catch (Exception $e) {
+                error_log("Failed to set customer time window ({$remainingDays}d) for new customer {$newCustomerId}: " . $e->getMessage());
             }
 
             return $newCustomerId;
@@ -1362,6 +1713,55 @@ class ImportExportService {
             error_log("Error creating new customer only: " . $e->getMessage());
             return false;
         }
+    }
+
+    /**
+     * Resolve an "assigned_to" input (id or name) to a valid user_id within the company
+     */
+    private function resolveAssignedUserId($rawAssigned, $companyId) {
+        try {
+            if (empty($rawAssigned) || empty($companyId)) { return null; }
+            if (is_numeric($rawAssigned)) {
+                $userCheck = $this->db->fetchOne("SELECT user_id FROM users WHERE user_id = ? AND company_id = ? AND is_active = 1", [$rawAssigned, $companyId]);
+                return $userCheck ? (int)$rawAssigned : null;
+            }
+            $user = $this->db->fetchOne(
+                "SELECT user_id FROM users WHERE (username = ? OR full_name = ?) AND company_id = ? AND is_active = 1",
+                [$rawAssigned, $rawAssigned, $companyId]
+            );
+            return $user ? (int)$user['user_id'] : null;
+        } catch (Exception $e) {
+            return null;
+        }
+    }
+
+    /**
+     * Map customers-only import status input to canonical values
+     * Accepts Thai labels and English keys; fallback to provided default
+     */
+    private function mapCustomersOnlyStatus($rawStatus, $default = 'new') {
+        $map = [
+            // English keys
+            'new' => 'new',
+            'existing' => 'existing',
+            'existing_3m' => 'existing_3m',
+            'existing_3_months' => 'existing_3m',
+            'existing_90d' => 'existing_3m',
+            'followup' => 'followup',
+            'call_followup' => 'call_followup',
+            'daily_distribution' => 'daily_distribution',
+            // Thai labels (common variants)
+            'ลูกค้าใหม่' => 'new',
+            'ลูกค้าเก่า' => 'existing',
+            'ติดตาม' => 'followup',
+            'ติดตามการโทร' => 'call_followup',
+            'ลูกค้าแจกรายวัน' => 'daily_distribution'
+        ];
+        if (empty($rawStatus)) { return $default; }
+        $key = trim(mb_strtolower($rawStatus));
+        // normalize spaces/underscore
+        $key = str_replace([' ', '-'], '_', $key);
+        return $map[$rawStatus] ?? $map[$key] ?? $default;
     }
 
     /**
@@ -1433,7 +1833,7 @@ class ImportExportService {
             $orderData = [
                 'customer_id' => $customerId,
                 'order_number' => $orderNumber,
-                'order_date' => $salesData['order_date'] ?? date('Y-m-d'),
+                'order_date' => $this->parseDate($salesData['order_date'] ?? ''),
                 'total_amount' => $totalAmount,
                 'net_amount' => $totalAmount, // ให้ net_amount เท่ากับ total_amount เสมอ
                 'payment_method' => $paymentMethod,
@@ -1445,11 +1845,15 @@ class ImportExportService {
                 'updated_at' => date('Y-m-d H:i:s')
             ];
 
-            $sql = "INSERT INTO orders (customer_id, order_number, order_date, total_amount, net_amount, payment_method, payment_status, delivery_status, notes, created_by, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            // Attach company_id from customer
+            $custRow = $this->db->fetchOne("SELECT company_id FROM customers WHERE customer_id = ?", [$orderData['customer_id']]);
+            $orderCompanyId = $custRow['company_id'] ?? null;
+            $sql = "INSERT INTO orders (customer_id, company_id, order_number, order_date, total_amount, net_amount, payment_method, payment_status, delivery_status, notes, created_by, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
             $stmt = $this->db->query($sql, [
                 $orderData['customer_id'],
+                $orderCompanyId,
                 $orderData['order_number'],
                 $orderData['order_date'],
                 $orderData['total_amount'],
@@ -1541,6 +1945,26 @@ class ImportExportService {
             }
 
             // อัปเดตยอดซื้อรวมของลูกค้า
+            try {
+                $this->db->execute(
+                    "UPDATE customers c 
+                     SET c.customer_status = 'existing_3m'
+                     WHERE c.customer_id = ?
+                       AND c.assigned_to IS NOT NULL
+                       AND c.customer_status NOT IN ('followup','call_followup')
+                        AND EXISTS (
+                             SELECT 1 FROM orders o
+                             WHERE o.customer_id = c.customer_id
+                               AND o.order_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                               AND o.payment_status IN ('paid','partial')
+                               AND o.created_by = c.assigned_to
+                        )",
+                    [$customerId]
+                );
+            } catch (Exception $e) {
+                error_log('Status promote to existing_3m failed for ' . $customerId . ': ' . $e->getMessage());
+            }
+
             $this->updateCustomerTotalPurchase($customerId);
 
             // อัปเดตเกรดลูกค้าทันทีหลังอัปเดตยอด (เพื่อให้สะท้อนผลหลัง import)
@@ -1695,8 +2119,11 @@ class ImportExportService {
                     else { $u = $this->db->fetchOne("SELECT user_id FROM users WHERE username = ? OR full_name = ? LIMIT 1", [$recordedBy,$recordedBy]); if ($u) $useUserId = (int)$u['user_id']; }
                 }
 
-                // Insert
+                // Insert (attach company_id from customer)
+                $custRow = $this->db->fetchOne("SELECT company_id FROM customers WHERE customer_id = ?", [$customerId]);
+                $callCompanyId = $custRow['company_id'] ?? null;
                 $this->db->insert('call_logs', [
+                    'company_id' => $callCompanyId,
                     'customer_id' => $customerId,
                     'user_id' => $useUserId,
                     'call_type' => $callType,
@@ -1779,6 +2206,80 @@ class ImportExportService {
             error_log('ensureFallbackProduct failed: ' . $e->getMessage());
             return 1;
         }
+    }
+
+    /**
+     * แปลงวันที่จากรูปแบบต่างๆ ให้เป็น Y-m-d สำหรับ MySQL
+     * รองรับรูปแบบ: d/m/Y, d-m-Y, d/m/y, d-m-y, Y-m-d, Y/m/d
+     */
+    private function parseDate($dateString) {
+        if (empty($dateString)) {
+            return date('Y-m-d');
+        }
+
+        // Normalize and strip timezones/non-breaking spaces
+        $dateString = trim(preg_replace('/\s+/u', ' ', (string)$dateString));
+
+        // Handle Excel serial numbers (days since 1899-12-30)
+        if (is_numeric($dateString)) {
+            $serial = (float)$dateString;
+            if ($serial > 20000 && $serial < 60000) { // rough bounds 1954..2064
+                $base = new DateTime('1899-12-30');
+                $base->modify('+' . floor($serial) . ' days');
+                return $base->format('Y-m-d');
+            }
+        }
+
+        // Common case: "YYYY-MM-DD" (already normalized)
+        if (preg_match('/^\d{4}-\d{1,2}-\d{1,2}$/', $dateString)) {
+            $date = DateTime::createFromFormat('Y-m-d', $dateString);
+            if ($date && $date->format('Y-m-d') === $dateString) {
+                return $dateString;
+            }
+        }
+
+        // If has time part, try datetime formats first
+        $dateTimeFormats = [
+            'd/m/Y H:i:s', 'd/m/Y H:i',
+            'd-m-Y H:i:s', 'd-m-Y H:i',
+            'Y-m-d H:i:s', 'Y-m-d H:i',
+            'Y/m/d H:i:s', 'Y/m/d H:i',
+            'm/d/Y H:i:s', 'm/d/Y H:i',
+            'm-d-Y H:i:s', 'm-d-Y H:i'
+        ];
+        foreach ($dateTimeFormats as $fmt) {
+            $dt = DateTime::createFromFormat($fmt, $dateString);
+            if ($dt && $dt->format($fmt) === $dateString) {
+                return $dt->format('Y-m-d');
+            }
+        }
+
+        // Try date-only formats (will also work after we strip time portion below)
+        $dateOnlyFormats = [
+            'd/m/Y', 'd-m-Y', 'd/m/y', 'd-m-y',
+            'Y/m/d', 'Y-m-d', 'm/d/Y', 'm-d-Y'
+        ];
+        foreach ($dateOnlyFormats as $fmt) {
+            $d = DateTime::createFromFormat($fmt, $dateString);
+            if ($d && $d->format($fmt) === $dateString) {
+                return $d->format('Y-m-d');
+            }
+        }
+
+        // Last attempt: strip time portion if present and parse again
+        $onlyDate = preg_replace('/[ T].*$/', '', $dateString);
+        if ($onlyDate !== $dateString) {
+            foreach ($dateOnlyFormats as $fmt) {
+                $d2 = DateTime::createFromFormat($fmt, $onlyDate);
+                if ($d2 && $d2->format($fmt) === $onlyDate) {
+                    return $d2->format('Y-m-d');
+                }
+            }
+        }
+
+        // Fallback to current date if still unparseable
+        error_log("Unable to parse date: " . $dateString . ", using current date");
+        return date('Y-m-d');
     }
 
     /**
@@ -1952,12 +2453,9 @@ class ImportExportService {
             // ค้นหาจากชื่อหรือ username
             $sql = "SELECT user_id FROM users WHERE
                     username = ? OR
-                    first_name = ? OR
-                    last_name = ? OR
-                    CONCAT(first_name, ' ', last_name) = ? OR
-                    CONCAT(last_name, ' ', first_name) = ?";
+                    full_name = ?";
 
-            $result = $this->db->fetchOne($sql, [$nameOrId, $nameOrId, $nameOrId, $nameOrId, $nameOrId]);
+            $result = $this->db->fetchOne($sql, [$nameOrId, $nameOrId]);
 
             if ($result) {
                 return $result['user_id'];
@@ -1973,7 +2471,7 @@ class ImportExportService {
     }
 
     /**
-     * Generate customer code from phone number
+     * Generate unique customer code from phone number
      */
     private function generateCustomerCode($phone) {
         // Remove all non-digit characters
@@ -1984,6 +2482,39 @@ class ImportExportService {
             $phone = substr($phone, -9);
         }
 
-        return 'CUS' . str_pad($phone, 9, '0', STR_PAD_LEFT);
+        $baseCode = 'CUS' . str_pad($phone, 9, '0', STR_PAD_LEFT);
+        
+        // Check if code already exists within the same company and make it unique
+        $companyId = CompanyContext::getCompanyId($this->db);
+        $counter = 1;
+        $customerCode = $baseCode;
+        
+        // Check for existing customer_code within the same company
+        if ($companyId) {
+            while ($this->db->fetchOne("SELECT customer_id FROM customers WHERE customer_code = ? AND company_id = ? LIMIT 1", [$customerCode, $companyId])) {
+                $customerCode = $baseCode . '_' . $counter;
+                $counter++;
+                
+                // Prevent infinite loop
+                if ($counter > 999) {
+                    $customerCode = $baseCode . '_' . time();
+                    break;
+                }
+            }
+        } else {
+            // If no company_id, check without company filter (fallback)
+            while ($this->db->fetchOne("SELECT customer_id FROM customers WHERE customer_code = ? LIMIT 1", [$customerCode])) {
+                $customerCode = $baseCode . '_' . $counter;
+                $counter++;
+                
+                // Prevent infinite loop
+                if ($counter > 999) {
+                    $customerCode = $baseCode . '_' . time();
+                    break;
+                }
+            }
+        }
+        
+        return $customerCode;
     }
 }

@@ -25,6 +25,22 @@ class ImportExportController {
             header('Location: login.php');
             exit;
         }
+        
+        // ตรวจสอบสิทธิ์การเข้าถึง import/export
+        $roleId = $_SESSION['role_id'] ?? 0;
+        $roleName = $_SESSION['role_name'] ?? '';
+        
+        // ป้องกัน telesales (role_id = 4) เข้าถึง import/export
+        if ($roleId == 4) {
+            header('Location: dashboard.php');
+            exit;
+        }
+        
+        // อนุญาต role_id = 1 (super_admin), 2 (admin), 6
+        if (!in_array($roleId, [1, 2, 6])) {
+            header('Location: dashboard.php');
+            exit;
+        }
 
         // Get backup files list
         $backupDir = __DIR__ . '/../../backups/';
@@ -82,7 +98,10 @@ class ImportExportController {
             exit;
         }
         $roleName = $_SESSION['role_name'] ?? '';
-        if (!in_array($roleName, ['super_admin', 'admin'])) {
+        $roleId = $_SESSION['role_id'] ?? 0;
+        
+        // อนุญาต super_admin, admin, company_admin และ role_id = 1, 2, 6
+        if (!in_array($roleName, ['super_admin', 'admin', 'company_admin']) && !in_array($roleId, [1, 2, 6])) {
             http_response_code(403);
             echo json_encode(['error' => 'Forbidden']);
             exit;
@@ -94,6 +113,30 @@ class ImportExportController {
      * นำเข้าข้อมูลลูกค้าจาก CSV
      */
     public function importCustomers() {
+        // ตรวจสอบสิทธิ์การเข้าถึง
+        if (!isset($_SESSION['user_id'])) {
+            http_response_code(401);
+            echo json_encode(['error' => 'Authentication required']);
+            return;
+        }
+        
+        $roleId = $_SESSION['role_id'] ?? 0;
+        $roleName = $_SESSION['role_name'] ?? '';
+        
+        // ป้องกัน telesales (role_id = 4) เข้าถึง
+        if ($roleId == 4) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Access denied']);
+            return;
+        }
+        
+        // อนุญาต role_id = 1 (super_admin), 2 (admin), 6
+        if (!in_array($roleId, [1, 2, 6])) {
+            http_response_code(403);
+            echo json_encode(['error' => 'Access denied']);
+            return;
+        }
+        
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             http_response_code(405);
             echo json_encode(['error' => 'Method not allowed']);
@@ -114,13 +157,14 @@ class ImportExportController {
         }
 
         // Optional: super_admin company override
-        if (isset($_POST['company_override'])) {
+        // Allow company override by id for super_admin/admin
+        if (isset($_POST['company_override_id'])) {
             if (!isset($_SESSION)) { session_start(); }
-            $name = trim($_POST['company_override']);
-            if ($name !== '') {
-                $_SESSION['override_company_source'] = $name; // e.g., 'Prima' or 'Prionic'
+            $id = (int)$_POST['company_override_id'];
+            if ($id > 0) {
+                $_SESSION['override_company_id'] = $id;
             } else {
-                unset($_SESSION['override_company_source']);
+                unset($_SESSION['override_company_id']);
             }
         }
 
@@ -172,13 +216,13 @@ class ImportExportController {
         }
 
             // Optional: super_admin company override
-            if (isset($_POST['company_override'])) {
+            if (isset($_POST['company_override_id'])) {
                 if (!isset($_SESSION)) { session_start(); }
-                $name = trim($_POST['company_override']);
-                if ($name !== '') {
-                    $_SESSION['override_company_source'] = $name; // e.g., 'Prima' or 'Prionic'
+                $id = (int)$_POST['company_override_id'];
+                if ($id > 0) {
+                    $_SESSION['override_company_id'] = $id;
                 } else {
-                    unset($_SESSION['override_company_source']);
+                    unset($_SESSION['override_company_id']);
                 }
             }
 
@@ -196,6 +240,51 @@ class ImportExportController {
      */
     public function importSales() {
         try {
+            // ตรวจสอบสิทธิ์การเข้าถึง
+            if (!isset($_SESSION['user_id'])) {
+                error_log("ImportSales: No user_id in session");
+                http_response_code(401);
+                echo json_encode(['error' => 'Authentication required', 'success' => 0]);
+                return;
+            }
+            
+            // ตรวจสอบ session ที่จำเป็น
+            if (!isset($_SESSION['role_id']) || !isset($_SESSION['role_name'])) {
+                error_log("ImportSales: Missing role_id or role_name in session");
+                http_response_code(401);
+                echo json_encode(['error' => 'Session data missing', 'success' => 0]);
+                return;
+            }
+            
+            $roleId = $_SESSION['role_id'] ?? 0;
+            $roleName = $_SESSION['role_name'] ?? '';
+            
+            // Debug log สำหรับตรวจสอบ session data
+            error_log("ImportSales Access Check - User ID: " . ($_SESSION['user_id'] ?? 'null') . 
+                      ", Role ID: " . $roleId . 
+                      ", Role Name: " . $roleName .
+                      ", Session ID: " . session_id() .
+                      ", Request Method: " . $_SERVER['REQUEST_METHOD'] .
+                      ", Action: " . ($_GET['action'] ?? 'index'));
+            
+            // ป้องกัน telesales (role_id = 4) เข้าถึง
+            if ($roleId == 4) {
+                error_log("ImportSales Access denied: Telesales (role_id = 4)");
+                http_response_code(403);
+                echo json_encode(['error' => 'Access denied', 'success' => 0]);
+                return;
+            }
+            
+            // อนุญาต role_id = 1 (super_admin), 2 (admin), 6
+            if (!in_array($roleId, [1, 2, 6])) {
+                error_log("ImportSales Access denied: User with role_id = " . $roleId . " and role_name = " . $roleName);
+                http_response_code(403);
+                echo json_encode(['error' => 'Access denied', 'success' => 0]);
+                return;
+            }
+            
+            error_log("ImportSales Access granted: User with role_id = " . $roleId . " and role_name = " . $roleName);
+            
             // Log the request
             error_log("ImportSales called - Method: " . $_SERVER['REQUEST_METHOD']);
             error_log("FILES: " . json_encode($_FILES));
@@ -222,13 +311,13 @@ class ImportExportController {
 
 
             // Optional: super_admin company override (global dropdown)
-            if (isset($_POST['company_override'])) {
+            if (isset($_POST['company_override_id'])) {
                 if (!isset($_SESSION)) { session_start(); }
-                $name = trim($_POST['company_override']);
-                if ($name !== '') {
-                    $_SESSION['override_company_source'] = $name; // usually company_code (e.g., PRIMA49, A02)
+                $id = (int)$_POST['company_override_id'];
+                if ($id > 0) {
+                    $_SESSION['override_company_id'] = $id; // selected company id
                 } else {
-                    unset($_SESSION['override_company_source']);
+                    unset($_SESSION['override_company_id']);
                 }
             }
 
@@ -333,7 +422,16 @@ class ImportExportController {
             error_log("File uploaded successfully: " . $uploadedFile);
 
             // Import data
-            $results = $this->importExportService->importSalesFromCSV($uploadedFile);
+            // Pass-through desired customer_status if provided
+            if (!empty($_POST['customer_status'])) {
+                $_POST['customer_status'] = trim($_POST['customer_status']);
+            }
+            
+            // Pass-through update_customer_time_expiry parameter
+            $updateCustomerTimeExpiry = isset($_POST['update_customer_time_expiry']) && $_POST['update_customer_time_expiry'] === '1';
+            error_log("ImportSales - update_customer_time_expiry: " . ($updateCustomerTimeExpiry ? 'true' : 'false'));
+            
+            $results = $this->importExportService->importSalesFromCSV($uploadedFile, $updateCustomerTimeExpiry);
 
             error_log("Import results: " . json_encode($results));
 
@@ -387,13 +485,13 @@ class ImportExportController {
             }
 
             // Optional: super_admin company override (global dropdown)
-            if (isset($_POST['company_override'])) {
+            if (isset($_POST['company_override_id'])) {
                 if (!isset($_SESSION)) { session_start(); }
-                $name = trim($_POST['company_override']);
-                if ($name !== '') {
-                    $_SESSION['override_company_source'] = $name; // usually company_code (e.g., PRIMA49, A02)
+                $id = (int)$_POST['company_override_id'];
+                if ($id > 0) {
+                    $_SESSION['override_company_id'] = $id; // selected company id
                 } else {
-                    unset($_SESSION['override_company_source']);
+                    unset($_SESSION['override_company_id']);
                 }
             }
 
@@ -469,8 +567,11 @@ class ImportExportController {
                 }
             }
 
+            // Get customer status from form (default: 'new')
+            $customerStatus = $_POST['customer_status'] ?? 'new';
+            
             // Import data
-            $results = $this->importExportService->importCustomersOnlyFromCSV($uploadedFile);
+            $results = $this->importExportService->importCustomersOnlyFromCSV($uploadedFile, $customerStatus);
 
             // Clean up uploaded file
             if (file_exists($uploadedFile)) {

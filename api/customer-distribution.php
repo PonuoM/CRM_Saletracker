@@ -34,12 +34,16 @@ if (!isset($_SESSION['user_id'])) {
     exit;
 }
 
-// ตรวจสอบสิทธิ์ (เฉพาะ Admin และ Supervisor)
-$allowedRoles = ['admin', 'supervisor', 'super_admin'];
+// ตรวจสอบสิทธิ์ (Admin, Company Admin, Supervisor และ Super Admin)
+$allowedRoles = ['admin', 'company_admin', 'supervisor', 'super_admin'];
+// รองรับ role_id = 6 (company_admin) ด้วย แม้ role_name จะเพี้ยนในบาง session
 if (!in_array($_SESSION['role_name'] ?? '', $allowedRoles)) {
-    http_response_code(403);
-    echo json_encode(['error' => 'Forbidden - Insufficient permissions']);
-    exit;
+    $roleId = $_SESSION['role_id'] ?? 0;
+    if ((int)$roleId !== 6) {
+        http_response_code(403);
+        echo json_encode(['error' => 'Forbidden - Insufficient permissions']);
+        exit;
+    }
 }
 
 try {
@@ -72,7 +76,7 @@ try {
                 exit;
             }
             error_log("customer-distribution API: Getting company stats for: {$company}");
-            $stats = $distributionService->getCompanyStats($company);
+            $stats = $distributionService->getCompanyStats(null);
             echo json_encode(['success' => true, 'data' => $stats]);
             break;
 
@@ -85,24 +89,23 @@ try {
                 exit;
             }
             error_log("customer-distribution API: Getting telesales for company: {$company}");
-            $telesales = $distributionService->getTelesalesByCompany($company);
+            $telesales = $distributionService->getTelesalesByCompany(null);
             echo json_encode(['success' => true, 'data' => $telesales]);
             break;
 
         case 'available_customers_by_date':
             // ดึงจำนวนลูกค้าพร้อมแจกตามวันที่
-            $company = $_GET['company'] ?? '';
             $dateFrom = $_GET['date_from'] ?? '';
             $dateTo = $_GET['date_to'] ?? '';
 
-            if (!$company || !$dateFrom || !$dateTo) {
+            if (!$dateFrom || !$dateTo) {
                 http_response_code(400);
                 echo json_encode(['success' => false, 'message' => 'ข้อมูลไม่ครบถ้วน']);
                 exit;
             }
 
-            error_log("customer-distribution API: Getting available customers for company: {$company}, dateFrom: {$dateFrom}, dateTo: {$dateTo}");
-            $result = $distributionService->getAvailableCustomersByDate($company, $dateFrom, $dateTo);
+            error_log("customer-distribution API: Getting available customers by date, dateFrom: {$dateFrom}, dateTo: {$dateTo}");
+            $result = $distributionService->getAvailableCustomersByDate($dateFrom, $dateTo);
             echo json_encode(['success' => true, 'data' => $result]);
             break;
 
@@ -117,7 +120,7 @@ try {
                 exit;
             }
 
-            $quota = $distributionService->checkTelesalesQuota($company, $telesalesId);
+            $quota = $distributionService->checkTelesalesQuota($telesalesId);
             echo json_encode(['success' => true, 'data' => $quota]);
             break;
 
@@ -137,7 +140,9 @@ try {
                 exit;
             }
 
-            $input = json_decode(file_get_contents('php://input'), true);
+            $raw = file_get_contents('php://input');
+            error_log("[DIST-REQ] RAW POST: " . substr($raw,0,500));
+            $input = json_decode($raw, true);
 
             if (!$input || !isset($input['quantity']) || !isset($input['priority']) || !isset($input['telesales_ids'])) {
                 http_response_code(400);
@@ -163,7 +168,9 @@ try {
                 exit;
             }
 
-            $input = json_decode(file_get_contents('php://input'), true);
+            $raw = file_get_contents('php://input');
+            error_log("[DIST-AVG] RAW POST: " . substr($raw,0,500));
+            $input = json_decode($raw, true);
 
             if (!$input || !isset($input['company']) || !isset($input['customer_count']) || !isset($input['telesales_ids'])) {
                 http_response_code(400);
@@ -186,13 +193,16 @@ try {
                 exit;
             }
 
+            // Optional post_status for setting customers.customer_status
+            $postStatus = $input['post_status'] ?? null;
+
             $result = $distributionService->distributeAverage(
-                $company,
                 $customerCount,
                 $input['date_from'] ?? null,
                 $input['date_to'] ?? null,
                 $telesalesIds,
-                $_SESSION['user_id']
+                $_SESSION['user_id'],
+                $postStatus
             );
 
             echo json_encode($result);
@@ -218,7 +228,9 @@ try {
                 exit;
             }
 
-            $input = json_decode(file_get_contents('php://input'), true);
+            $raw = file_get_contents('php://input');
+            error_log("[DIST-GA] RAW POST: " . substr($raw,0,500));
+            $input = json_decode($raw, true);
 
             if (!$input || !isset($input['company']) || !isset($input['quantity']) || !isset($input['telesales_id'])) {
                 http_response_code(400);
@@ -227,7 +239,6 @@ try {
             }
 
             $result = $distributionService->distributeRequest(
-                $input['company'],
                 $input['quantity'],
                 $input['priority'] ?? 'hot_warm_cold',
                 $input['telesales_id'],
@@ -241,7 +252,6 @@ try {
                 $debug = [
                     'at' => date('Y-m-d H:i:s'),
                     'action' => 'distribute_request',
-                    'company' => $input['company'],
                     'quantity' => $input['quantity'],
                     'priority' => $input['priority'] ?? 'hot_warm_cold',
                     'telesales_id' => $input['telesales_id']

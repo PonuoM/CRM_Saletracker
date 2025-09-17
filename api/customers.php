@@ -100,6 +100,10 @@ try {
                 // ดึงรายการ Telesales สำหรับการเปลี่ยนผู้ดูแล
                 $controller->getTelesalesList();
                 break;
+            case 'get_allowed_assignees':
+                // ดึงรายชื่อผู้รับที่อนุญาตตามกติกา
+                $controller->getAllowedAssignees();
+                break;
                 
             default:
                 // Default action: get customers by basket

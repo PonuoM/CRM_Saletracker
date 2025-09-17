@@ -34,6 +34,74 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Restore filters from storage instead of clearing them
     restoreFiltersFromStorage();
+
+    // Lightweight notifications loader (sidebar bell)
+    try {
+        const notifBtn = document.getElementById('notifDropdownBtn');
+        const notifBadge = document.getElementById('notifBadge');
+        const notifList = document.getElementById('notifList');
+        const markAllBtn = document.getElementById('markAllReadBtn');
+        const refreshBtn = document.getElementById('refreshNotifBtn');
+        const fetchNotifs = async () => {
+            try {
+                const res = await fetch('api/notifications.php?action=list');
+                const data = await res.json();
+                if (!data.success) return;
+                const items = data.data || [];
+                // badge
+                const unread = items.filter(i => !i.is_read).length;
+                if (notifBadge) {
+                    notifBadge.textContent = unread;
+                    notifBadge.style.display = unread > 0 ? '' : 'none';
+                }
+                // list
+                if (notifList) {
+                    if (items.length === 0) {
+                        notifList.innerHTML = '<div class="text-center text-muted py-3 small">ไม่มีการแจ้งเตือน</div>';
+                    } else {
+                        notifList.innerHTML = items.map(n => {
+                            const time = n.created_at ? new Date(n.created_at).toLocaleString('th-TH') : '';
+                            return `
+                                <a href="#" class="list-group-item list-group-item-action ${n.is_read ? '' : 'bg-light'}" data-id="${n.id}">
+                                    <div class="d-flex w-100 justify-content-between">
+                                        <strong class="mb-1">${escapeHtml(n.title || 'การแจ้งเตือน')}</strong>
+                                        <small class="text-muted">${time}</small>
+                                    </div>
+                                    <div class="mb-1 small">${escapeHtml(n.message || '')}</div>
+                                </a>`;
+                        }).join('');
+                        // click to mark read
+                        notifList.querySelectorAll('a.list-group-item').forEach(el => {
+                            el.addEventListener('click', async (e) => {
+                                e.preventDefault();
+                                const id = el.getAttribute('data-id');
+                                if (!id) return;
+                                await fetch('api/notifications.php?action=mark_read', {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ id: parseInt(id,10) })
+                                });
+                                fetchNotifs();
+                            });
+                        });
+                    }
+                }
+            } catch (_) {}
+        };
+        if (notifBtn) {
+            notifBtn.addEventListener('click', fetchNotifs);
+        }
+        if (refreshBtn) refreshBtn.addEventListener('click', (e) => { e.preventDefault(); fetchNotifs(); });
+        if (markAllBtn) markAllBtn.addEventListener('click', async (e) => {
+            e.preventDefault();
+            await fetch('api/notifications.php?action=mark_all_read', { method: 'POST' });
+            fetchNotifs();
+        });
+        // auto refresh every 60s
+        setInterval(fetchNotifs, 60000);
+        // initial fetch
+        fetchNotifs();
+    } catch (_) {}
     
     // Initialize tags
     if (typeof loadUserTags === 'function') {
@@ -84,8 +152,8 @@ function addEventListeners() {
                     }
                 }, 100);
             } else if (target === '#do') {
-                // For Do tab, load customers without clearing filters
-                loadAllCustomers();
+                // For Do tab, enforce default ordering and pagination
+                applyFilters();
             }
         });
     });
@@ -117,6 +185,13 @@ function addEventListeners() {
             }
         }
     })();
+    // If Do tab is active on initial load, apply default filters + pagination
+    setTimeout(() => {
+        try {
+            const doPane = document.querySelector('#do.tab-pane.active');
+            if (doPane) applyFilters();
+        } catch(_) {}
+    }, 0);
     
     // Filter change events
     const filterInputs = ['tempFilter', 'gradeFilter', 'provinceFilter'];
@@ -340,7 +415,7 @@ function addEventListeners() {
     // Event listeners สำหรับ filters ในแท็บอื่นๆ - ให้ทำงานทันที
     const tabFilters = [
         // Do tab
-        ['nameFilter_do', 'phoneFilter_do', 'tempFilter_do', 'gradeFilter_do', 'provinceFilter_do'],
+        ['nameFilter_do', 'phoneFilter_do', 'provinceFilter_do', 'assignedFrom_do', 'assignedTo_do', 'custTypeFilter_do'],
         // New tab  
         ['nameFilter_new', 'phoneFilter_new', 'tempFilter_new', 'gradeFilter_new', 'provinceFilter_new'],
         // Followup tab
@@ -616,7 +691,9 @@ function paginateTable(table, paginationId, pageSize = 10, storageKey = null) {
         // Prefer rows that pass filter (dataset.filtered !== '0');
         const filtered = rows.filter(r => (r.dataset.filtered || '1') !== '0');
         const visible = getVisibleRows();
-        const candidates = (filtered.length ? filtered : (visible.length ? visible : rows));
+        let candidates = (filtered.length ? filtered : (visible.length ? visible : rows));
+        // ถ้ามีแถวข้อความ no-match-row ให้ไม่รวมในการ paginate ปกติ
+        candidates = candidates.filter(r => !r.classList.contains('no-match-row'));
 
         // hide all first
         rows.forEach(r => { r.style.display = 'none'; });
@@ -696,11 +773,18 @@ function applyFilters() {
 
     // ฟังก์ชันใช้กรองตารางที่เรนเดอร์แล้ว (client-side)
     const filterTableRows = (tableEl) => {
+        // ตรวจจับว่ามีการใช้ตัวกรองใดๆ อยู่หรือไม่
+        const isAnyFilterActive = Boolean(
+            filters.name || filters.phone || filters.temp || filters.grade || filters.province ||
+            (prefix === 'do' && (filters.assignedFrom || filters.assignedTo || filters.custType))
+        );
         const rows = Array.from(tableEl.querySelectorAll('tbody tr'));
         rows.forEach(row => {
             const rTemp = (row.dataset.temp || '').toLowerCase();
             const rGrade = (row.dataset.grade || '').toUpperCase();
             const rProv = (row.dataset.province || '');
+            const rStatus = (row.dataset.status || '').toLowerCase();
+            const rAssigned = row.dataset.assigned ? Date.parse(row.dataset.assigned) : null;
             const rName = norm(row.dataset.name || '').toLowerCase();
             const rPhone = digits(row.dataset.phone || '');
 
@@ -708,12 +792,44 @@ function applyFilters() {
             const fPhoneNoLead = fPhone.replace(/^0+/, '');
             const phoneMatch = (!fPhone) || rPhone.includes(fPhone) || rPhone.includes(fPhoneNoLead) || ('0' + rPhone).includes(fPhone);
 
-            const match =
-                (!filters.temp || rTemp === filters.temp.toLowerCase()) &&
-                (!filters.grade || rGrade === filters.grade.toUpperCase()) &&
-                (!filters.province || rProv === filters.province) &&
-                (!filters.name || rName.includes(filters.name)) &&
-                phoneMatch;
+            // assigned date range filter (only for Do tab)
+            const inAssignedRange = (() => {
+                if (prefix !== 'do') return true;
+                const from = filters.assignedFrom ? Date.parse(filters.assignedFrom) : null;
+                const to = filters.assignedTo ? Date.parse(filters.assignedTo) : null;
+                if (!from && !to) return true;
+                if (!rAssigned) return false;
+                if (from && rAssigned < from) return false;
+                if (to) {
+                    // include entire day for 'to'
+                    const endOfDay = new Date(filters.assignedTo);
+                    endOfDay.setHours(23,59,59,999);
+                    if (rAssigned > endOfDay.getTime()) return false;
+                }
+                return true;
+            })();
+
+            // ถ้าไม่มีตัวกรองเลย ให้เคารพกฎ default ของ Do tab: แสดงเฉพาะนัดภายใน 2 วัน, ใกล้หมดภายใน 5 วัน, หรือเป็น daily_distribution และ new
+            let match;
+            if (!isAnyFilterActive && prefix === 'do') {
+                const now = Date.now();
+                const nextTs = row.dataset.next ? Date.parse(row.dataset.next) : null;
+                const expiryTs = row.dataset.expiry ? Date.parse(row.dataset.expiry) : null;
+                const within2Days = nextTs ? (nextTs - now) <= 2*24*60*60*1000 : false;
+                const within5Days = expiryTs ? (expiryTs - now) <= 5*24*60*60*1000 : false;
+                const isNew = row.dataset.isNew === '1';
+                const isDaily = ((row.dataset.status || '').toLowerCase() === 'daily_distribution');
+                match = (within2Days || within5Days || isDaily || isNew);
+            } else {
+                match =
+                    (!filters.temp || rTemp === filters.temp.toLowerCase()) &&
+                    (!filters.grade || rGrade === filters.grade.toUpperCase()) &&
+                    (!filters.province || rProv === filters.province) &&
+                    (!filters.custType || rStatus === filters.custType.toLowerCase()) &&
+                    (!filters.name || rName.includes(filters.name)) &&
+                    phoneMatch &&
+                    inAssignedRange;
+            }
 
             // mark filtered state; actual showing handled by paginator
             row.dataset.filtered = match ? '1' : '0';
@@ -725,17 +841,72 @@ function applyFilters() {
         if (doTable) {
             filterTableRows(doTable);
 
-            // จัดเรียงความสำคัญเฉพาะรายการที่แสดงอยู่
-            const rows = Array.from(doTable.querySelectorAll('tbody tr')).filter(r => r.style.display !== 'none');
+            // แสดงข้อความเมื่อตัวกรองไม่พบข้อมูลที่ตรงเงื่อนไข
+            (function handleDoTabEmptyState(){
+                const tbody = doTable.querySelector('tbody');
+                if (!tbody) return;
+                const rows = Array.from(tbody.querySelectorAll('tr'));
+                const filteredRows = rows.filter(r => !r.classList.contains('no-match-row') && (r.dataset.filtered || '1') !== '0');
+                const filteredCount = filteredRows.length;
+
+                // หา/สร้างแถวสำหรับข้อความว่าง
+                let emptyRow = tbody.querySelector('tr.no-match-row');
+                if (filteredCount === 0) {
+                    // ซ่อนทุกแถวจากข้อมูลจริงด้วยสถานะ filtered (ไม่ยุ่งกับ no-match-row)
+                    rows.forEach(r => { if (!r.classList.contains('no-match-row')) r.dataset.filtered = '0'; });
+
+                    if (!emptyRow) {
+                        emptyRow = document.createElement('tr');
+                        emptyRow.className = 'no-match-row';
+                        const td = document.createElement('td');
+                        td.colSpan = doTable.querySelectorAll('thead th').length || 7;
+                        td.className = 'text-center text-muted py-3';
+                        td.textContent = 'ไม่มีค่ากรองที่ตรงตามเงื่อนไข';
+                        emptyRow.appendChild(td);
+                        tbody.appendChild(emptyRow);
+                    }
+                    // ให้แถวข้อความเป็นผู้สมัครที่ผ่านการกรอง
+                    emptyRow.dataset.filtered = '1';
+                } else if (emptyRow) {
+                    emptyRow.remove();
+                }
+            })();
+
+            // จัดเรียงความสำคัญเฉพาะรายการที่ผ่านการกรอง (ไม่รวมแถวข้อความว่าง)
+            const rows = Array.from(doTable.querySelectorAll('tbody tr'))
+                .filter(r => (r.dataset.filtered || '1') !== '0')
+                .filter(r => !r.classList.contains('no-match-row'));
             rows.sort((a, b) => {
+                // 1) Appointment soonest first (within 2 days)
                 const aNext = a.dataset.next ? Date.parse(a.dataset.next) : null;
                 const bNext = b.dataset.next ? Date.parse(b.dataset.next) : null;
+                const now = Date.now();
+                const twoDays = 2 * 24 * 60 * 60 * 1000;
+                const aApptSoon = aNext && (aNext - now) <= twoDays;
+                const bApptSoon = bNext && (bNext - now) <= twoDays;
+                if (aApptSoon !== bApptSoon) return aApptSoon ? -1 : 1;
+
+                // 2) Expiring within 5 days
+                const aExpiry = a.dataset.expiry ? Date.parse(a.dataset.expiry) : null;
+                const bExpiry = b.dataset.expiry ? Date.parse(b.dataset.expiry) : null;
+                const fiveDays = 5 * 24 * 60 * 60 * 1000;
+                const aExpSoon = aExpiry && (aExpiry - now) <= fiveDays;
+                const bExpSoon = bExpiry && (bExpiry - now) <= fiveDays;
+                if (aExpSoon !== bExpSoon) return aExpSoon ? -1 : 1;
+
+                // 3) Daily distribution before New
+                const aStatus = (a.dataset.status || '').toLowerCase();
+                const bStatus = (b.dataset.status || '').toLowerCase();
+                const aIsDaily = (aStatus === 'daily_distribution');
+                const bIsDaily = (bStatus === 'daily_distribution');
+                if (aIsDaily !== bIsDaily) return aIsDaily ? -1 : 1;
+
+                // 4) New next
                 const aIsNew = a.dataset.isNew === '1';
                 const bIsNew = b.dataset.isNew === '1';
-                if (aNext && !bNext) return -1;
-                if (!aNext && bNext) return 1;
-                if (aNext && bNext) return aNext - bNext;
                 if (aIsNew !== bIsNew) return aIsNew ? -1 : 1;
+
+                // 5) Fallback by created_at desc
                 const aCreated = a.dataset.created ? Date.parse(a.dataset.created) : 0;
                 const bCreated = b.dataset.created ? Date.parse(b.dataset.created) : 0;
                 return bCreated - aCreated;
@@ -765,13 +936,18 @@ function readTabFilters(prefix) {
         phone: (g('phoneFilter')?.value || '').trim(),
         temp: g('tempFilter')?.value || '',
         grade: g('gradeFilter')?.value || '',
-        province: g('provinceFilter')?.value || ''
+        province: g('provinceFilter')?.value || '',
+        assignedFrom: (g('assignedFrom')?.value || '').trim(),
+        assignedTo: (g('assignedTo')?.value || '').trim(),
+        custType: g('custTypeFilter')?.value || ''
     };
 }
 
 function clearTabFilters(prefix) {
-    const ids = ['nameFilter','phoneFilter','tempFilter','gradeFilter','provinceFilter'];
+    const ids = ['nameFilter','phoneFilter','tempFilter','gradeFilter','provinceFilter','assignedFrom','assignedTo','custTypeFilter'];
     ids.forEach(id => { const el = document.getElementById(`${id}_${prefix}`); if (el) el.value = ''; });
+    // รีเซ็ตหน้าเพจจิ้งของตารางในแท็บ Do ให้เริ่มหน้าแรกเสมอหลังจากล้างตัวกรอง
+    try { if (prefix === 'do') { sessionStorage.removeItem('customers_page_doTable'); } } catch(_) {}
     applyFilters();
 }
 
@@ -1188,7 +1364,7 @@ function updateCallResultOptions(forceAll = false) {
         if (!resultSel) return;
 
         const keep = resultSel.value; // keep current selection if still available
-        const list = ['สนใจ','ไม่สนใจ','ลังเล','เบอร์ผิด','ได้คุย','ตัดสายทิ้ง'];
+        const list = ['สินค้ายังไม่หมด','ใช้แล้วไม่เห็นผล','ยังไม่ได้ลองใช้','ยังไม่ถึงรอบใช้งาน','สั่งช่องทางอื่นแล้ว','ไม่สะดวกคุย','ตัดสายทิ้ง','ฝากสั่งไม่ได้ใช้เอง','คนอื่นรับสายแทน','เลิกทำสวน','ไม่สนใจ','ห้ามติดต่อ','ได้คุย','ขายได้'];
         resultSel.innerHTML = '<option value="">เลือกผลการโทร</option>' + list.map(t=>`<option value="${t}">${t}</option>`).join('');
         
         // Auto-fill ผลการโทรเมื่อสถานะการโทรไม่ใช่ "รับสาย"
@@ -1235,7 +1411,9 @@ async function submitCallLog() {
         call_result: callResult || null,
         duration: parseInt(duration) || 0,
         notes: notes,
-        next_followup_at: nextFollowup || null
+        next_followup_at: nextFollowup || null,
+        plant_variety: document.getElementById('plantVariety')?.value || null,
+        garden_size: document.getElementById('gardenSize')?.value || null
     };
     
     const submitBtn = document.querySelector('#logCallModal .btn-success');
@@ -1272,7 +1450,17 @@ async function submitCallLog() {
             
             showSuccess(result.message || 'บันทึกการโทรสำเร็จ');
             bootstrap.Modal.getInstance(document.getElementById('logCallModal')).hide();
-            
+
+            // ถ้าอยู่ในแท็บ Do: เอาแถวของลูกค้าออกจากตารางให้เหลือใน "ลูกค้าทั้งหมด" เท่านั้น
+            try {
+                const doTable = document.getElementById('doTable');
+                if (doTable) {
+                    const row = doTable.querySelector(`tbody tr[data-name][data-phone][data-status]`);
+                    // ถ้า paginate/render ไม่สามารถอ้างจาก selector ข้างบน ให้ลองค้นหาโดย customerId ที่ฝัง data-row-id (ถ้ามี)
+                    // ถ้าไม่เจอ ให้ทำการรีเฟรชแท็บปัจจุบันแทน
+                }
+            } catch (_) {}
+
             // รีเฟรชตามแท็บปัจจุบัน
             refreshCurrentTab();
         } else {
@@ -1678,16 +1866,17 @@ function renderStandardTable(customers, tableElementId, emptyMessage = 'ไม�
             <table class="table table-striped table-hover">
                 <thead class="table-light">
                     <tr>
-                        <th width="8%" class="text-center">วันที่ได้รับ</th>
-                        <th width="18%" class="text-center">ชื่อลูกค้า</th>
-                        <th width="12%" class="text-center">เบอร์โทร</th>
-                        <th width="8%" class="text-center">จังหวัด</th>
-                        <th width="8%" class="text-center">เวลาที่เหลือ</th>
-                        <th width="10%" class="text-center">ประเภทลูกค้า</th>
-                        <th width="8%" class="text-center">สถานะลูกค้า</th>
-                        <th width="6%" class="text-center">เกรด</th>
-                        <th width="16%" class="text-center">Tag</th>
-                        <th width="12%" class="text-center">การดำเนินการ</th>
+                        <th width="6%" class="text-center">วันที่ได้รับ</th>
+                        <th width="15%" class="text-center">ชื่อลูกค้า</th>
+                        <th width="10%" class="text-center">เบอร์โทร</th>
+                        <th width="6%" class="text-center">จังหวัด</th>
+                        <th width="6%" class="text-center">รหัสไปรษณีย์</th>
+                        <th width="6%" class="text-center">เวลาที่เหลือ</th>
+                        <th width="8%" class="text-center">ประเภทลูกค้า</th>
+                        <th width="6%" class="text-center">สถานะลูกค้า</th>
+                        <th width="5%" class="text-center">เกรด</th>
+                        <th width="12%" class="text-center">Tag</th>
+                        <th width="10%" class="text-center">การดำเนินการ</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -1700,7 +1889,7 @@ function renderStandardTable(customers, tableElementId, emptyMessage = 'ไม�
         const customerType = getCustomerType(customer);
         
         html += `
-            <tr class="customer-row" data-customer-id="${customer.customer_id}">
+            <tr class="customer-row" data-customer-id="${customer.customer_id}" data-customer-status="${escapeHtml(customer.customer_status || '')}">
                 <td class="text-center">
                     <small class="text-muted">${formatDate(customer.created_at)}</small>
                 </td>
@@ -1715,6 +1904,9 @@ function renderStandardTable(customers, tableElementId, emptyMessage = 'ไม�
                 </td>
                 <td class="text-center">
                     <small>${escapeHtml(customer.province || '-')}</small>
+                </td>
+                <td class="text-center">
+                    ${customer.postal_code ? escapeHtml(customer.postal_code) : '<span class="text-muted">-</span>'}
                 </td>
                 <td class="text-center">
                     <small class="text-muted">${calculateTimeRemaining(customer)}</small>
@@ -2195,48 +2387,50 @@ function getGradeClass(grade) {
 }
 
 function getCustomerType(customer) {
-    // มี next_followup_at = ติดตาม (ลำดับแรก)
+    // 1) ถ้ามีนัดติดตาม ให้แสดงเป็นติดตามก่อน
     if (customer.next_followup_at) {
-        return {
-            text: 'ติดตาม',
-            class: 'bg-warning text-dark'
-        };
+        return { text: 'ติดตาม', class: 'bg-warning text-dark' };
     }
-    
-    // ใช้ customer_status เป็นหลักในการจำแนกประเภท
-    switch (customer.customer_status) {
+
+    // 2) กำหนด mapping ของ class ตาม customer_status (เพื่อความสม่ำเสมอของสี)
+    const status = customer.customer_status || '';
+    const classMap = {
+        new: 'bg-success text-white',
+        existing: 'bg-secondary text-white',
+        existing_3m: 'bg-secondary text-white',
+        followup: 'bg-warning text-dark',
+        call_followup: 'bg-info text-white',
+        daily_distribution: 'bg-warning text-dark daily-distribution'
+    };
+
+    // 3) ใช้ข้อความจาก backend ถ้ามี (status_text มากับ API)
+    const backendText = (customer.status_text || '').trim();
+    if (backendText) {
+        return { text: backendText, class: classMap[status] || 'bg-secondary text-white' };
+    }
+
+    // 4) หากไม่มี status_text ให้ fallback ด้วย mapping ตาม status
+    switch (status) {
         case 'new':
-            return {
-                text: 'ลูกค้าใหม่',
-                class: 'bg-success text-white'
-            };
+            return { text: 'ลูกค้าใหม่', class: classMap.new };
         case 'existing':
-            return {
-                text: 'ลูกค้าเก่า',
-                class: 'bg-secondary text-white'
-            };
+            return { text: 'ลูกค้าเก่า', class: classMap.existing };
+        case 'existing_3m':
+            return { text: 'ลูกค้าเก่า 3 เดือน', class: classMap.existing_3m };
         case 'followup':
-            return {
-                text: 'ติดตาม',
-                class: 'bg-warning text-dark'
-            };
+            return { text: 'ติดตาม', class: classMap.followup };
+        case 'call_followup':
+            return { text: 'ติดตามโทร', class: classMap.call_followup };
+        case 'daily_distribution':
+            return { text: 'แจกรายวัน', class: classMap.daily_distribution };
         default:
-            // หากไม่มี status หรือ status ไม่ถูกต้อง ให้ดูจากวันที่สร้าง
+            // 5) fallback สุดท้าย: เดาใหม่/เก่าจากวันที่สร้าง (กันกรณี status แปลกๆ)
             const createdDate = new Date(customer.created_at);
             const now = new Date();
             const daysDiff = Math.floor((now - createdDate) / (1000 * 60 * 60 * 24));
-            
-            if (daysDiff <= 7) {
-                return {
-                    text: 'ลูกค้าใหม่',
-                    class: 'bg-success text-white'
-                };
-            } else {
-                return {
-                    text: 'ลูกค้าเก่า',
-                    class: 'bg-secondary text-white'
-                };
-            }
+            return daysDiff <= 7
+                ? { text: 'ลูกค้าใหม่', class: classMap.new }
+                : { text: 'ลูกค้าเก่า', class: classMap.existing };
     }
 }
 
@@ -2473,12 +2667,20 @@ function showLogCallModal(customerId) {
                                 <label for="callResult" class="form-label">ผลการโทร</label>
                                 <select class="form-select" id="callResult">
                                     <option value="">เลือกผลการโทร</option>
-                                    <option value="สนใจ">สนใจ</option>
-                                    <option value="ไม่สนใจ">ไม่สนใจ</option>
-                                    <option value="ลังเล">ลังเล</option>
-                                    <option value="เบอร์ผิด">เบอร์ผิด</option>
-                                    <option value="ได้คุย">ได้คุย</option>
+                                    <option value="สินค้ายังไม่หมด">สินค้ายังไม่หมด</option>
+                                    <option value="ใช้แล้วไม่เห็นผล">ใช้แล้วไม่เห็นผล</option>
+                                    <option value="ยังไม่ได้ลองใช้">ยังไม่ได้ลองใช้</option>
+                                    <option value="ยังไม่ถึงรอบใช้งาน">ยังไม่ถึงรอบใช้งาน</option>
+                                    <option value="สั่งช่องทางอื่นแล้ว">สั่งช่องทางอื่นแล้ว</option>
+                                    <option value="ไม่สะดวกคุย">ไม่สะดวกคุย</option>
                                     <option value="ตัดสายทิ้ง">ตัดสายทิ้ง</option>
+                                    <option value="ฝากสั่งไม่ได้ใช้เอง">ฝากสั่งไม่ได้ใช้เอง</option>
+                                    <option value="คนอื่นรับสายแทน">คนอื่นรับสายแทน</option>
+                                    <option value="เลิกทำสวน">เลิกทำสวน</option>
+                                    <option value="ไม่สนใจ">ไม่สนใจ</option>
+                                    <option value="ห้ามติดต่อ">ห้ามติดต่อ</option>
+                                    <option value="ได้คุย">ได้คุย</option>
+                                    <option value="ขายได้">ขายได้</option>
                                 </select>
                             </div>
                             
@@ -2490,6 +2692,22 @@ function showLogCallModal(customerId) {
                             <div class="mb-3">
                                 <label for="callNotes" class="form-label">หมายเหตุ</label>
                                 <textarea class="form-control" id="callNotes" rows="3" placeholder="บันทึกรายละเอียดการโทร..."></textarea>
+                            </div>
+                            
+                            <!-- ข้อมูลพืชพันธุ์และขนาดสวน -->
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="plantVariety" class="form-label">พืชพันธุ์</label>
+                                        <input type="text" class="form-control" id="plantVariety" placeholder="เช่น มะม่วง, ทุเรียน, ลำใย">
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="gardenSize" class="form-label">ขนาดสวน</label>
+                                        <input type="text" class="form-control" id="gardenSize" placeholder="เช่น 5 ไร่, 2,000 ตารางวา">
+                                    </div>
+                                </div>
                             </div>
                             
                             <div class="mb-3">
@@ -2608,7 +2826,9 @@ function getStatusClass(status) {
     const statusClasses = {
         'new': 'bg-primary',
         'followup': 'bg-warning text-dark',
+        'call_followup': 'bg-info',
         'existing': 'bg-success',
+        'daily_distribution': 'bg-warning text-dark',
         'inactive': 'bg-secondary'
     };
     return statusClasses[status] || 'bg-secondary';
@@ -2618,7 +2838,9 @@ function getStatusText(status) {
     const statusTexts = {
         'new': 'ลูกค้าใหม่',
         'followup': 'ติดตาม',
+        'call_followup': 'ติดตามโทร',
         'existing': 'ลูกค้าเก่า',
+        'daily_distribution': 'แจกรายวัน',
         'inactive': 'ไม่ใช้งาน'
     };
     return statusTexts[status] || status;
@@ -2705,7 +2927,9 @@ async function submitCallLog() {
         call_result: callResult || null,
         duration_minutes: duration ? parseInt(duration) : 0,
         notes: notes,
-        next_followup_at: nextFollowup || null
+        next_followup_at: nextFollowup || null,
+        plant_variety: document.getElementById('plantVariety')?.value || null,
+        garden_size: document.getElementById('gardenSize')?.value || null
     };
     
     try {

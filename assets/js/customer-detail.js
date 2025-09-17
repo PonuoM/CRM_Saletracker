@@ -280,7 +280,9 @@ window.submitCallLog = function() {
             duration_minutes: parseInt(duration) || 0,
             notes: notes,
             next_action: nextAction,
-            next_followup_at: nextFollowup || null
+            next_followup_at: nextFollowup || null,
+            plant_variety: document.getElementById('plantVariety')?.value || null,
+            garden_size: document.getElementById('gardenSize')?.value || null
         };
         
         console.log('Submitting call log data:', data);
@@ -362,24 +364,26 @@ async function refreshCustomerDetailData(customerId) {
 // รีเฟรช call logs ใน tab
 async function refreshCallLogs(customerId) {
     try {
-        const response = await fetch(`api/calls.php?customer_id=${customerId}`);
+        const response = await fetch(`api/calls.php?action=get_history&customer_id=${customerId}`);
         if (!response.ok) return;
         
         const data = await response.json();
-        if (data.success && data.call_logs) {
+        if (data.success && data.data) {
             // อัพเดท call logs table ถ้ามี
             const callLogsContainer = document.querySelector('#call-logs-content, .call-logs-container');
             if (callLogsContainer) {
                 // สร้าง HTML สำหรับ call logs ใหม่
                 let callLogsHtml = '';
-                data.call_logs.forEach(log => {
+                data.data.forEach(log => {
                     callLogsHtml += `
                         <div class="call-log-item p-3 border-bottom">
                             <div class="d-flex justify-content-between">
-                                <span class="fw-bold">${log.call_status}</span>
+                                <span class="fw-bold">${log.call_status_display || log.call_status}</span>
                                 <small class="text-muted">${formatDateTime(log.created_at)}</small>
                             </div>
-                            ${log.call_result ? `<div><strong>ผล:</strong> ${log.call_result}</div>` : ''}
+                            ${log.call_result ? `<div><strong>ผล:</strong> ${log.call_result_display || log.call_result}</div>` : ''}
+                            ${log.plant_variety ? `<div><strong>พืชพันธุ์:</strong> <span class="badge bg-info">${log.plant_variety}</span></div>` : ''}
+                            ${log.garden_size ? `<div><strong>ขนาดสวน:</strong> <span class="badge bg-success">${log.garden_size}</span></div>` : ''}
                             ${log.notes ? `<div><strong>หมายเหตุ:</strong> ${log.notes}</div>` : ''}
                             ${log.next_followup_at ? `<div><strong>ติดตาม:</strong> ${formatDateTime(log.next_followup_at)}</div>` : ''}
                         </div>

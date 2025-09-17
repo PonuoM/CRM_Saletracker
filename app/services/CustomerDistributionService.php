@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../core/Database.php';
+require_once __DIR__ . '/CompanyContext.php';
 
 class CustomerDistributionService {
     private $db;
@@ -20,67 +21,120 @@ class CustomerDistributionService {
         try {
             // ลูกค้าใน Distribution
             // Determine company source from current user
-            $companySource = $this->getCurrentCompanySource();
+            $companyId = CompanyContext::getCompanyId($this->db);
+            
+            // Debug logging
+            error_log("CustomerDistributionService::getDistributionStats - Company ID: " . ($companyId ?? 'NULL'));
+            error_log("Session data: " . json_encode([
+                'user_id' => $_SESSION['user_id'] ?? 'null',
+                'company_id' => $_SESSION['company_id'] ?? 'null',
+                'role_name' => $_SESSION['role_name'] ?? 'null',
+                'override_company_id' => $_SESSION['override_company_id'] ?? 'null'
+            ]));
+
+            // Build base WHERE clause for company filtering
+            $companyWhere = "";
+            $params = [];
+            if ($companyId) {
+                $companyWhere = " AND company_id = ?";
+                $params[] = $companyId;
+            }
 
             $distributionCount = $this->db->fetchOne(
                 "SELECT COUNT(*) as count FROM customers
                  WHERE basket_type = 'distribution'
                  AND temperature_status != 'frozen'
-                 AND is_active = 1" . ($companySource ? " AND source = ?" : ""),
-                 $companySource ? [$companySource] : []
+                 AND is_active = 1" . $companyWhere,
+                 $params
             );
+            error_log("Distribution count: " . ($distributionCount['count'] ?? 0));
 
             // Telesales ที่พร้อมรับงาน
+            $telesalesParams = [];
+            if ($companyId) {
+                $telesalesParams[] = $companyId;
+            }
             $availableTelesalesCount = $this->db->fetchOne(
                 "SELECT COUNT(*) as count FROM users
-                 WHERE role_id = 4 AND is_active = 1"
+                 WHERE role_id IN (3,4) AND is_active = 1" . $companyWhere,
+                $telesalesParams
             );
+            error_log("Available telesales count: " . ($availableTelesalesCount['count'] ?? 0));
 
             // ลูกค้า Hot
             $hotCustomersCount = $this->db->fetchOne(
                 "SELECT COUNT(*) as count FROM customers
                  WHERE basket_type = 'distribution'
                  AND temperature_status = 'hot'
-                 AND is_active = 1" . ($companySource ? " AND source = ?" : ""),
-                 $companySource ? [$companySource] : []
+                 AND is_active = 1" . $companyWhere,
+                 $params
             );
+            error_log("Hot customers count: " . ($hotCustomersCount['count'] ?? 0));
 
             // ลูกค้า Warm
             $warmCustomersCount = $this->db->fetchOne(
                 "SELECT COUNT(*) as count FROM customers
                  WHERE basket_type = 'distribution'
                  AND temperature_status = 'warm'
-                 AND is_active = 1" . ($companySource ? " AND source = ?" : ""),
-                 $companySource ? [$companySource] : []
+                 AND is_active = 1" . $companyWhere,
+                 $params
             );
+            error_log("Warm customers count: " . ($warmCustomersCount['count'] ?? 0));
 
-            // ลูกค้าถูกดึงกลับ (รอเวลา) - ใช้ frozen หรือมี recall_at ในอนาคต
+            // ลูกค้าถูกดึงกลับ (รอเวลา) - รวม waiting, frozen หรือมี recall_at ในอนาคต
             $waitingCustomersCount = $this->db->fetchOne(
                 "SELECT COUNT(*) as count FROM customers
-                 WHERE basket_type = 'distribution'
-                 AND is_active = 1
+                 WHERE is_active = 1
                  AND (
-                    temperature_status = 'frozen'
+                    basket_type = 'waiting'
+                    OR temperature_status = 'frozen'
                     OR (recall_at IS NOT NULL AND recall_at > NOW())
-                 )" . ($companySource ? " AND source = ?" : ""),
-                 $companySource ? [$companySource] : []
+                 )" . $companyWhere,
+                 $params
+            );
+            error_log("Waiting customers count: " . ($waitingCustomersCount['count'] ?? 0));
+
+            // ลูกค้าเกรด A+ และ A
+            $gradeAPlusCount = $this->db->fetchOne(
+                "SELECT COUNT(*) as count FROM customers 
+                 WHERE customer_grade = 'A+' 
+                 AND basket_type = 'distribution' 
+                 AND is_active = 1" . $companyWhere,
+                $params
             );
 
-            return [
+            $gradeACount = $this->db->fetchOne(
+                "SELECT COUNT(*) as count FROM customers 
+                 WHERE customer_grade = 'A' 
+                 AND basket_type = 'distribution' 
+                 AND is_active = 1" . $companyWhere,
+                $params
+            );
+
+            $result = [
                 'distribution_count' => $distributionCount['count'] ?? 0,
                 'available_telesales_count' => $availableTelesalesCount['count'] ?? 0,
                 'hot_customers_count' => $hotCustomersCount['count'] ?? 0,
                 'warm_customers_count' => $warmCustomersCount['count'] ?? 0,
-                'waiting_customers_count' => $waitingCustomersCount['count'] ?? 0
+                'waiting_customers_count' => $waitingCustomersCount['count'] ?? 0,
+                'grade_a_plus_count' => $gradeAPlusCount['count'] ?? 0,
+                'grade_a_count' => $gradeACount['count'] ?? 0
             ];
+
+            error_log("Final stats result: " . json_encode($result));
+            return $result;
 
         } catch (Exception $e) {
             error_log("Error getting distribution stats: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return [
                 'distribution_count' => 0,
                 'available_telesales_count' => 0,
                 'hot_customers_count' => 0,
-                'warm_customers_count' => 0
+                'warm_customers_count' => 0,
+                'waiting_customers_count' => 0,
+                'grade_a_plus_count' => 0,
+                'grade_a_count' => 0
             ];
         }
     }
@@ -90,25 +144,77 @@ class CustomerDistributionService {
      */
     public function getAvailableTelesales() {
         try {
-            $companySource = $this->getCurrentCompanySource();
+            $companyId = CompanyContext::getCompanyId($this->db);
+            error_log("getAvailableTelesales: company_id: " . ($companyId ?? 'NULL'));
+            
             $params = [];
-            $sql = "
-                SELECT u.user_id, u.full_name, u.email,
-                       COUNT(c.customer_id) as current_customers_count
-                FROM users u
-                LEFT JOIN customers c ON u.user_id = c.assigned_to
-                    AND c.basket_type = 'assigned'
-                    AND c.is_active = 1" . ($companySource ? " AND c.source = ?" : "") .
-                ($companySource ? " WHERE u.role_id = 4 AND u.is_active = 1 AND u.company_id = (SELECT company_id FROM companies WHERE company_name LIKE ? LIMIT 1)" : " WHERE u.role_id = 4 AND u.is_active = 1") .
-                " GROUP BY u.user_id, u.full_name, u.email
-                ORDER BY current_customers_count ASC, u.full_name ASC
-            ";
+            
+            // Build SQL with proper parameter handling
+            if ($companyId) {
+                $sql = "
+                    SELECT u.user_id, u.full_name, u.email,
+                           COUNT(c.customer_id) as current_customers_count,
+                           SUM(CASE WHEN c.customer_grade = 'A+' THEN 1 ELSE 0 END) AS grade_a_plus,
+                           SUM(CASE WHEN c.customer_grade = 'A' THEN 1 ELSE 0 END) AS grade_a,
+                           SUM(CASE WHEN c.customer_grade = 'B' THEN 1 ELSE 0 END) AS grade_b,
+                           SUM(CASE WHEN c.customer_grade = 'C' THEN 1 ELSE 0 END) AS grade_c,
+                           SUM(CASE WHEN c.customer_grade = 'D' THEN 1 ELSE 0 END) AS grade_d,
+                           comp.company_name,
+                           comp.company_code
+                    FROM users u
+                    LEFT JOIN companies comp ON u.company_id = comp.company_id
+                    LEFT JOIN customers c ON u.user_id = c.assigned_to
+                        AND c.basket_type = 'assigned'
+                        AND c.is_active = 1
+                        AND c.company_id = ?
+                    WHERE u.role_id IN (3,4) AND u.is_active = 1 AND u.company_id = ?
+                    GROUP BY u.user_id, u.full_name, u.email, comp.company_name, comp.company_code
+                    ORDER BY current_customers_count ASC, u.full_name ASC
+                ";
+                $params = [$companyId, $companyId]; // for c.company_id and u.company_id
+            } else {
+                // Super admin sees all telesales and supervisors
+                $sql = "
+                    SELECT u.user_id, u.full_name, u.email,
+                           COUNT(c.customer_id) as current_customers_count,
+                           SUM(CASE WHEN c.customer_grade = 'A+' THEN 1 ELSE 0 END) AS grade_a_plus,
+                           SUM(CASE WHEN c.customer_grade = 'A' THEN 1 ELSE 0 END) AS grade_a,
+                           SUM(CASE WHEN c.customer_grade = 'B' THEN 1 ELSE 0 END) AS grade_b,
+                           SUM(CASE WHEN c.customer_grade = 'C' THEN 1 ELSE 0 END) AS grade_c,
+                           SUM(CASE WHEN c.customer_grade = 'D' THEN 1 ELSE 0 END) AS grade_d,
+                           comp.company_name,
+                           comp.company_code
+                    FROM users u
+                    LEFT JOIN companies comp ON u.company_id = comp.company_id
+                    LEFT JOIN customers c ON u.user_id = c.assigned_to
+                        AND c.basket_type = 'assigned'
+                        AND c.is_active = 1
+                    WHERE u.role_id IN (3,4) AND u.is_active = 1
+                    GROUP BY u.user_id, u.full_name, u.email, comp.company_name, comp.company_code
+                    ORDER BY current_customers_count ASC, u.full_name ASC
+                ";
+                $params = [];
+            }
 
-            if ($companySource) { $params[] = $companySource; $params[] = "%{$companySource}%"; }
-            return $this->db->fetchAll($sql, $params);
+            $rows = $this->db->fetchAll($sql, $params);
+            // enrich rows with grade_distribution for UI
+            $result = array_map(function($row) {
+                $row['grade_distribution'] = [
+                    'A_plus' => (int)($row['grade_a_plus'] ?? 0),
+                    'A' => (int)($row['grade_a'] ?? 0),
+                    'B' => (int)($row['grade_b'] ?? 0),
+                    'C' => (int)($row['grade_c'] ?? 0),
+                    'D' => (int)($row['grade_d'] ?? 0),
+                ];
+                return $row;
+            }, $rows);
+            error_log("getAvailableTelesales: Found " . count($result) . " telesales");
+            
+            return $result;
 
         } catch (Exception $e) {
             error_log("Error getting available telesales: " . $e->getMessage());
+            error_log("Stack trace: " . $e->getTraceAsString());
             return [];
         }
     }
@@ -116,20 +222,10 @@ class CustomerDistributionService {
     /**
      * ดึงสถิติของบริษัทเฉพาะ
      */
-    public function getCompanyStats($company) {
+    public function getCompanyStats($company = null) {
         try {
-            if (!$company) {
-                error_log("getCompanyStats: Company parameter is empty");
-                return [
-                    'distribution_count' => 0,
-                    'telesales_count' => 0,
-                    'hot_count' => 0,
-                    'warm_count' => 0
-                ];
-            }
-
-            $companySource = strtoupper($company);
-            error_log("getCompanyStats: Processing company: {$company}, source: {$companySource}");
+            $companyId = CompanyContext::getCompanyId($this->db);
+            error_log("getCompanyStats: company_id: {$companyId}");
 
             // ลูกค้าพร้อมแจก (ยกเว้นเกรด A และ A+ สำหรับการแจกเฉลี่ย)
             $distributionCount = $this->db->fetchOne(
@@ -137,18 +233,16 @@ class CustomerDistributionService {
                  WHERE basket_type = 'distribution'
                  AND temperature_status != 'frozen'
                  AND is_active = 1
-                 AND source = ?
+                 AND company_id = ?
                  AND customer_grade NOT IN ('A', 'A+')",
-                [$companySource]
+                [$companyId]
             );
 
             // Telesales ของบริษัท
             $telesalesCount = $this->db->fetchOne(
                 "SELECT COUNT(*) as count FROM users u
-                 JOIN companies c ON u.company_id = c.company_id
-                 WHERE u.role_id = 4 AND u.is_active = 1
-                 AND (c.company_name LIKE ? OR c.company_code LIKE ?)",
-                ["%{$company}%", "%{$company}%"]
+                 WHERE u.role_id = 4 AND u.is_active = 1" . ($companyId ? " AND u.company_id = ?" : ""),
+                $companyId ? [$companyId] : []
             );
 
             // ลูกค้า Hot (ยกเว้นเกรด A และ A+)
@@ -157,9 +251,9 @@ class CustomerDistributionService {
                  WHERE basket_type = 'distribution'
                  AND temperature_status = 'hot'
                  AND is_active = 1
-                 AND source = ?
+                 AND company_id = ?
                  AND customer_grade NOT IN ('A', 'A+')",
-                [$companySource]
+                [$companyId]
             );
 
             // ลูกค้า Warm (ยกเว้นเกรด A และ A+)
@@ -168,9 +262,9 @@ class CustomerDistributionService {
                  WHERE basket_type = 'distribution'
                  AND temperature_status = 'warm'
                  AND is_active = 1
-                 AND source = ?
+                 AND company_id = ?
                  AND customer_grade NOT IN ('A', 'A+')",
-                [$companySource]
+                [$companyId]
             );
 
             $result = [
@@ -180,11 +274,11 @@ class CustomerDistributionService {
                 'warm_count' => $warmCount['count'] ?? 0
             ];
 
-            error_log("getCompanyStats: Result for {$company}: " . json_encode($result));
+            error_log("getCompanyStats: Result: " . json_encode($result));
             return $result;
 
         } catch (Exception $e) {
-            error_log("Error getting company stats for {$company}: " . $e->getMessage());
+            error_log("Error getting company stats: " . $e->getMessage());
             error_log("Stack trace: " . $e->getTraceAsString());
             return [
                 'distribution_count' => 0,
@@ -199,6 +293,50 @@ class CustomerDistributionService {
      * ดึงรายการ Telesales ตามบริษัท
      */
     public function getTelesalesByCompany($company) {
+        try {
+            // Use current company_id context and ignore free-text company source
+            $companyId = CompanyContext::getCompanyId($this->db);
+            $params = [];
+            $sql = "
+                SELECT u.user_id, u.full_name, u.email, comp.company_name, comp.company_code,
+                       COUNT(c.customer_id) as current_customers_count,
+                       SUM(CASE WHEN c.customer_grade = 'A+' THEN 1 ELSE 0 END) AS grade_a_plus,
+                       SUM(CASE WHEN c.customer_grade = 'A' THEN 1 ELSE 0 END) AS grade_a,
+                       SUM(CASE WHEN c.customer_grade = 'B' THEN 1 ELSE 0 END) AS grade_b,
+                       SUM(CASE WHEN c.customer_grade = 'C' THEN 1 ELSE 0 END) AS grade_c,
+                       SUM(CASE WHEN c.customer_grade = 'D' THEN 1 ELSE 0 END) AS grade_d
+                FROM users u
+                JOIN companies comp ON u.company_id = comp.company_id
+                LEFT JOIN customers c ON u.user_id = c.assigned_to
+                    AND c.basket_type = 'assigned'
+                    AND c.is_active = 1" . ($companyId ? " AND c.company_id = ?" : "") . "
+                WHERE u.role_id IN (3,4) AND u.is_active = 1" . ($companyId ? " AND u.company_id = ?" : "") . "
+                GROUP BY u.user_id, u.full_name, u.email, comp.company_name, comp.company_code
+                ORDER BY current_customers_count ASC, u.full_name ASC
+            ";
+            if ($companyId) { $params = [$companyId, $companyId]; }
+            $rows = $this->db->fetchAll($sql, $params);
+            // enrich with grade_distribution
+            return array_map(function($row) {
+                $row['grade_distribution'] = [
+                    'A_plus' => (int)($row['grade_a_plus'] ?? 0),
+                    'A' => (int)($row['grade_a'] ?? 0),
+                    'B' => (int)($row['grade_b'] ?? 0),
+                    'C' => (int)($row['grade_c'] ?? 0),
+                    'D' => (int)($row['grade_d'] ?? 0),
+                ];
+                return $row;
+            }, $rows);
+        } catch (Exception $e) {
+            error_log("getTelesalesByCompany error: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * ดึงรายการ Telesales ตามบริษัท (ใช้ชื่อบริษัท)
+     */
+    public function getTelesalesByCompanyName($company) {
         try {
             if (!$company) {
                 error_log("getTelesalesByCompany: Company parameter is empty");
@@ -257,38 +395,50 @@ class CustomerDistributionService {
     /**
      * ดึงจำนวนลูกค้าพร้อมแจกตามวันที่และบริษัท
      */
-    public function getAvailableCustomersByDate($company, $dateFrom, $dateTo) {
+    public function getAvailableCustomersByDate($dateFrom, $dateTo) {
         try {
-            if (!$company || !$dateFrom || !$dateTo) {
-                error_log("getAvailableCustomersByDate: Missing parameters - company: {$company}, dateFrom: {$dateFrom}, dateTo: {$dateTo}");
+            if (!$dateFrom || !$dateTo) {
+                error_log("getAvailableCustomersByDate: Missing parameters - dateFrom: {$dateFrom}, dateTo: {$dateTo}");
                 return ['count' => 0];
             }
 
-            $companySource = strtoupper($company);
-            error_log("getAvailableCustomersByDate: Processing company: {$company}, source: {$companySource}, dateFrom: {$dateFrom}, dateTo: {$dateTo}");
+            $companyId = CompanyContext::getCompanyId($this->db);
+            error_log("getAvailableCustomersByDate: company_id: {$companyId}, dateFrom: {$dateFrom}, dateTo: {$dateTo}");
 
-            $sql = "SELECT COUNT(*) as count FROM customers
-                    WHERE basket_type = 'distribution'
-                    AND temperature_status != 'frozen'
-                    AND is_active = 1
-                    AND source = ?
-                    AND customer_grade NOT IN ('A', 'A+')
-                    AND DATE(created_at) BETWEEN ? AND ?";
+            // นับจำนวนลูกค้าที่อยู่ในช่วงวันที่ โดยพิจารณา order_date ถ้ามี ไม่งั้นใช้ created_at
+            $params = [];
+            $join = "LEFT JOIN orders o ON o.customer_id = c.customer_id AND o.is_active = 1";
+            if ($companyId) { $join .= " AND o.company_id = ?"; $params[] = $companyId; }
 
-            $result = $this->db->fetchOne($sql, [$companySource, $dateFrom, $dateTo]);
+            $sql = "SELECT COUNT(DISTINCT c.customer_id) as count
+                    FROM customers c
+                    $join
+                    WHERE c.basket_type = 'distribution'
+                      AND c.temperature_status != 'frozen'
+                      AND c.is_active = 1
+                      AND c.customer_grade NOT IN ('A', 'A+')";
+
+            if ($companyId) { $sql .= " AND c.company_id = ?"; $params[] = $companyId; }
+
+            // เงื่อนไขช่วงวันที่ (ใช้ order_date ถ้ามี, ถ้าไม่มีใช้ created_at)
+            $sql .= " AND ( (o.order_date IS NOT NULL AND DATE(o.order_date) BETWEEN ? AND ?) 
+                              OR (o.order_date IS NULL AND DATE(c.created_at) BETWEEN ? AND ?) )";
+            array_push($params, $dateFrom, $dateTo, $dateFrom, $dateTo);
+
+            $result = $this->db->fetchOne($sql, $params);
 
             $count = $result['count'] ?? 0;
-            error_log("getAvailableCustomersByDate: Found {$count} customers for {$company} between {$dateFrom} and {$dateTo}");
+            error_log("getAvailableCustomersByDate: Found {$count} customers for company {$companyId} between {$dateFrom} and {$dateTo}");
 
             return [
                 'count' => $count,
                 'date_from' => $dateFrom,
                 'date_to' => $dateTo,
-                'company' => $companySource
+                'company_id' => $companyId
             ];
 
         } catch (Exception $e) {
-            error_log("Error getting available customers by date for {$company}: " . $e->getMessage());
+            error_log("Error getting available customers by date: " . $e->getMessage());
             error_log("Stack trace: " . $e->getTraceAsString());
             return ['count' => 0];
         }
@@ -297,26 +447,26 @@ class CustomerDistributionService {
     /**
      * ตรวจสอบโควต้าของ Telesales
      */
-    public function checkTelesalesQuota($company, $telesalesId) {
+    public function checkTelesalesQuota($telesalesId) {
         try {
-            $companySource = strtoupper($company);
+            $companyId = CompanyContext::getCompanyId($this->db);
 
             // ตรวจสอบการใช้โควต้าในสัปดาห์นี้ (7 วันล่าสุด)
             $sql = "SELECT COUNT(*) as weekly_used FROM customers
                     WHERE assigned_to = ?
-                    AND source = ?
+                    AND company_id = ?
                     AND assigned_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)";
 
-            $result = $this->db->fetchOne($sql, [$telesalesId, $companySource]);
+            $result = $this->db->fetchOne($sql, [$telesalesId, $companyId]);
             $weeklyUsed = $result['weekly_used'] ?? 0;
 
             // ตรวจสอบการใช้โควต้าในวันนี้
             $sql = "SELECT COUNT(*) as daily_used FROM customers
                     WHERE assigned_to = ?
-                    AND source = ?
+                    AND company_id = ?
                     AND DATE(assigned_at) = CURDATE()";
 
-            $result = $this->db->fetchOne($sql, [$telesalesId, $companySource]);
+            $result = $this->db->fetchOne($sql, [$telesalesId, $companyId]);
             $dailyUsed = $result['daily_used'] ?? 0;
 
             // คำนวณโควต้าคงเหลือ
@@ -353,25 +503,28 @@ class CustomerDistributionService {
     /**
      * แจกลูกค้าแบบเฉลี่ย
      */
-    public function distributeAverage($company, $customerCount, $dateFrom, $dateTo, $telesalesIds, $adminUserId) {
+    public function distributeAverage($customerCount, $dateFrom, $dateTo, $telesalesIds, $adminUserId, $postStatus = null) {
         try {
             $this->db->beginTransaction();
 
-            $companySource = strtoupper($company);
+            $companyId = CompanyContext::getCompanyId($this->db);
 
-            // ดึงลูกค้าที่พร้อมแจก (ยกเว้นเกรด A และ A+ สำหรับการแจกเฉลี่ย)
-            $whereClause = "basket_type = 'distribution' AND temperature_status != 'frozen' AND is_active = 1 AND source = ? AND customer_grade NOT IN ('A', 'A+')";
-            $params = [$companySource];
+            // ดึงลูกค้าที่พร้อมแจก (ยกเว้นเกรด A และ A+) โดยใช้เกณฑ์วันที่เดียวกับส่วนแสดงจำนวน
+            $params = [];
+            $join = "LEFT JOIN orders o ON o.customer_id = c.customer_id AND o.is_active = 1";
+            if ($companyId) { $join .= " AND o.company_id = ?"; $params[] = $companyId; }
+
+            $whereClause = "c.basket_type = 'distribution' AND c.temperature_status != 'frozen' AND c.is_active = 1 AND c.customer_grade NOT IN ('A', 'A+')";
+            if ($companyId) { $whereClause .= " AND c.company_id = ?"; $params[] = $companyId; }
 
             if ($dateFrom && $dateTo) {
-                $whereClause .= " AND DATE(created_at) BETWEEN ? AND ?";
-                $params[] = $dateFrom;
-                $params[] = $dateTo;
+                $whereClause .= " AND ((o.order_date IS NOT NULL AND DATE(o.order_date) BETWEEN ? AND ?) OR (o.order_date IS NULL AND DATE(c.created_at) BETWEEN ? AND ?))";
+                array_push($params, $dateFrom, $dateTo, $dateFrom, $dateTo);
             }
 
             // NOTE: MySQL does not allow binding LIMIT with native prepares; inject sanitized int
             $limitInt = max(0, (int)$customerCount);
-            $sql = "SELECT customer_id, first_name, last_name FROM customers WHERE {$whereClause} ORDER BY created_at ASC LIMIT {$limitInt}";
+            $sql = "SELECT DISTINCT c.customer_id, c.first_name, c.last_name FROM customers c $join WHERE {$whereClause} ORDER BY c.created_at ASC LIMIT {$limitInt}";
             $customers = $this->db->fetchAll($sql, $params);
 
             if (count($customers) < $customerCount) {
@@ -423,17 +576,19 @@ class CustomerDistributionService {
                     $customer = $customers[$customerIndex];
 
                     // อัปเดตลูกค้า
-                    $this->db->execute(
-                        "UPDATE customers SET
-                         basket_type = 'assigned',
-                         assigned_to = ?,
-                         assigned_at = NOW(),
-                         customer_time_base = NOW(),
-                         customer_time_expiry = DATE_ADD(NOW(), INTERVAL 30 DAY),
-                         updated_at = NOW()
-                         WHERE customer_id = ?",
-                        [$telesalesId, $customer['customer_id']]
-                    );
+                    // อัปเดตสถานะลูกค้า พร้อมตั้ง customer_status ตามที่เลือก (ถ้าระบุ)
+                    $updateFields = [
+                        'basket_type' => 'assigned',
+                        'assigned_to' => $telesalesId,
+                        'assigned_at' => date('Y-m-d H:i:s'),
+                        'customer_time_base' => date('Y-m-d H:i:s'),
+                        'customer_time_expiry' => date('Y-m-d H:i:s', strtotime('+30 days')),
+                        'updated_at' => date('Y-m-d H:i:s')
+                    ];
+                    if (!empty($postStatus)) {
+                        $updateFields['customer_status'] = $postStatus;
+                    }
+                    $this->db->update('customers', $updateFields, 'customer_id = ?', [$customer['customer_id']]);
 
                     // ดึงข้อมูลลูกค้าเพิ่มเติม
                     $customerInfo = $this->db->fetchOne(
@@ -468,7 +623,7 @@ class CustomerDistributionService {
                 $distributionResults[] = [
                     'telesales_id' => $telesalesId,
                     'telesales_name' => $telesalesInfo['full_name'] ?? 'Unknown',
-                    'company' => strtolower($company),
+                    'company_id' => $companyId,
                     'count' => count($assignedCustomers),
                     'customers' => $assignedCustomers
                 ];
@@ -490,7 +645,7 @@ class CustomerDistributionService {
                 'data' => [
                     'distributions' => $distributionResults,
                     'total_distributed' => $distributedCount,
-                    'company' => $company,
+                    'company_id' => $companyId,
                     'type' => 'average',
                     'excluded_grades' => ['A', 'A+'] // แสดงเกรดที่ยกเว้น
                 ]
@@ -509,11 +664,11 @@ class CustomerDistributionService {
     /**
      * แจกลูกค้าตามคำขอ
      */
-    public function distributeRequest($company, $quantity, $priority, $telesalesId, $adminUserId) {
+    public function distributeRequest($quantity, $priority, $telesalesId, $adminUserId) {
         try {
             $this->db->beginTransaction();
 
-            $companySource = strtoupper($company);
+            $companyId = CompanyContext::getCompanyId($this->db);
 
             // ตรวจสอบโควต้า (300 รายชื่อ/สัปดาห์, ไม่เกิน 150 ต่อครั้ง)
             if ($quantity > 150) {
@@ -527,9 +682,9 @@ class CustomerDistributionService {
             // ตรวจสอบโควต้าสัปดาห์
             $weeklyUsed = $this->db->fetchOne(
                 "SELECT COUNT(*) as count FROM customers
-                 WHERE assigned_to = ? AND source = ?
+                 WHERE assigned_to = ? AND company_id = ?
                  AND assigned_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)",
-                [$telesalesId, $companySource]
+                [$telesalesId, $companyId]
             );
 
             if (($weeklyUsed['count'] + $quantity) > 300) {
@@ -541,8 +696,8 @@ class CustomerDistributionService {
             }
 
             // สร้าง WHERE clause ตาม priority (ยกเว้นเกรด A และ A+)
-            $whereClause = "basket_type = 'distribution' AND is_active = 1 AND source = ? AND customer_grade NOT IN ('A', 'A+')";
-            $params = [$companySource];
+            $whereClause = "basket_type = 'distribution' AND is_active = 1 AND company_id = ? AND customer_grade NOT IN ('A', 'A+')";
+            $params = [$companyId];
 
             switch ($priority) {
                 case 'hot_only':
@@ -660,14 +815,14 @@ class CustomerDistributionService {
      */
     public function getAvailableCustomers($priority = 'hot_warm_cold', $limit = 10) {
         try {
-            $companySource = $this->getCurrentCompanySource();
+            $companyId = CompanyContext::getCompanyId($this->db);
             $params = [];
             $sql = "SELECT c.* FROM customers c
                     WHERE c.basket_type = 'distribution'
                     AND c.temperature_status != 'frozen'
                     AND c.is_active = 1
-                    AND c.customer_grade NOT IN ('A', 'A+')" . ($companySource ? " AND c.source = ?" : "");
-            if ($companySource) { $params[] = $companySource; }
+                    AND c.customer_grade NOT IN ('A', 'A+')" . ($companyId ? " AND c.company_id = ?" : "");
+            if ($companyId) { $params[] = $companyId; }
 
             // เพิ่มเงื่อนไขตามลำดับความสำคัญ
             switch ($priority) {
@@ -881,8 +1036,8 @@ class CustomerDistributionService {
      */
     public function getGradeAStats($company = null) {
         try {
-            $source = $company ? strtoupper($company) : null;
-            error_log("getGradeAStats: Processing company: " . ($company ?? 'all'));
+            $companyId = CompanyContext::getCompanyId($this->db);
+            error_log("getGradeAStats: company_id: " . ($companyId ?? 'null'));
             
             // ลูกค้าเกรด A+
             $gradeAPlusCount = $this->db->fetchOne(
@@ -890,8 +1045,8 @@ class CustomerDistributionService {
                  WHERE customer_grade = 'A+' 
                  AND basket_type = 'distribution' 
                  AND is_active = 1" . 
-                 ($source ? " AND source = ?" : ""),
-                $source ? [$source] : []
+                 ($companyId ? " AND company_id = ?" : ""),
+                $companyId ? [$companyId] : []
             );
 
             // ลูกค้าเกรด A
@@ -900,8 +1055,8 @@ class CustomerDistributionService {
                  WHERE customer_grade = 'A' 
                  AND basket_type = 'distribution' 
                  AND is_active = 1" . 
-                 ($source ? " AND source = ?" : ""),
-                $source ? [$source] : []
+                 ($companyId ? " AND company_id = ?" : ""),
+                $companyId ? [$companyId] : []
             );
 
             $gradeAPlusTotal = $gradeAPlusCount['count'] ?? 0;
@@ -917,11 +1072,11 @@ class CustomerDistributionService {
                 ]
             ];
 
-            error_log("getGradeAStats: Result for {$company}: " . json_encode($result));
+            error_log("getGradeAStats: Result: " . json_encode($result));
             return $result;
 
         } catch (Exception $e) {
-            error_log("Error getting Grade A stats for {$company}: " . $e->getMessage());
+            error_log("Error getting Grade A stats: " . $e->getMessage());
             error_log("Stack trace: " . $e->getTraceAsString());
             return [
                 'success' => false,
@@ -940,28 +1095,28 @@ class CustomerDistributionService {
      */
     public function distributeGradeA($company = null, $allocations = [], $selectedGrades = ['A']) {
         try {
-            // Validation
-            if (!$company || !in_array(strtolower($company), ['prima', 'prionic'])) {
-                throw new Exception('บริษัทไม่ถูกต้อง');
-            }
-
+            // ใช้ company_id จากบริบทปัจจุบัน ไม่พึ่งพา string ชื่อบริษัท
+            $companyId = CompanyContext::getCompanyId($this->db);
             if (empty($allocations)) {
                 throw new Exception('ไม่มีการจัดสรรลูกค้า');
             }
 
-            $source = strtoupper($company);
-            
-            // สร้าง placeholders สำหรับ selectedGrades  
+            // ป้องกัน selectedGrades ว่างเปล่า
+            if (empty($selectedGrades)) {
+                $selectedGrades = ['A'];
+            }
+
+            // สร้าง placeholders สำหรับ selectedGrades
             $gradePlaceholders = str_repeat('?,', count($selectedGrades) - 1) . '?';
-            
+
             // ตรวจสอบจำนวนลูกค้าตามเกรดที่เลือกที่มีอยู่
-            $gradeParams = array_merge($selectedGrades, [$source]);
+            $gradeParams = array_merge($selectedGrades, [$companyId]);
             $availableCustomers = $this->db->fetchAll(
                 "SELECT customer_id FROM customers 
                  WHERE customer_grade IN ($gradePlaceholders) 
                  AND basket_type = 'distribution' 
                  AND is_active = 1 
-                 AND source = ?
+                 AND company_id = ?
                  ORDER BY 
                     CASE WHEN customer_grade = 'A+' THEN 1 ELSE 2 END,
                     CASE WHEN temperature_status = 'hot' THEN 1 
@@ -1056,7 +1211,7 @@ class CustomerDistributionService {
                 $distributionResults[] = [
                     'telesales_id' => $telesalesId,
                     'telesales_name' => $telesales['full_name'],
-                    'company' => strtolower($company),
+                    'company' => $companyId,
                     'count' => $assignedCount,
                     'grade' => 'A',
                     'customers' => $assignedCustomers // เพิ่มรายชื่อลูกค้า
@@ -1069,11 +1224,11 @@ class CustomerDistributionService {
 
             return [
                 'success' => true,
-                'message' => "แจกลูกค้าเกรด A สำเร็จ {$totalDistributed} คนสำหรับบริษัท " . strtoupper($company),
+                'message' => "แจกลูกค้าเกรด A สำเร็จ {$totalDistributed} คน",
                 'data' => [
                     'distributions' => $distributionResults,
                     'total_distributed' => $totalDistributed,
-                    'company' => $company,
+                    'company_id' => $companyId,
                     'selected_grades' => $selectedGrades
                 ]
             ];

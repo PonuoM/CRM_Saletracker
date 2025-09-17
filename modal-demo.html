@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Modal Enhancements Demo</title>
+    
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Font Awesome -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <!-- Modal Enhancements CSS -->
+    <link rel="stylesheet" href="assets/css/modal-enhancements.css">
+    
+    <!-- Modal Fix CSS -->
+    <link rel="stylesheet" href="assets/css/modal-fix.css">
+    
+    <!-- Modal Contrast CSS -->
+    <link rel="stylesheet" href="assets/css/modal-contrast.css">
+    
+    <!-- Modal Backdrop CSS -->
+    <link rel="stylesheet" href="assets/css/modal-backdrop.css">
+    
+    <style>
+        body {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 2rem 0;
+        }
+        
+        .demo-container {
+            background: white;
+            border-radius: 15px;
+            padding: 2rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+            margin: 2rem auto;
+            max-width: 800px;
+        }
+        
+        .demo-button {
+            margin: 0.5rem;
+            min-width: 200px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="demo-container">
+            <h1 class="text-center mb-4">
+                <i class="fas fa-magic me-2"></i>
+                Modal Enhancements Demo
+            </h1>
+            
+            <p class="text-center text-muted mb-4">
+                ทดสอบ popup ที่ปรับปรุงแล้ว - พื้นหลังสีเข้ม, อยู่กลางจอ, และมี animation สวยงาม
+            </p>
+            
+            <div class="row text-center">
+                <div class="col-md-6 mb-3">
+                    <button class="btn btn-primary demo-button" onclick="showOrderItemsDemo()">
+                        <i class="fas fa-shopping-cart me-2"></i>
+                        ทดสอบ Order Items Modal
+                    </button>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <button class="btn btn-success demo-button" onclick="showInfoModal()">
+                        <i class="fas fa-info-circle me-2"></i>
+                        ทดสอบ Info Modal
+                    </button>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <button class="btn btn-warning demo-button" onclick="showWarningModal()">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        ทดสอบ Warning Modal
+                    </button>
+                </div>
+                
+                <div class="col-md-6 mb-3">
+                    <button class="btn btn-danger demo-button" onclick="showErrorModal()">
+                        <i class="fas fa-times-circle me-2"></i>
+                        ทดสอบ Error Modal
+                    </button>
+                </div>
+            </div>
+            
+            <hr class="my-4">
+            
+            <div class="text-center">
+                <h5>คุณสมบัติที่ปรับปรุง:</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <ul class="list-unstyled text-start">
+                            <li><i class="fas fa-check text-success me-2"></i>พื้นหลังสีเข้ม (80% opacity)</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Modal อยู่กลางจอ</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Animation สวยงาม</li>
+                        </ul>
+                    </div>
+                    <div class="col-md-6">
+                        <ul class="list-unstyled text-start">
+                            <li><i class="fas fa-check text-success me-2"></i>Responsive design</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Loading states</li>
+                            <li><i class="fas fa-check text-success me-2"></i>Error handling</li>
+                        </ul>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <!-- Modal Enhancements JS -->
+    <script src="assets/js/modal-enhancements.js"></script>
+    
+    <script>
+        // Demo functions
+        function showOrderItemsDemo() {
+            const demoData = {
+                success: true,
+                order: { order_number: 'ORD-2025-001' },
+                items: [
+                    {
+                        product_name: 'สินค้าทดสอบ 1',
+                        product_code: 'PROD001',
+                        quantity: 2,
+                        unit_price: 100.00,
+                        total_price: 200.00
+                    },
+                    {
+                        product_name: 'สินค้าทดสอบ 2',
+                        product_code: 'PROD002',
+                        quantity: 1,
+                        unit_price: 150.00,
+                        total_price: 150.00
+                    },
+                    {
+                        product_name: 'สินค้าทดสอบ 3',
+                        product_code: 'PROD003',
+                        quantity: 3,
+                        unit_price: 75.00,
+                        total_price: 225.00
+                    }
+                ]
+            };
+            
+            // Simulate API call
+            showEnhancedModal('รายละเอียดสินค้า', `
+                <div class="text-center py-4">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">กำลังโหลด...</span>
+                    </div>
+                    <p class="mt-2 text-muted">กำลังโหลดรายการสินค้า...</p>
+                </div>
+            `, {
+                id: 'demoOrderModal',
+                size: 'lg',
+                headerColor: 'primary',
+                icon: 'fas fa-shopping-cart'
+            });
+            
+            // Simulate loading delay
+            setTimeout(() => {
+                const items = demoData.items;
+                const rows = items.map(item => `
+                    <tr>
+                        <td>${item.product_name}</td>
+                        <td>${item.product_code}</td>
+                        <td class="text-center">${item.quantity}</td>
+                        <td class="text-end">฿${item.unit_price.toLocaleString('th-TH', {minimumFractionDigits:2})}</td>
+                        <td class="text-end">฿${item.total_price.toLocaleString('th-TH', {minimumFractionDigits:2})}</td>
+                    </tr>
+                `).join('');
+                
+                const tableHtml = `
+                    <div class="table-responsive">
+                        <table class="table table-hover table-sm">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>สินค้า</th>
+                                    <th>รหัส</th>
+                                    <th class="text-center">จำนวน</th>
+                                    <th class="text-end">ราคาต่อหน่วย</th>
+                                    <th class="text-end">รวม</th>
+                                </tr>
+                            </thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                `;
+                
+                const modal = document.getElementById('demoOrderModal');
+                modal.querySelector('.modal-body').innerHTML = tableHtml;
+                
+                const titleElement = modal.querySelector('.modal-title');
+                titleElement.innerHTML = `<i class="fas fa-shopping-cart me-2"></i>รายละเอียดสินค้าในคำสั่งซื้อ #${demoData.order.order_number}`;
+            }, 1500);
+        }
+        
+        function showInfoModal() {
+            showEnhancedModal('ข้อมูลเพิ่มเติม', `
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    นี่คือ modal ที่ปรับปรุงแล้ว มีพื้นหลังสีเข้มและอยู่กลางจอ
+                </div>
+                <p>คุณสามารถทดสอบการใช้งานได้โดย:</p>
+                <ul>
+                    <li>กดปุ่มปิด</li>
+                    <li>กด ESC</li>
+                    <li>คลิกที่พื้นหลังสีเข้ม</li>
+                </ul>
+            `, {
+                id: 'infoModal',
+                size: 'md',
+                headerColor: 'info',
+                icon: 'fas fa-info-circle'
+            });
+        }
+        
+        function showWarningModal() {
+            showEnhancedModal('คำเตือน', `
+                <div class="alert alert-warning">
+                    <i class="fas fa-exclamation-triangle me-2"></i>
+                    นี่คือ modal แบบ warning
+                </div>
+                <p>Modal นี้แสดงให้เห็นว่าสามารถใช้สีต่างๆ ได้</p>
+            `, {
+                id: 'warningModal',
+                size: 'md',
+                headerColor: 'warning',
+                icon: 'fas fa-exclamation-triangle'
+            });
+        }
+        
+        function showErrorModal() {
+            showEnhancedModal('เกิดข้อผิดพลาด', `
+                <div class="alert alert-danger">
+                    <i class="fas fa-times-circle me-2"></i>
+                    เกิดข้อผิดพลาดในการดำเนินการ
+                </div>
+                <p>Modal นี้แสดงให้เห็นการใช้งานในกรณี error</p>
+            `, {
+                id: 'errorModal',
+                size: 'md',
+                headerColor: 'danger',
+                icon: 'fas fa-times-circle'
+            });
+        }
+    </script>
+</body>
+</html>

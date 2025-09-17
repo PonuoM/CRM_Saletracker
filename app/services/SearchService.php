@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../core/Database.php';
+require_once __DIR__ . '/CompanyContext.php';
 
 class SearchService {
     private $db;
@@ -50,7 +51,7 @@ class SearchService {
      */
     public function searchCustomers($searchTerm) {
         try {
-            $userSource = $this->getCurrentUserSource();
+            $companyId = CompanyContext::getCompanyId($this->db);
             
             $sql = "SELECT 
                         c.customer_id,
@@ -60,7 +61,6 @@ class SearchService {
                         c.email,
                         c.customer_grade,
                         c.total_purchase_amount,
-                        c.source,
                         COUNT(DISTINCT o.order_id) as total_orders,
                         0 as total_calls,
                         NULL as last_contact_date
@@ -71,9 +71,9 @@ class SearchService {
             $params = [];
             
             // จำกัดเฉพาะ source ของบริษัทตัวเอง
-            if ($userSource) {
-                $sql .= " AND c.source = ?";
-                $params[] = $userSource;
+            if ($companyId) {
+                $sql .= " AND c.company_id = ?";
+                $params[] = $companyId;
             }
             
             // เงื่อนไขการค้นหา (ชื่อ หรือ เบอร์โทร)
@@ -107,7 +107,7 @@ class SearchService {
      */
     public function getCustomerById($customerId) {
         try {
-            $userSource = $this->getCurrentUserSource();
+            $companyId = CompanyContext::getCompanyId($this->db);
             
             $sql = "SELECT 
                         c.*,
@@ -126,9 +126,9 @@ class SearchService {
             $params = [$customerId];
             
             // จำกัดเฉพาะ source ของบริษัทตัวเอง
-            if ($userSource) {
-                $sql .= " AND c.source = ?";
-                $params[] = $userSource;
+            if ($companyId) {
+                $sql .= " AND c.company_id = ?";
+                $params[] = $companyId;
             }
             
             $sql .= " GROUP BY c.customer_id";
@@ -155,7 +155,7 @@ class SearchService {
      */
     public function getCustomerOrders($customerId) {
         try {
-            $userSource = $this->getCurrentUserSource();
+            $companyId = CompanyContext::getCompanyId($this->db);
             
             $sql = "SELECT 
                         o.order_id,
@@ -175,9 +175,9 @@ class SearchService {
             $params = [$customerId];
             
             // จำกัดเฉพาะ source ของบริษัทตัวเอง
-            if ($userSource) {
-                $sql .= " AND c.source = ?";
-                $params[] = $userSource;
+            if ($companyId) {
+                $sql .= " AND c.company_id = ?";
+                $params[] = $companyId;
             }
             
             $sql .= " GROUP BY o.order_id
@@ -196,7 +196,7 @@ class SearchService {
      */
     public function getOrderDetails($orderId) {
         try {
-            $userSource = $this->getCurrentUserSource();
+            $companyId = CompanyContext::getCompanyId($this->db);
             
             // ดึงข้อมูลคำสั่งซื้อ
             $sql = "SELECT 
@@ -212,9 +212,9 @@ class SearchService {
             $params = [$orderId];
             
             // จำกัดเฉพาะ source ของบริษัทตัวเอง
-            if ($userSource) {
-                $sql .= " AND c.source = ?";
-                $params[] = $userSource;
+            if ($companyId) {
+                $sql .= " AND c.company_id = ?";
+                $params[] = $companyId;
             }
             
             $order = $this->db->fetchOne($sql, $params);

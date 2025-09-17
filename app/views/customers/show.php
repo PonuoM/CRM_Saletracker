@@ -32,20 +32,22 @@ $ordersOffset = ($currentPage - 1) * $itemsPerPage;
 $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
 ?>
 
+<!-- Import Modal Enhancements CSS -->
+<link rel="stylesheet" href="assets/css/modal-enhancements.css">
+
+<!-- Import Modal Fix CSS -->
+<link rel="stylesheet" href="assets/css/modal-fix.css">
+
+<!-- Import Modal Contrast CSS -->
+<link rel="stylesheet" href="assets/css/modal-contrast.css">
+
+<!-- Import Modal Backdrop CSS -->
+<link rel="stylesheet" href="assets/css/modal-backdrop.css">
+
+<!-- Import Modal Enhancements JavaScript -->
+<script src="assets/js/modal-enhancements.js"></script>
+
 <style>
-/* CSS สำหรับแก้ปัญหา modal-backdrop */
-.modal-backdrop {
-    z-index: 1040 !important;
-}
-
-.modal-backdrop.fade {
-    opacity: 0.5 !important;
-}
-
-.modal-backdrop.show {
-    opacity: 0.5 !important;
-}
-
 /* ตรวจสอบและลบ backdrop ที่ซ้อนกัน */
 .modal-backdrop + .modal-backdrop {
     display: none !important;
@@ -53,13 +55,67 @@ $paginatedOrders = array_slice($orders, $ordersOffset, $itemsPerPage);
 
 /* ป้องกันการซ้อนทับของ backdrop */
 body.modal-open {
-    overflow: auto !important;
+    overflow: hidden !important;
     padding-right: 0 !important;
 }
 
 /* ตรวจสอบ backdrop ที่เหลืออยู่ */
 .modal-backdrop:not(:first-child) {
     display: none !important;
+}
+
+/* CSS สำหรับ modal เปลี่ยนผู้ดูแล */
+#changeAssigneeModal {
+    z-index: 1050 !important;
+}
+
+#changeAssigneeModal .modal-dialog {
+    z-index: 1050 !important;
+}
+
+#changeAssigneeModal .modal-content {
+    z-index: 1055 !important;
+    background-color: #ffffff !important;
+    color: #333333 !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 8px 25px rgba(0, 0, 0, 0.3) !important;
+    border: 2px solid rgba(255, 255, 255, 0.9) !important;
+    border-radius: 15px !important;
+}
+
+#changeAssigneeModal .modal-body {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+}
+
+#changeAssigneeModal .modal-header {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+    border-radius: 15px 15px 0 0 !important;
+    border-bottom: 1px solid #dee2e6 !important;
+}
+
+#changeAssigneeModal .modal-footer {
+    background-color: #f8f9fa !important;
+    border-radius: 0 0 15px 15px !important;
+}
+
+/* ซ่อน scrollbar ใน modal */
+.modal-content {
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+.modal-content::-webkit-scrollbar {
+    display: none !important; /* Chrome, Safari and Opera */
+}
+
+.modal-body {
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+.modal-body::-webkit-scrollbar {
+    display: none !important; /* Chrome, Safari and Opera */
 }
 
 /* CSS สำหรับ tabs */
@@ -145,6 +201,23 @@ body.modal-open {
                         </p>
                         <p><strong>ที่อยู่:</strong> <?php echo htmlspecialchars($customer['address'] ?? 'ไม่ระบุ'); ?></p>
                         <p><strong>จังหวัด:</strong> <?php echo htmlspecialchars($customer['province'] ?? 'ไม่ระบุ'); ?></p>
+                        <?php if ($customer['plant_variety']): ?>
+                        <p><strong>พืชพันธุ์:</strong> 
+                            <span class="badge bg-info"><?php echo htmlspecialchars($customer['plant_variety']); ?></span>
+                        </p>
+                        <?php endif; ?>
+                        <?php if ($customer['garden_size']): ?>
+                        <p><strong>ขนาดสวน:</strong> 
+                            <span class="badge bg-success"><?php echo htmlspecialchars($customer['garden_size']); ?></span>
+                        </p>
+                        <?php endif; ?>
+					<!-- Customer Info Tags: placed directly under Province inside left column -->
+					<div class="mt-2">
+						<h6 class="mb-2"><i class="fas fa-tags me-1"></i>แท็กข้อมูลลูกค้า</h6>
+						<div id="customerInfoTags" class="d-flex flex-wrap gap-2 mb-2">
+							<span class="text-muted">กำลังโหลด...</span>
+						</div>
+					</div>
                     </div>
                     <div class="col-md-6">
                         <p><strong>เกรดลูกค้า:</strong> 
@@ -161,13 +234,31 @@ body.modal-open {
                         <p><strong>จำนวนครั้งที่ติดต่อ:</strong> <?php echo count($callLogs); ?> ครั้ง</p>
                         <p><strong>ผู้ดูแล:</strong> 
                             <?php echo htmlspecialchars($customer['assigned_to_name'] ?? 'ไม่ระบุ'); ?>
-                            <?php if (in_array($_SESSION['role_name'] ?? '', ['admin', 'super_admin'])): ?>
+                            <?php 
+                            // สิทธิ์การแสดงปุ่มเปลี่ยนผู้ดูแล
+                            $viewerRoleName = $_SESSION['role_name'] ?? '';
+                            $viewerRoleId = $_SESSION['role_id'] ?? 0;
+                            $viewerId = $_SESSION['user_id'] ?? 0;
+                            $isOwner = ((int)($customer['assigned_to'] ?? 0) === (int)$viewerId);
+
+                            $canChangeAssignee = false;
+                            if (in_array($viewerRoleName, ['admin', 'super_admin', 'company_admin']) || (int)$viewerRoleId === 6) {
+                                $canChangeAssignee = true; // สิทธิ์ระดับสูง
+                            } elseif ((int)$viewerRoleId === 3 && $isOwner) {
+                                $canChangeAssignee = true; // Supervisor เจ้าของลูกค้า
+                            } elseif ((int)$viewerRoleId === 4 && $isOwner) {
+                                $canChangeAssignee = true; // Telesales เจ้าของลูกค้า (โอนกลับหัวหน้า)
+                            }
+
+                            if ($canChangeAssignee): 
+                            ?>
                                 <button class="btn btn-sm btn-outline-primary ms-2" onclick="showChangeAssigneeModal(<?php echo $customer['customer_id']; ?>, '<?php echo htmlspecialchars($customer['assigned_to_name'] ?? 'ไม่ระบุ'); ?>')">
                                     <i class="fas fa-exchange-alt me-1"></i>เปลี่ยนผู้ดูแล
                                 </button>
                             <?php endif; ?>
                         </p>
                         <p><strong>วันที่ลงทะเบียน:</strong> <?php echo date('d/m/Y H:i', strtotime($customer['created_at'])); ?></p>
+                        <!-- Tag input controls removed from here (moved outside container below summary) -->
                         <?php if ($customer['next_followup_at']): ?>
                         <p><strong>ติดตามถัดไป:</strong> 
                             <span class="badge bg-<?php echo strtotime($customer['next_followup_at']) < time() ? 'danger' : 'info'; ?>">
@@ -259,6 +350,22 @@ body.modal-open {
                         <small class="text-muted">เวลาคงเหลือ</small>
                     </div>
                 </div>
+                <!-- Customer Info Tag Input Controls within summary card (yellow box area) -->
+                <div class="mt-3 p-2 bg-light rounded">
+                    <div class="d-flex gap-2 flex-wrap align-items-center justify-content-end">
+                        <input type="text" id="infoTagName" class="form-control form-control-sm" style="max-width: 320px; border-radius: .5rem;" placeholder="เพิ่มหลายแท็กคั่นด้วยคอมมา ,">
+                        <select id="infoTagColor" class="form-select form-select-sm" style="width: 120px; border-radius: .5rem;">
+                            <option value="#6c757d">สีเทา</option>
+                            <option value="#0d6efd">สีน้ำเงิน</option>
+                            <option value="#198754">สีเขียว</option>
+                            <option value="#dc3545">สีแดง</option>
+                            <option value="#fd7e14">สีส้ม</option>
+                            <option value="#20c997">สีฟ้าเขียว</option>
+                        </select>
+                        <span id="infoColorSwatch" class="rounded" style="width:24px;height:24px;border:1px solid #dee2e6;display:inline-block;"></span>
+                        <button class="btn btn-primary btn-sm" style="border-radius: .6rem;" id="addInfoTagBtn"><i class="fas fa-plus me-1"></i>เพิ่ม</button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -306,6 +413,8 @@ body.modal-open {
                                             <th style="font-size: 14px;">ผู้โทร</th>
                                             <th style="font-size: 14px;">สถานะ</th>
                                             <th style="font-size: 14px;">ผลการโทร</th>
+                                            <th style="font-size: 14px;">พืชพันธุ์</th>
+                                            <th style="font-size: 14px;">ขนาดสวน</th>
                                             <th style="font-size: 14px;">หมายเหตุ</th>
                                         </tr>
                                     </thead>
@@ -320,25 +429,44 @@ body.modal-open {
                                                             ($log['call_status'] === 'no_answer' ? 'danger' : 
                                                             ($log['call_status'] === 'hang_up' ? 'secondary' : 'warning')); 
                                                     ?>">
-                                                        <?php 
+                                                        <?php if (!empty($log['status_display'])) { echo htmlspecialchars($log['status_display']); } else { 
                                                             echo $log['call_status'] === 'answered' ? 'รับสาย' : 
                                                                 ($log['call_status'] === 'no_answer' ? 'ไม่รับสาย' : 
                                                                 ($log['call_status'] === 'hang_up' ? 'ตัดสายทิ้ง' : 
                                                                 ($log['call_status'] === 'invalid' ? 'เบอร์ผิด' : 'สายไม่ว่าง'))); 
-                                                        ?>
+                                                        ?><?php } ?>
                                                     </span>
                                                 </td>
                                                 <td style="font-size: 13px;">
-                                                    <?php 
+                                                    <?php if (!empty($log['result_display'])) { echo htmlspecialchars($log['result_display']); } else { 
                                                         $resultThMap = [
+                                                            // New Thai options
+                                                            'สินค้ายังไม่หมด'=>'สินค้ายังไม่หมด','ใช้แล้วไม่เห็นผล'=>'ใช้แล้วไม่เห็นผล','ยังไม่ได้ลองใช้'=>'ยังไม่ได้ลองใช้',
+                                                            'ยังไม่ถึงรอบใช้งาน'=>'ยังไม่ถึงรอบใช้งาน','สั่งช่องทางอื่นแล้ว'=>'สั่งช่องทางอื่นแล้ว','ไม่สะดวกคุย'=>'ไม่สะดวกคุย',
+                                                            'ตัดสายทิ้ง'=>'ตัดสายทิ้ง','ฝากสั่งไม่ได้ใช้เอง'=>'ฝากสั่งไม่ได้ใช้เอง','คนอื่นรับสายแทน'=>'คนอื่นรับสายแทน',
+                                                            'เลิกทำสวน'=>'เลิกทำสวน','ไม่สนใจ'=>'ไม่สนใจ','ห้ามติดต่อ'=>'ห้ามติดต่อ','ได้คุย'=>'ได้คุย','ขายได้'=>'ขายได้',
+                                                            // Old English options for backward compatibility
                                                             'order'=>'สั่งซื้อ','interested'=>'สนใจ','add_line'=>'Add Line แล้ว','buy_on_page'=>'ต้องการซื้อทางเพจ',
                                                             'flood'=>'น้ำท่วม','callback'=>'รอติดต่อใหม่','appointment'=>'นัดหมาย','invalid_number'=>'เบอร์ไม่ถูก',
                                                             'not_convenient'=>'ไม่สะดวกคุย','not_interested'=>'ไม่สนใจ','do_not_call'=>'อย่าโทรมาอีก',
                                                             'busy'=>'สายไม่ว่าง','unable_to_contact'=>'ติดต่อไม่ได้','hangup'=>'ตัดสายทิ้ง',
-                                                            'ไม่รับสาย'=>'ไม่รับสาย','สายไม่ว่าง'=>'สายไม่ว่าง','เบอร์ผิด'=>'เบอร์ผิด','ตัดสายทิ้ง'=>'ตัดสายทิ้ง','ได้คุย'=>'ได้คุย','สนใจ'=>'สนใจ','ไม่สนใจ'=>'ไม่สนใจ','ลังเล'=>'ลังเล'
+                                                            // Thai status options
+                                                            'ไม่รับสาย'=>'ไม่รับสาย','สายไม่ว่าง'=>'สายไม่ว่าง','เบอร์ผิด'=>'เบอร์ผิด','สนใจ'=>'สนใจ','ลังเล'=>'ลังเล'
                                                         ];
                                                         $resultKey = $log['call_result'] ?? '';
                                                         echo htmlspecialchars($resultThMap[$resultKey] ?? $resultKey);
+                                                    ?><?php } ?>
+                                                </td>
+                                                <td style="font-size: 13px;">
+                                                    <?php 
+                                                        $plantVariety = $log['plant_variety'] ?? '';
+                                                        echo $plantVariety ? '<span class="badge bg-info">' . htmlspecialchars($plantVariety) . '</span>' : '<span class="text-muted">-</span>';
+                                                    ?>
+                                                </td>
+                                                <td style="font-size: 13px;">
+                                                    <?php 
+                                                        $gardenSize = $log['garden_size'] ?? '';
+                                                        echo $gardenSize ? '<span class="badge bg-success">' . htmlspecialchars($gardenSize) . '</span>' : '<span class="text-muted">-</span>';
                                                     ?>
                                                 </td>
                                                 <td style="font-size: 13px;"><?php echo htmlspecialchars($log['notes'] ?? ''); ?></td>
@@ -619,24 +747,18 @@ body.modal-open {
                             <select class="form-select" id="callStatus" required>
                                 <option value="">เลือกสถานะการโทร</option>
                                 <option value="answered">รับสาย</option>
+                                <option value="got_talk">ได้คุย</option>
                                 <option value="no_answer">ไม่รับสาย</option>
                                 <option value="busy">สายไม่ว่าง</option>
-                                <option value="invalid">เบอร์ผิด</option>
                                 <option value="hang_up">ตัดสายทิ้ง</option>
+                                <option value="no_signal">ไม่มีสัญญาณ</option>
                             </select>
                         </div>
                         <div class="col-md-6">
                             <label for="callResult" class="form-label">ผลการโทร</label>
                             <select class="form-select" id="callResult">
                                 <option value="">เลือกผลการโทร</option>
-                                <option value="สนใจ">สนใจ</option>
-                                <option value="ไม่สนใจ">ไม่สนใจ</option>
-                                <option value="ลังเล">ลังเล</option>
-                                <option value="เบอร์ผิด">เบอร์ผิด</option>
-                                <option value="ได้คุย">ได้คุย</option>
-                                <option value="ตัดสายทิ้ง">ตัดสายทิ้ง</option>
-                                <option value="ไม่รับสาย">ไม่รับสาย</option>
-                                <option value="สายไม่ว่าง">สายไม่ว่าง</option>
+                                <!-- ตัวเลือกจะถูกอัปเดตตามสถานะการโทร -->
                             </select>
                         </div>
                     </div>
@@ -648,6 +770,16 @@ body.modal-open {
                         <div class="col-md-6">
                             <label for="nextFollowup" class="form-label">วันที่คาดว่าจะติดต่อครั้งถัดไป</label>
                             <input type="datetime-local" class="form-control" id="nextFollowup">
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-md-6">
+                            <label for="plantVariety" class="form-label">พืชพันธุ์</label>
+                            <input type="text" class="form-control" id="plantVariety" placeholder="เช่น มะม่วง, ทุเรียน, ลำใย">
+                        </div>
+                        <div class="col-md-6">
+                            <label for="gardenSize" class="form-label">ขนาดสวน</label>
+                            <input type="text" class="form-control" id="gardenSize" placeholder="เช่น 5 ไร่, 2,000 ตารางวา">
                         </div>
                     </div>
                     <div class="mt-3">
@@ -734,10 +866,21 @@ body.modal-open {
 </div>
 
 <!-- Modal สำหรับเปลี่ยนผู้ดูแล -->
-<?php if (in_array($_SESSION['role_name'] ?? '', ['admin', 'super_admin'])): ?>
-<div class="modal fade" id="changeAssigneeModal" tabindex="-1" aria-labelledby="changeAssigneeModalLabel" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
+<?php 
+// อนุญาตให้ใช้ modal นี้เมื่อมีสิทธิ์ตามกติกาเดียวกับปุ่ม
+$viewerRoleName = $_SESSION['role_name'] ?? '';
+$viewerRoleId = $_SESSION['role_id'] ?? 0;
+$viewerId = $_SESSION['user_id'] ?? 0;
+$isOwner = ((int)($customer['assigned_to'] ?? 0) === (int)$viewerId);
+$canUseModal = in_array($viewerRoleName, ['admin', 'super_admin', 'company_admin']) 
+            || (int)$viewerRoleId === 6 
+            || ((int)$viewerRoleId === 3 && $isOwner)
+            || ((int)$viewerRoleId === 4 && $isOwner);
+if ($canUseModal): 
+?>
+<div class="modal fade" id="changeAssigneeModal" tabindex="-1" aria-labelledby="changeAssigneeModalLabel" aria-hidden="true" style="z-index: 1050;">
+    <div class="modal-dialog" style="z-index: 1050;">
+        <div class="modal-content" style="z-index: 1055; background-color: #ffffff; color: #333333;">
             <div class="modal-header">
                 <h5 class="modal-title" id="changeAssigneeModalLabel">เปลี่ยนผู้ดูแลลูกค้า</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
@@ -783,13 +926,17 @@ function setupCallStatusAutoFill() {
     
     if (callStatus && callResult) {
         callStatus.addEventListener('change', function() {
+            // อัปเดตตัวเลือกผลการโทรตามสถานะการโทร
+            updateCallResultOptions(this.value);
+            
             // ถ้าเลือกสถานะที่ไม่ใช่ "รับสาย" ให้ auto-fill ผลการโทร
             if (this.value && this.value !== 'answered') {
                 const statusValueMap = {
+                    'got_talk': 'ได้คุย',
                     'no_answer': 'ไม่รับสาย',
                     'busy': 'สายไม่ว่าง',
-                    'invalid': 'เบอร์ผิด',
-                    'hang_up': 'ตัดสายทิ้ง'
+                    'hang_up': 'ตัดสายทิ้ง',
+                    'no_signal': 'ไม่มีสัญญาณ'
                 };
                 const autoFillValue = statusValueMap[this.value];
                 if (autoFillValue) {
@@ -801,6 +948,65 @@ function setupCallStatusAutoFill() {
                 }
             }
         });
+    }
+}
+
+// อัปเดตตัวเลือกผลการโทร
+function updateCallResultOptions(callStatus) {
+    const callResult = document.getElementById('callResult');
+    const currentValue = callResult.value;
+    
+    // รีเซ็ตตัวเลือก
+    callResult.innerHTML = '<option value="">เลือกผลการโทร</option>';
+    
+    if (callStatus === 'answered') {
+        // ถ้ารับสาย สามารถมีผลการโทรได้ทุกประเภท
+        callResult.innerHTML += `
+            <option value="สินค้ายังไม่หมด">สินค้ายังไม่หมด</option>
+            <option value="ใช้แล้วไม่เห็นผล">ใช้แล้วไม่เห็นผล</option>
+            <option value="ยังไม่ได้ลองใช้">ยังไม่ได้ลองใช้</option>
+            <option value="ยังไม่ถึงรอบใช้งาน">ยังไม่ถึงรอบใช้งาน</option>
+            <option value="สั่งช่องทางอื่นแล้ว">สั่งช่องทางอื่นแล้ว</option>
+            <option value="ไม่สะดวกคุย">ไม่สะดวกคุย</option>
+            <option value="ตัดสายทิ้ง">ตัดสายทิ้ง</option>
+            <option value="ฝากสั่งไม่ได้ใช้เอง">ฝากสั่งไม่ได้ใช้เอง</option>
+            <option value="คนอื่นรับสายแทน">คนอื่นรับสายแทน</option>
+            <option value="เลิกทำสวน">เลิกทำสวน</option>
+            <option value="ไม่สนใจ">ไม่สนใจ</option>
+            <option value="ห้ามติดต่อ">ห้ามติดต่อ</option>
+            <option value="ได้คุย">ได้คุย</option>
+            <option value="ขายได้">ขายได้</option>
+        `;
+    } else if (callStatus === 'got_talk') {
+        // ถ้าได้คุย - auto-fill เป็น "ได้คุย"
+        callResult.innerHTML += `
+            <option value="ได้คุย">ได้คุย</option>
+        `;
+    } else if (callStatus === 'no_answer') {
+        // ถ้าไม่รับสาย - auto-fill เป็น "ไม่รับสาย"
+        callResult.innerHTML += `
+            <option value="ไม่รับสาย">ไม่รับสาย</option>
+        `;
+    } else if (callStatus === 'busy') {
+        // ถ้าสายไม่ว่าง - auto-fill เป็น "สายไม่ว่าง"
+        callResult.innerHTML += `
+            <option value="สายไม่ว่าง">สายไม่ว่าง</option>
+        `;
+    } else if (callStatus === 'hang_up') {
+        // ถ้าตัดสายทิ้ง - auto-fill เป็น "ตัดสายทิ้ง"
+        callResult.innerHTML += `
+            <option value="ตัดสายทิ้ง">ตัดสายทิ้ง</option>
+        `;
+    } else if (callStatus === 'no_signal') {
+        // ถ้าไม่มีสัญญาณ - auto-fill เป็น "ไม่มีสัญญาณ"
+        callResult.innerHTML += `
+            <option value="ไม่มีสัญญาณ">ไม่มีสัญญาณ</option>
+        `;
+    }
+    
+    // คืนค่าที่เลือกไว้เดิมถ้ายังมีอยู่
+    if (currentValue && callResult.querySelector(`option[value="${currentValue}"]`)) {
+        callResult.value = currentValue;
     }
 }
 
@@ -1043,38 +1249,8 @@ function loadOrders() {
 </script>
 <script>
 function viewOrderItems(orderId) {
-    fetch('orders.php?action=items&id=' + orderId)
-        .then(r => r.json())
-        .then(data => {
-            if (!data.success) { alert(data.message || 'ไม่สามารถโหลดรายการสินค้า'); return; }
-            const items = data.items || [];
-            const rows = items.map(it => `
-                <tr>
-                    <td>${escapeHtml(it.product_name || 'ไม่ทราบสินค้า')}</td>
-                    <td>${escapeHtml(it.product_code || '')}</td>
-                    <td class="text-center">${it.quantity}</td>
-                    <td class="text-end">฿${Number(it.unit_price).toLocaleString('th-TH', {minimumFractionDigits:2})}</td>
-                    <td class="text-end">฿${Number(it.total_price).toLocaleString('th-TH', {minimumFractionDigits:2})}</td>
-                </tr>
-            `).join('');
-            const html = `
-                <div class="table-responsive">
-                    <table class="table table-sm">
-                        <thead>
-                            <tr>
-                                <th>สินค้า</th>
-                                <th>รหัส</th>
-                                <th class="text-center">จำนวน</th>
-                                <th class="text-end">ราคาต่อหน่วย</th>
-                                <th class="text-end">รวม</th>
-                            </tr>
-                        </thead>
-                        <tbody>${rows || '<tr><td colspan="5" class="text-center text-muted">ไม่มีรายการสินค้า</td></tr>'}</tbody>
-                    </table>
-                </div>`;
-            showModal('รายละเอียดสินค้าในคำสั่งซื้อ #' + (data.order.order_number || orderId), html);
-        })
-        .catch(() => alert('เกิดข้อผิดพลาดในการเชื่อมต่อ'));
+    // ใช้ฟังก์ชันใหม่ที่ปรับปรุงแล้ว
+    showOrderItemsModal(orderId);
 }
 
 function escapeHtml(text) {
@@ -1083,42 +1259,7 @@ function escapeHtml(text) {
     return div.innerHTML;
 }
 
-function showModal(title, bodyHtml) {
-    // Clean up any existing backdrops first
-    cleanupModalBackdrops();
-    
-    const id = 'orderItemsModal';
-    let modal = document.getElementById(id);
-    if (!modal) {
-        modal = document.createElement('div');
-        modal.className = 'modal fade';
-        modal.id = id;
-        modal.innerHTML = `
-            <div class="modal-dialog modal-lg">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h5 class="modal-title"></h5>
-                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-                    </div>
-                    <div class="modal-body"></div>
-                </div>
-            </div>`;
-        document.body.appendChild(modal);
-        
-        // Add event listeners for proper cleanup
-        modal.addEventListener('hidden.bs.modal', function() {
-            setTimeout(cleanupModalBackdrops, 100);
-        });
-        
-        modal.addEventListener('hide.bs.modal', function() {
-            cleanupModalBackdrops();
-        });
-    }
-    modal.querySelector('.modal-title').textContent = title;
-    modal.querySelector('.modal-body').innerHTML = bodyHtml;
-    const bsModal = new bootstrap.Modal(modal);
-    bsModal.show();
-}
+// ฟังก์ชัน showModal ถูกย้ายไปยัง modal-enhancements.js แล้ว
 
 // ฟังก์ชันสำหรับแสดง Modal เปลี่ยนผู้ดูแล
 function showChangeAssigneeModal(customerId, currentAssignee) {
@@ -1131,26 +1272,76 @@ function showChangeAssigneeModal(customerId, currentAssignee) {
     // โหลดรายการ Telesales
     loadTelesalesList();
     
-    // แสดง Modal
-    const modal = new bootstrap.Modal(document.getElementById('changeAssigneeModal'));
+    // แสดง Modal พร้อมจัดการ backdrop
+    const modalElement = document.getElementById('changeAssigneeModal');
+    const modal = new bootstrap.Modal(modalElement, {
+        backdrop: true,
+        keyboard: true,
+        focus: true
+    });
+    
+    // เพิ่ม event listeners สำหรับจัดการ backdrop
+    modalElement.addEventListener('shown.bs.modal', function() {
+        // ตรวจสอบว่า backdrop ถูกสร้างแล้ว
+        const backdrop = document.querySelector('.modal-backdrop');
+        if (backdrop) {
+            backdrop.style.zIndex = '1040';
+            backdrop.style.position = 'fixed';
+            backdrop.style.top = '0';
+            backdrop.style.left = '0';
+            backdrop.style.width = '100vw';
+            backdrop.style.height = '100vh';
+        }
+        
+        // ป้องกัน scroll
+        document.body.classList.add('modal-open');
+    });
+    
+    modalElement.addEventListener('hidden.bs.modal', function() {
+        // ลบ backdrop และเปิด scroll กลับ
+        cleanupModalBackdrops();
+        document.body.classList.remove('modal-open');
+        document.body.style.overflow = '';
+        document.body.style.paddingRight = '';
+    });
+    
     modal.show();
 }
 
-// โหลดรายการ Telesales
+// โหลดรายชื่อผู้รับที่อนุญาตตามกติกา
 function loadTelesalesList() {
-    fetch('api/customers.php?action=get_telesales')
+    const customerId = document.getElementById('customerId').value || window.customerId;
+    const url = 'api/customers.php?action=get_allowed_assignees&customer_id=' + encodeURIComponent(customerId);
+    fetch(url)
         .then(response => response.json())
         .then(data => {
             if (data.success) {
                 const select = document.getElementById('newAssignee');
                 select.innerHTML = '<option value="">เลือกผู้ดูแลใหม่</option>';
-                
-                data.data.forEach(telesales => {
-                    const option = document.createElement('option');
-                    option.value = telesales.user_id;
-                    option.textContent = telesales.full_name + ' (' + telesales.company_name + ')';
-                    select.appendChild(option);
-                });
+
+                // ถ้ามีกลุ่ม ให้แสดงเป็น optgroup โดยเรียงลูกทีมก่อน
+                if (Array.isArray(data.groups) && data.groups.length > 0) {
+                    data.groups.forEach(group => {
+                        if (!group || !Array.isArray(group.users) || group.users.length === 0) return;
+                        const og = document.createElement('optgroup');
+                        og.label = group.label || '';
+                        group.users.forEach(u => {
+                            const option = document.createElement('option');
+                            option.value = u.user_id;
+                            option.textContent = u.full_name + (u.role_id === 3 ? ' - Supervisor' : (u.role_id === 4 ? ' - Telesales' : ''));
+                            og.appendChild(option);
+                        });
+                        select.appendChild(og);
+                    });
+                } else {
+                    // fallback: flat list
+                    data.data.forEach(telesales => {
+                        const option = document.createElement('option');
+                        option.value = telesales.user_id;
+                        option.textContent = telesales.full_name + (telesales.role_label ? ' - ' + telesales.role_label : '');
+                        select.appendChild(option);
+                    });
+                }
             } else {
                 console.error('Error loading telesales:', data.message);
             }
@@ -1312,5 +1503,85 @@ if (typeof bootstrap !== 'undefined' && bootstrap.Modal) {
         setTimeout(cleanupModalBackdrops, 100);
         return result;
     };
+}
+</script>
+<?php /* Removed duplicate Customer Info Tags UI block (kept only the one under Province) */ ?>
+<script>
+(function(){
+	const customerId = <?php echo (int)$customer['customer_id']; ?>;
+	const listEl = document.getElementById('customerInfoTags');
+	const nameEl = document.getElementById('infoTagName');
+	const colorEl = document.getElementById('infoTagColor');
+	const addBtn = document.getElementById('addInfoTagBtn');
+	async function loadInfoTags(){
+		try {
+			listEl.innerHTML = '<span class="text-muted">กำลังโหลด...</span>';
+			const res = await fetch('api/customer-info-tags.php?action=list&customer_id='+customerId);
+			const data = await res.json();
+			if(!data.success){ listEl.innerHTML = '<span class="text-danger">โหลดไม่สำเร็จ</span>'; return; }
+			const tags = data.data || [];
+			if(tags.length===0){ listEl.innerHTML = '<span class="text-muted">ยังไม่มีแท็กข้อมูลลูกค้า</span>'; return; }
+			listEl.innerHTML = tags.map(t=>{
+				const color = t.tag_color || '#6c757d';
+				const safeName = String(t.tag_name||'').replace(/'/g,'&#39;');
+				return `<span class=\"badge\" style=\"background:${color};color:#fff; padding:.5rem .6rem; border-radius:.5rem; display:inline-flex; align-items:center; gap:.4rem;\">\n${escapeHtml(t.tag_name||'')}\n<i class=\"fas fa-times\" style=\"cursor:pointer\" title=\"ลบแท็กนี้\" onclick=\"deleteInfoTag('${safeName}')\"></i>\n</span>`;
+			}).join('');
+		}catch(e){ listEl.innerHTML = '<span class="text-danger">เกิดข้อผิดพลาด</span>'; }
+	}
+	if(addBtn){
+		addBtn.addEventListener('click', async ()=>{
+			const tagName = (nameEl.value||'').trim();
+			if(!tagName){ nameEl.focus(); return; }
+			const tagColor = colorEl.value||'#6c757d';
+			addBtn.disabled = true;
+			try{
+				await fetch('api/customer-info-tags.php?action=add',{
+					method:'POST', headers:{'Content-Type':'application/json'},
+					body: JSON.stringify({ customer_id: customerId, tag_name: tagName, tag_color: tagColor })
+				});
+				nameEl.value='';
+				await loadInfoTags();
+			}finally{ addBtn.disabled=false; }
+		});
+	}
+	function escapeHtml(str){
+		return (str||'').toString().replace(/[&<>"']/g, s=>({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#39;' }[s]));
+	}
+	window.escapeHtml = window.escapeHtml || escapeHtml;
+	loadInfoTags();
+	// Update color swatch with selected value
+	const colorSel = document.getElementById('infoTagColor');
+	const swatch = document.getElementById('infoColorSwatch');
+	if (colorSel && swatch) {
+		const applyColor = () => { swatch.style.background = colorSel.value || '#6c757d'; };
+		colorSel.addEventListener('change', applyColor);
+		applyColor();
+	}
+})();
+
+window.deleteInfoTag = async function(tagName){
+	if (!tagName) return;
+	if (!confirm('ต้องการลบแท็ก: '+tagName+' ?')) return;
+	try {
+		const res = await fetch('api/customer-info-tags.php?action=remove',{
+			method:'POST', headers:{'Content-Type':'application/json'},
+			body: JSON.stringify({ customer_id: customerId, tag_name: tagName })
+		});
+		const data = await res.json().catch(()=>({success:true}));
+		if (res.ok && (data.success === undefined || data.success)) {
+			// Remove from DOM immediately
+			const container = document.getElementById('customerInfoTags');
+			const badges = Array.from(container.querySelectorAll('.badge'));
+			const target = badges.find(b => (b.textContent||'').trim().startsWith(tagName));
+			if (target) target.remove();
+			if (!container.querySelector('.badge')) {
+				container.innerHTML = '<span class="text-muted">ยังไม่มีแท็กข้อมูลลูกค้า</span>';
+			}
+		} else {
+			loadInfoTags();
+		}
+	} catch (e) {
+		loadInfoTags();
+	}
 }
 </script>

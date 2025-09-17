@@ -10,6 +10,27 @@
         <i class="fas fa-tachometer-alt me-2"></i>
         <?php echo ($currentPage === 'dashboard') ? 'แดชบอร์ด' : 'รายงาน'; ?>
     </h1>
+    <?php if (($_SESSION['role_name'] ?? '') === 'super_admin'): ?>
+    <?php 
+        require_once __DIR__ . '/../../core/Database.php';
+        $db = $db ?? new Database();
+        try {
+            $companies = $db->fetchAll("SELECT company_id, company_name FROM companies WHERE is_active = 1 ORDER BY company_name");
+        } catch (Exception $e) { $companies = []; }
+        $currentCompany = $_SESSION['override_company_id'] ?? ($_SESSION['company_id'] ?? null);
+    ?>
+    <form method="get" class="d-flex align-items-center">
+        <label class="me-2 mb-0"><i class="fas fa-building me-1"></i>บริษัท</label>
+        <select class="form-select form-select-sm" name="company_override_id" onchange="this.form.submit()">
+            <option value="">ทั้งหมด</option>
+            <?php foreach ($companies as $co): ?>
+                <option value="<?php echo (int)$co['company_id']; ?>" <?php echo ($currentCompany == $co['company_id']) ? 'selected' : ''; ?>>
+                    <?php echo htmlspecialchars($co['company_name']); ?>
+                </option>
+            <?php endforeach; ?>
+        </select>
+    </form>
+    <?php endif; ?>
     <?php if ($currentPage === 'dashboard'): ?>
     <div class="btn-toolbar mb-2 mb-md-0">
         <div class="btn-group me-2">
@@ -49,7 +70,7 @@
                     <div class="col-md-3">
                         <div class="kpi-card">
                             <h3>ลูกค้าทั้งหมด</h3>
-                            <div class="kpi-value"><?php echo number_format($stats['total_customers']); ?></div>
+                            <div class="kpi-value"><?php echo number_format($dashboardData['total_customers'] ?? 0); ?></div>
                             <div class="kpi-change positive">
                                 <i class="fas fa-users me-1"></i>ลูกค้าทั้งหมดในระบบ
                             </div>
@@ -58,7 +79,7 @@
                     <div class="col-md-3">
                         <div class="kpi-card">
                             <h3>คำสั่งซื้อทั้งหมด</h3>
-                            <div class="kpi-value"><?php echo number_format($stats['total_orders']); ?></div>
+                            <div class="kpi-value"><?php echo number_format($dashboardData['total_orders'] ?? 0); ?></div>
                             <div class="kpi-change positive">
                                 <i class="fas fa-shopping-cart me-1"></i>คำสั่งซื้อทั้งหมด
                             </div>
@@ -67,7 +88,7 @@
                     <div class="col-md-3">
                         <div class="kpi-card">
                             <h3>รายได้รวม</h3>
-                            <div class="kpi-value">฿<?php echo number_format($stats['total_revenue'], 2); ?></div>
+                            <div class="kpi-value">฿<?php echo number_format($dashboardData['total_revenue'] ?? 0, 2); ?></div>
                             <div class="kpi-change positive">
                                 <i class="fas fa-money-bill-wave me-1"></i>รายได้รวมทั้งหมด
                             </div>
@@ -76,7 +97,7 @@
                     <div class="col-md-3">
                         <div class="kpi-card">
                             <h3>ยอดเฉลี่ย/คำสั่ง</h3>
-                            <div class="kpi-value">฿<?php echo $stats['total_orders'] > 0 ? number_format($stats['total_revenue'] / $stats['total_orders'], 2) : '0.00'; ?></div>
+                            <div class="kpi-value">฿<?php echo ($dashboardData['total_orders'] ?? 0) > 0 ? number_format(($dashboardData['total_revenue'] ?? 0) / ($dashboardData['total_orders'] ?? 1), 2) : '0.00'; ?></div>
                             <div class="kpi-change info">
                                 <i class="fas fa-chart-line me-1"></i>ยอดเฉลี่ยต่อคำสั่ง
                             </div>
@@ -146,15 +167,15 @@
                                             ];
 
                                             $existingStatuses = [];
-                                            if (!empty($stats['order_statuses'])) {
-                                                foreach ($stats['order_statuses'] as $status) {
+                                            if (!empty($dashboardData['order_statuses'])) {
+                                                foreach ($dashboardData['order_statuses'] as $status) {
                                                     $existingStatuses[$status['delivery_status']] = $status['count'];
                                                 }
                                             }
 
                                             foreach ($allStatuses as $statusKey => $statusName):
                                                 $count = $existingStatuses[$statusKey] ?? 0;
-                                                $percentage = $stats['total_orders'] > 0 ? ($count / $stats['total_orders']) * 100 : 0;
+                                                $percentage = ($dashboardData['total_orders'] ?? 0) > 0 ? ($count / ($dashboardData['total_orders'] ?? 1)) * 100 : 0;
                                             ?>
                                                 <tr>
                                                     <td>
@@ -191,7 +212,7 @@
                                             </tr>
                                         </thead>
                                         <tbody>
-                                            <?php foreach ($stats['customer_grades'] as $grade): ?>
+                                            <?php foreach (($dashboardData['customer_grades'] ?? []) as $grade): ?>
                                                 <tr>
                                                     <td>
                                                         <span class="badge bg-<?php echo getGradeColor($grade['grade']); ?>">
@@ -199,7 +220,7 @@
                                                         </span>
                                                     </td>
                                                     <td><?php echo number_format($grade['count']); ?></td>
-                                                    <td><?php echo $stats['total_customers'] > 0 ? number_format(($grade['count'] / $stats['total_customers']) * 100, 1) : '0'; ?>%</td>
+                                                    <td><?php echo ($dashboardData['total_customers'] ?? 0) > 0 ? number_format(($grade['count'] / ($dashboardData['total_customers'] ?? 1)) * 100, 1) : '0'; ?>%</td>
                                                 </tr>
                                             <?php endforeach; ?>
                                         </tbody>
@@ -226,10 +247,10 @@
         if (monthlyOrdersCtx) new Chart(monthlyOrdersCtx, {
             type: 'line',
             data: {
-                labels: <?php echo json_encode(array_column($stats['monthly_orders'], 'month')); ?>,
+                labels: <?php echo json_encode(array_column($dashboardData['monthly_orders'] ?? [], 'month')); ?>,
                 datasets: [{
                     label: 'จำนวนคำสั่งซื้อ',
-                    data: <?php echo json_encode(array_column($stats['monthly_orders'], 'count')); ?>,
+                    data: <?php echo json_encode(array_column($dashboardData['monthly_orders'] ?? [], 'count')); ?>,
                     borderColor: '#7c9885',
                     backgroundColor: 'rgba(124, 152, 133, 0.1)',
                     tension: 0.1
@@ -251,9 +272,9 @@
         if (customerGradesCtx) new Chart(customerGradesCtx, {
             type: 'doughnut',
             data: {
-                labels: <?php echo json_encode(array_column($stats['customer_grades'], 'grade')); ?>,
+                labels: <?php echo json_encode(array_column($dashboardData['customer_grades'] ?? [], 'grade')); ?>,
                 datasets: [{
-                    data: <?php echo json_encode(array_column($stats['customer_grades'], 'count')); ?>,
+                    data: <?php echo json_encode(array_column($dashboardData['customer_grades'] ?? [], 'count')); ?>,
                     backgroundColor: [
                         '#9bbf8b', // Soft Mint Green
                         '#7c9885', // Soft Sage Green
@@ -273,6 +294,11 @@
         <?php if ($currentPage === 'dashboard'): ?>
         document.getElementById('monthFilter')?.addEventListener('change', function() {
             const selectedMonth = this.value;
+            // ป้องกันการเรียก AJAX เมื่อหน้าเว็บโหลดครั้งแรก
+            if (this.dataset.initialized !== 'true') {
+                this.dataset.initialized = 'true';
+                return;
+            }
             filterByMonth(selectedMonth);
         });
 
@@ -282,15 +308,27 @@
 
             // เรียก API เพื่อดึงข้อมูลตามเดือน
             fetch(`dashboard.php?ajax=1&month=${month}`)
-                .then(response => response.json())
-                .then(data => {
-                    updateKPICards(data);
-                    updateCharts(data);
-                    updateTables(data);
+                .then(response => {
+                    if (!response.ok) {
+                        throw new Error('HTTP ' + response.status);
+                    }
+                    return response.text(); // ใช้ text() ก่อนเพื่อดู response จริง
+                })
+                .then(text => {
+                    try {
+                        const data = JSON.parse(text);
+                        updateKPICards(data);
+                        updateCharts(data);
+                        updateTables(data);
+                    } catch (e) {
+                        console.error('JSON Parse Error:', e);
+                        console.error('Raw Response:', text);
+                        // ใช้ข้อมูลเริ่มต้นจาก PHP
+                    }
                     hideLoading();
                 })
                 .catch(error => {
-                    console.error('Error:', error);
+                    console.error('Fetch Error:', error);
                     hideLoading();
                 });
         }

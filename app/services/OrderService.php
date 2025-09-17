@@ -55,9 +55,11 @@ class OrderService {
             $netAmount = $totalAmount - $discountAmount;
             
             // สร้างคำสั่งซื้อ
+            // Attach company_id of customer
             $orderInsertData = [
                 'order_number' => $orderNumber,
                 'customer_id' => $orderData['customer_id'],
+                'company_id' => $customer['company_id'] ?? null,
                 'created_by' => $createdBy,
                 'order_date' => date('Y-m-d'),
                 'total_amount' => $totalAmount,
@@ -93,6 +95,70 @@ class OrderService {
             
                     // อัปเดตประวัติการซื้อของลูกค้า
         $this->updateCustomerPurchaseHistory($orderData['customer_id'], $netAmount);
+
+        // Promote to existing_3m immediately if: paid/partial AND createdBy equals assigned_to
+        try {
+            // ตรวจสอบเงื่อนไขก่อนทำ UPDATE
+            $customer = $this->db->fetchOne(
+                "SELECT customer_id, customer_status, assigned_to FROM customers WHERE customer_id = ?",
+                [$orderData['customer_id']]
+            );
+            
+            if ($customer) {
+                $paymentStatus = $orderData['payment_status'] ?? 'pending';
+                $conditions = [
+                    'assigned_to_not_null' => !is_null($customer['assigned_to']),
+                    'status_not_followup' => !in_array($customer['customer_status'], ['followup', 'call_followup']),
+                    'payment_paid_or_partial' => in_array($paymentStatus, ['paid', 'partial']),
+                    'created_by_equals_assigned_to' => $createdBy == $customer['assigned_to']
+                ];
+                
+                error_log("OrderService - Customer conditions check:");
+                error_log("  - Customer ID: {$orderData['customer_id']}");
+                error_log("  - Current Status: {$customer['customer_status']}");
+                error_log("  - Assigned To: " . ($customer['assigned_to'] ?? 'NULL') . " (type: " . gettype($customer['assigned_to']) . ")");
+                error_log("  - Payment Status: {$paymentStatus}");
+                error_log("  - Created By: {$createdBy} (type: " . gettype($createdBy) . ")");
+                error_log("  - assigned_to_not_null: " . ($conditions['assigned_to_not_null'] ? 'PASS' : 'FAIL'));
+                error_log("  - status_not_followup: " . ($conditions['status_not_followup'] ? 'PASS' : 'FAIL'));
+                error_log("  - payment_paid_or_partial: " . ($conditions['payment_paid_or_partial'] ? 'PASS' : 'FAIL'));
+                error_log("  - created_by_equals_assigned_to: " . ($conditions['created_by_equals_assigned_to'] ? 'PASS' : 'FAIL'));
+                error_log("  - Comparison: '{$createdBy}' == '{$customer['assigned_to']}' = " . ($createdBy == $customer['assigned_to'] ? 'true' : 'false'));
+                error_log("  - Strict Comparison: '{$createdBy}' === '{$customer['assigned_to']}' = " . ($createdBy === $customer['assigned_to'] ? 'true' : 'false'));
+                
+                $allConditionsMet = array_reduce($conditions, function($carry, $item) {
+                    return $carry && $item;
+                }, true);
+                
+                error_log("  - All conditions met: " . ($allConditionsMet ? 'YES' : 'NO'));
+                
+                if ($allConditionsMet) {
+                    $result = $this->db->execute(
+                        "UPDATE customers c
+                         SET c.customer_status = 'existing_3m'
+                         WHERE c.customer_id = ?
+                           AND c.assigned_to IS NOT NULL
+                           AND c.customer_status NOT IN ('followup','call_followup')
+                           AND ? IN ('paid','partial')
+                           AND c.assigned_to = ?",
+                        [
+                            $orderData['customer_id'],
+                            $paymentStatus,
+                            $createdBy
+                        ]
+                    );
+                    
+                    error_log("OrderService - Update existing_3m result: " . ($result ? 'SUCCESS' : 'FAILED'));
+                } else {
+                    error_log("OrderService - Conditions not met, skipping existing_3m update");
+                }
+            } else {
+                error_log("OrderService - Customer not found: {$orderData['customer_id']}");
+            }
+            
+        } catch (Exception $e) {
+            error_log("OrderService - Error updating customer status to existing_3m: " . $e->getMessage());
+        }
         
         // ล้าง next_followup_at เพื่อให้ลูกค้าออกจาก Do tab หลังจากสั่งซื้อ
         $this->clearCustomerFollowUp($orderData['customer_id']);
@@ -233,6 +299,12 @@ class OrderService {
             if (!empty($filters['unpaid_only']) && $filters['unpaid_only'] === '1') {
                 $whereConditions[] = 'o.payment_status = :unpaid_status';
                 $params['unpaid_status'] = 'pending';
+            }
+            
+            // ตัวกรองตาม company_id
+            if (!empty($filters['company_id'])) {
+                $whereConditions[] = 'o.company_id = :company_id';
+                $params['company_id'] = $filters['company_id'];
             }
             
             $whereClause = implode(' AND ', $whereConditions);
@@ -567,7 +639,7 @@ class OrderService {
             ['amount' => $amount, 'customer_id' => $customerId]
         );
         
-        // อัปเดตสถานะลูกค้าเป็น "existing" (ลูกค้าเก่า) เมื่อมีการขาย
+        // Mark as existing (basic) on sale; 3-month label handled by cron/conditions
         $this->db->query(
             "UPDATE customers SET customer_status = 'existing' WHERE customer_id = :customer_id",
             ['customer_id' => $customerId]
@@ -640,7 +712,16 @@ class OrderService {
                 $whereConditions[] = '(product_name LIKE :search OR product_code LIKE :search)';
                 $params['search'] = '%' . $filters['search'] . '%';
             }
-            
+
+            // Scope by company for non-super_admin
+            if (!isset($_SESSION)) { @session_start(); }
+            $roleName = $_SESSION['role_name'] ?? '';
+            $companyId = $_SESSION['company_id'] ?? null;
+            if ($roleName !== 'super_admin' && $companyId) {
+                $whereConditions[] = 'company_id = :company_id';
+                $params['company_id'] = $companyId;
+            }
+
             $whereClause = implode(' AND ', $whereConditions);
             
             $query = "SELECT * FROM products WHERE {$whereClause} ORDER BY product_name";

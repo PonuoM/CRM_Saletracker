@@ -1,0 +1,142 @@
+/**
+ * Modal Backdrop Management CSS
+ * จัดการ backdrop ให้ครอบทั้งหน้าจอและทำงานถูกต้อง
+ */
+
+/* กำหนด backdrop ให้ครอบทั้งหน้าจอ */
+.modal-backdrop {
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    width: 100vw !important;
+    height: 100vh !important;
+    background-color: rgba(0, 0, 0, 0.5) !important; /* สีดำโปร่งแสง */
+    z-index: 1040 !important; /* ต่ำกว่า modal แต่สูงกว่าหน้าปกติ */
+    opacity: 0 !important;
+    transition: opacity 0.15s linear !important;
+}
+
+/* แสดง backdrop เมื่อ modal เปิด */
+.modal-backdrop.show {
+    opacity: 1 !important;
+}
+
+/* ซ่อน backdrop เมื่อ modal ปิด */
+.modal-backdrop.fade:not(.show) {
+    opacity: 0 !important;
+}
+
+/* จัดการ z-index ของ modal */
+.modal {
+    z-index: 1050 !important; /* สูงกว่า backdrop */
+}
+
+.modal-dialog {
+    z-index: 1050 !important; /* สูงกว่า backdrop */
+    position: relative !important;
+}
+
+.modal-content {
+    z-index: 1055 !important; /* สูงที่สุด */
+    position: relative !important;
+}
+
+/* ป้องกัน scroll เมื่อ modal เปิด */
+body.modal-open {
+    overflow: hidden !important;
+    padding-right: 0 !important;
+}
+
+/* เพิ่มการโต้ตอบกับ backdrop */
+.modal-backdrop {
+    cursor: pointer !important;
+}
+
+.modal-backdrop:hover {
+    background-color: rgba(0, 0, 0, 0.6) !important;
+}
+
+/* ป้องกันการ click ผ่าน modal content */
+.modal-dialog {
+    pointer-events: none !important;
+}
+
+.modal-content {
+    pointer-events: auto !important;
+}
+
+/* จัดการ backdrop หลายชั้น */
+.modal-backdrop + .modal-backdrop {
+    display: none !important;
+}
+
+/* ป้องกัน backdrop ซ้อนกัน */
+.modal-backdrop:not(:first-of-type) {
+    display: none !important;
+}
+
+/* การจัดการ responsive */
+@media (max-width: 768px) {
+    .modal-backdrop {
+        width: 100vw !important;
+        height: 100vh !important;
+        position: fixed !important;
+    }
+}
+
+/* การจัดการ iOS Safari */
+@supports (-webkit-touch-callout: none) {
+    .modal-backdrop {
+        height: -webkit-fill-available !important;
+    }
+}
+
+/* การจัดการ fullscreen */
+.modal-backdrop:-webkit-full-screen {
+    width: 100vw !important;
+    height: 100vh !important;
+}
+
+.modal-backdrop:-moz-full-screen {
+    width: 100vw !important;
+    height: 100vh !important;
+}
+
+.modal-backdrop:fullscreen {
+    width: 100vw !important;
+    height: 100vh !important;
+}
+
+/* Debug styles (เอาออกในการใช้งานจริง) */
+.modal-backdrop.debug {
+    border: 2px solid red !important;
+    background-color: rgba(255, 0, 0, 0.2) !important;
+}
+
+/* Animation เมื่อเปิด/ปิด */
+.modal-backdrop.fade {
+    transition: opacity 0.15s linear !important;
+}
+
+.modal-backdrop.show {
+    animation: backdropFadeIn 0.15s linear !important;
+}
+
+@keyframes backdropFadeIn {
+    from {
+        opacity: 0;
+    }
+    to {
+        opacity: 1;
+    }
+}
+
+/* เพิ่มการรองรับ prefers-reduced-motion */
+@media (prefers-reduced-motion: reduce) {
+    .modal-backdrop {
+        transition: none !important;
+        animation: none !important;
+    }
+}

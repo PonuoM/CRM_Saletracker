@@ -33,7 +33,10 @@ class AdminController {
         }
         
         $roleName = $_SESSION['role_name'] ?? '';
-        if (!in_array($roleName, ['admin', 'super_admin'])) {
+        $roleId = $_SESSION['role_id'] ?? 0;
+        
+        // Allow admin, company_admin, super_admin roles and specific role IDs (1 and 6)
+        if (!in_array($roleName, ['admin', 'company_admin', 'super_admin']) && !in_array($roleId, [1, 6])) {
             header('Location: dashboard.php');
             exit;
         }
@@ -46,25 +49,34 @@ class AdminController {
         $this->checkAdminPermission();
         
         $userId = $_SESSION['user_id'];
+        $roleName = $_SESSION['role_name'] ?? '';
+        $companyId = $_SESSION['company_id'] ?? null;
         
         // ดึงข้อมูลสถิติสำหรับ Admin
         $stats = [
-            'total_users' => $this->getTotalUsers(),
-            'total_customers' => $this->getTotalCustomers(),
-            'total_orders' => $this->getTotalOrders(),
-            'total_products' => $this->getTotalProducts(),
-            'recent_activities' => $this->getRecentActivities(),
-            'system_health' => $this->getSystemHealth()
+            'total_users' => $this->getTotalUsers($companyId),
+            'total_customers' => $this->getTotalCustomers($companyId),
+            'total_orders' => $this->getTotalOrders($companyId),
+            'total_products' => $this->getTotalProducts($companyId),
+            'recent_activities' => $this->getRecentActivities($companyId),
+            'system_health' => $this->getSystemHealth($companyId)
         ];
         
         // ดึงข้อมูลผู้ใช้ทั้งหมด
-        $users = $this->auth->getAllUsers();
+        if ($roleName === 'super_admin') {
+            $users = $this->auth->getAllUsers();
+        } else {
+            $users = $this->getUsersByCompany($companyId);
+        }
         
         // ดึงข้อมูลสินค้าทั้งหมด
-        $products = $this->getAllProducts();
+        $products = $this->getAllProducts($companyId);
         
-        // ดึงข้อมูลการตั้งค่าระบบ
-        $settings = $this->getSystemSettings();
+        // ดึงข้อมูลการตั้งค่าระบบ (เฉพาะ super_admin)
+        $settings = [];
+        if ($roleName === 'super_admin') {
+            $settings = $this->getSystemSettings($companyId);
+        }
         
         // Set page title and prepare content for layout
         $pageTitle = 'Admin Dashboard - CRM SalesTracker';
@@ -84,6 +96,14 @@ class AdminController {
      */
     public function users() {
         $this->checkAdminPermission();
+        
+        $roleName = $_SESSION['role_name'] ?? '';
+        
+        // อนุญาตให้จัดการผู้ใช้เฉพาะ super_admin และ company_admin เท่านั้น
+        if (!in_array($roleName, ['super_admin', 'company_admin'])) {
+            header('Location: admin.php');
+            exit;
+        }
         
         $subaction = $_GET['subaction'] ?? 'list';
         
@@ -107,9 +127,20 @@ class AdminController {
      * แสดงรายการผู้ใช้
      */
     private function listUsers() {
-        $users = $this->auth->getAllUsers();
+        $roleName = $_SESSION['role_name'] ?? '';
+        $companyId = $_SESSION['company_id'] ?? null;
+        
+        // ดึงข้อมูลผู้ใช้ตามสิทธิ์
+        if ($roleName === 'super_admin') {
+            $users = $this->auth->getAllUsers();
+            $companies = $this->getAllCompanies();
+        } else {
+            // company_admin เห็นเฉพาะผู้ใช้ของบริษัทตัวเอง
+            $users = $this->getUsersByCompany($companyId);
+            $companies = []; // ไม่ต้องแสดงรายการบริษัท
+        }
+        
         $roles = $this->getAllRoles();
-        $companies = $this->getAllCompanies();
         
         // Set page title and prepare content for layout
         $pageTitle = 'จัดการผู้ใช้ - CRM SalesTracker';
@@ -129,29 +160,67 @@ class AdminController {
      * สร้างผู้ใช้ใหม่
      */
     private function createUser() {
+        $roleName = $_SESSION['role_name'] ?? '';
+        $companyId = $_SESSION['company_id'] ?? null;
+        
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $userData = [
-                'username' => $_POST['username'] ?? '',
+                'username' => trim($_POST['username'] ?? ''),
                 'password' => $_POST['password'] ?? '',
-                'full_name' => $_POST['full_name'] ?? '',
-                'email' => $_POST['email'] ?? '',
-                'phone' => $_POST['phone'] ?? '',
+                'full_name' => trim($_POST['full_name'] ?? ''),
+                'email' => trim($_POST['email'] ?? ''),
+                'phone' => trim($_POST['phone'] ?? ''),
                 'role_id' => $_POST['role_id'] ?? '',
-                'company_id' => $_POST['company_id'] ?? null
+                'company_id' => $roleName === 'super_admin' ? ($_POST['company_id'] ?? null) : $companyId,
+                'supervisor_id' => $_POST['supervisor_id'] ?: null
             ];
             
-            $result = $this->auth->createUser($userData);
-            
-            if ($result['success']) {
-                header('Location: admin.php?action=users&message=user_created');
-                exit;
+            // Basic validation
+            if (empty($userData['username'])) {
+                $error = 'กรุณากรอกชื่อผู้ใช้';
+            } elseif (empty($userData['password'])) {
+                $error = 'กรุณากรอกรหัสผ่าน';
+            } elseif (strlen($userData['password']) < 6) {
+                $error = 'รหัสผ่านต้องมีอย่างน้อย 6 ตัวอักษร';
+            } elseif (empty($userData['full_name'])) {
+                $error = 'กรุณากรอกชื่อ-นามสกุล';
+            } elseif (empty($userData['role_id'])) {
+                $error = 'กรุณาเลือกบทบาท';
+            } elseif ($roleName === 'company_admin' && !in_array($userData['role_id'], [3, 4])) {
+                $error = 'สามารถสร้างได้เฉพาะ Supervisor และ Telesales เท่านั้น';
             } else {
-                $error = $result['message'];
+                // Check for duplicate username
+                $existingUser = $this->db->fetchOne(
+                    "SELECT user_id FROM users WHERE username = ?", 
+                    [$userData['username']]
+                );
+                
+                if ($existingUser) {
+                    $error = 'ชื่อผู้ใช้นี้มีอยู่แล้ว กรุณาใช้ชื่ออื่น';
+                } else {
+                    $result = $this->auth->createUser($userData);
+                    
+                    if ($result['success']) {
+                        header('Location: admin.php?action=users&message=user_created');
+                        exit;
+                    } else {
+                        $error = $result['message'];
+                    }
+                }
             }
         }
         
-        $roles = $this->getAllRoles();
-        $companies = $this->getAllCompanies();
+        // ดึงข้อมูล roles และ companies ตามสิทธิ์
+        if ($roleName === 'super_admin') {
+            $roles = $this->getAllRoles();
+            $companies = $this->getAllCompanies();
+            $supervisors = $this->getAllSupervisors(); // ทุกบริษัท
+        } else {
+            // company_admin เห็นเฉพาะ role 3 และ 4
+            $roles = $this->getAllowedRoles();
+            $companies = []; // ไม่ต้องแสดงรายการบริษัท
+            $supervisors = $this->getSupervisorsByCompany($companyId); // เฉพาะบริษัทตัวเอง
+        }
 
         // Set page title and prepare content for layout
         $pageTitle = 'สร้างผู้ใช้ใหม่ - CRM SalesTracker';
@@ -172,6 +241,17 @@ class AdminController {
      */
     private function editUser() {
         $userId = $_GET['id'] ?? 0;
+        $roleName = $_SESSION['role_name'] ?? '';
+        $companyId = $_SESSION['company_id'] ?? null;
+        
+        // ตรวจสอบว่าผู้ใช้เป็นของบริษัทตัวเองหรือไม่ (สำหรับ company_admin)
+        if ($roleName === 'company_admin') {
+            $user = $this->getUserById($userId, $companyId);
+            if (!$user) {
+                header('Location: admin.php?action=users');
+                exit;
+            }
+        }
         
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $userData = [
@@ -181,7 +261,8 @@ class AdminController {
                 'email' => $_POST['email'] ?? '',
                 'phone' => $_POST['phone'] ?? '',
                 'role_id' => $_POST['role_id'] ?? '',
-                'company_id' => $_POST['company_id'] ?? null,
+                'company_id' => $roleName === 'super_admin' ? ($_POST['company_id'] ?? null) : $companyId,
+                'supervisor_id' => $_POST['supervisor_id'] ?? null,
                 'is_active' => isset($_POST['is_active']) ? 1 : 0
             ];
             
@@ -190,19 +271,34 @@ class AdminController {
                 $userData['password'] = $_POST['password'];
             }
             
-            $result = $this->auth->updateUser($userData);
-            
-            if ($result['success']) {
-                header('Location: admin.php?action=users&message=user_updated');
-                exit;
+            // ตรวจสอบว่า role ที่เลือกอนุญาตหรือไม่ (สำหรับ company_admin)
+            if ($roleName === 'company_admin' && !in_array($userData['role_id'], [3, 4])) {
+                $error = 'สามารถแก้ไขได้เฉพาะ Supervisor และ Telesales เท่านั้น';
             } else {
-                $error = $result['message'];
+                $result = $this->auth->updateUser($userData);
+                
+                if ($result['success']) {
+                    header('Location: admin.php?action=users&message=user_updated');
+                    exit;
+                } else {
+                    $error = $result['message'];
+                }
             }
         }
         
         $user = $this->auth->getUserById($userId);
-        $roles = $this->getAllRoles();
-        $companies = $this->getAllCompanies();
+        
+        // ดึงข้อมูล roles และ companies ตามสิทธิ์
+        if ($roleName === 'super_admin') {
+            $roles = $this->getAllRoles();
+            $companies = $this->getAllCompanies();
+            $supervisors = $this->getAllSupervisors(); // ทุกบริษัท
+        } else {
+            // company_admin เห็นเฉพาะ role 3 และ 4
+            $roles = $this->getAllowedRoles();
+            $companies = []; // ไม่ต้องแสดงรายการบริษัท
+            $supervisors = $this->getSupervisorsByCompany($companyId); // เฉพาะบริษัทตัวเอง
+        }
 
         // Set page title and prepare content for layout
         $pageTitle = 'แก้ไขผู้ใช้ - CRM SalesTracker';
@@ -223,6 +319,17 @@ class AdminController {
      */
     private function deleteUser() {
         $userId = $_GET['id'] ?? 0;
+        $roleName = $_SESSION['role_name'] ?? '';
+        $companyId = $_SESSION['company_id'] ?? null;
+        
+        // ตรวจสอบว่าผู้ใช้เป็นของบริษัทตัวเองหรือไม่ (สำหรับ company_admin)
+        if ($roleName === 'company_admin') {
+            $user = $this->getUserById($userId, $companyId);
+            if (!$user) {
+                header('Location: admin.php?action=users');
+                exit;
+            }
+        }
         
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $result = $this->auth->deleteUser($userId);
@@ -257,6 +364,9 @@ class AdminController {
     public function products() {
         $this->checkAdminPermission();
         
+        $roleName = $_SESSION['role_name'] ?? '';
+        $companyId = $_SESSION['company_id'] ?? null;
+        
         $subaction = $_GET['subaction'] ?? 'list';
         
         switch ($subaction) {
@@ -285,8 +395,11 @@ class AdminController {
      * แสดงรายการสินค้า
      */
     private function listProducts() {
-        $products = $this->getAllProducts();
-        $categories = $this->getProductCategories();
+        $roleName = $_SESSION['role_name'] ?? '';
+        $companyId = $_SESSION['company_id'] ?? null;
+        
+        $products = $this->getAllProducts($companyId);
+        $categories = $this->getProductCategories($companyId);
         
         // Set page title and prepare content for layout
         $pageTitle = 'จัดการสินค้า - CRM SalesTracker';
@@ -315,11 +428,12 @@ class AdminController {
                 'unit' => $_POST['unit'] ?? 'ชิ้น',
                 'cost_price' => $_POST['cost_price'] ?? 0,
                 'selling_price' => $_POST['selling_price'] ?? 0,
-                'stock_quantity' => $_POST['stock_quantity'] ?? 0
+                'stock_quantity' => $_POST['stock_quantity'] ?? 0,
+                'company_id' => $_SESSION['company_id'] ?? null
             ];
             
             // ตรวจสอบรหัสสินค้าที่ซ้ำก่อนสร้าง
-            $duplicateCheck = $this->checkDuplicateProductCode($productData['product_code']);
+            $duplicateCheck = $this->checkDuplicateProductCode($productData['product_code'], $productData['company_id']);
             if ($duplicateCheck['exists']) {
                 $error = 'รหัสสินค้า "' . $productData['product_code'] . '" มีอยู่แล้วในระบบ กรุณาใช้รหัสใหม่';
             } else {
@@ -334,8 +448,20 @@ class AdminController {
             }
         }
         
-        $categories = $this->getProductCategories();
+        $categories = $this->getProductCategories($_SESSION['company_id'] ?? null);
+        
+        // Set page title and prepare content for layout
+        $pageTitle = 'เพิ่มสินค้าใหม่ - CRM SalesTracker';
+        $currentPage = 'admin';
+        $currentAction = 'products';
+
+        // Capture create product content
+        ob_start();
         include __DIR__ . '/../views/admin/products/create.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
     
     /**
@@ -355,7 +481,8 @@ class AdminController {
                 'cost_price' => $_POST['cost_price'] ?? 0,
                 'selling_price' => $_POST['selling_price'] ?? 0,
                 'stock_quantity' => $_POST['stock_quantity'] ?? 0,
-                'is_active' => isset($_POST['is_active']) ? 1 : 0
+                'is_active' => isset($_POST['is_active']) ? 1 : 0,
+                'company_id' => $_SESSION['company_id'] ?? null
             ];
             
             $result = $this->updateProductRecord($productData);
@@ -368,10 +495,21 @@ class AdminController {
             }
         }
         
-        $product = $this->getProductById($productId);
-        $categories = $this->getProductCategories();
+        $product = $this->getProductById($productId, $_SESSION['company_id'] ?? null);
+        $categories = $this->getProductCategories($_SESSION['company_id'] ?? null);
         
+        // Set page title and prepare content for layout
+        $pageTitle = 'แก้ไขสินค้า - CRM SalesTracker';
+        $currentPage = 'admin';
+        $currentAction = 'products';
+
+        // Capture edit product content
+        ob_start();
         include __DIR__ . '/../views/admin/products/edit.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
     
     /**
@@ -381,7 +519,7 @@ class AdminController {
         $productId = $_GET['id'] ?? 0;
         
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-            $result = $this->deleteProductRecord($productId);
+            $result = $this->deleteProductRecord($productId, $_SESSION['company_id'] ?? null);
             
             if ($result['success']) {
                 header('Location: admin.php?action=products&message=product_deleted');
@@ -391,8 +529,20 @@ class AdminController {
             }
         }
         
-        $product = $this->getProductById($productId);
+        $product = $this->getProductById($productId, $_SESSION['company_id'] ?? null);
+        
+        // Set page title and prepare content for layout
+        $pageTitle = 'ลบสินค้า - CRM SalesTracker';
+        $currentPage = 'admin';
+        $currentAction = 'products';
+
+        // Capture delete product content
+        ob_start();
         include __DIR__ . '/../views/admin/products/delete.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
     
     /**
@@ -414,7 +564,18 @@ class AdminController {
             }
         }
         
+        // Set page title and prepare content for layout
+        $pageTitle = 'นำเข้าสินค้า - CRM SalesTracker';
+        $currentPage = 'admin';
+        $currentAction = 'products';
+
+        // Capture import products content
+        ob_start();
         include __DIR__ . '/../views/admin/products/import.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
     
     /**
@@ -422,8 +583,11 @@ class AdminController {
      */
     private function exportProducts() {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $roleName = $_SESSION['role_name'] ?? '';
+            $companyId = $_SESSION['company_id'] ?? null;
+            
             // ดาวน์โหลดไฟล์
-            $products = $this->getAllProducts();
+            $products = $this->getAllProducts($companyId);
             
             // สร้างไฟล์ CSV
             $filename = 'products_export_' . date('Y-m-d_H-i-s') . '.csv';
@@ -462,8 +626,8 @@ class AdminController {
         }
         
         // แสดงหน้า export
-        $products = $this->getAllProducts();
-        $categories = $this->getProductCategories();
+        $products = $this->getAllProducts($_SESSION['company_id'] ?? null);
+        $categories = $this->getProductCategories($_SESSION['company_id'] ?? null);
         
         // คำนวณสถิติ
         $totalProducts = count($products);
@@ -471,7 +635,18 @@ class AdminController {
         $inactiveProducts = $totalProducts - $activeProducts;
         $outOfStockProducts = count(array_filter($products, function($p) { return $p['stock_quantity'] <= 0; }));
         
+        // Set page title and prepare content for layout
+        $pageTitle = 'ส่งออกสินค้า - CRM SalesTracker';
+        $currentPage = 'admin';
+        $currentAction = 'products';
+
+        // Capture export products content
+        ob_start();
         include __DIR__ . '/../views/admin/products/export.php';
+        $content = ob_get_clean();
+
+        // Use main layout
+        include __DIR__ . '/../views/layouts/main.php';
     }
     
     /**
@@ -479,6 +654,14 @@ class AdminController {
      */
     public function settings() {
         $this->checkAdminPermission();
+        
+        $roleName = $_SESSION['role_name'] ?? '';
+        
+        // อนุญาตให้ตั้งค่าระบบเฉพาะ super_admin เท่านั้น
+        if ($roleName !== 'super_admin') {
+            header('Location: admin.php');
+            exit;
+        }
 
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $settings = [
@@ -534,12 +717,19 @@ class AdminController {
             exit;
         }
 
+        $roleName = $_SESSION['role_name'] ?? '';
+        $companyId = $_SESSION['company_id'] ?? null;
+
         // Load WorkflowService
         require_once __DIR__ . '/../services/WorkflowService.php';
         $workflowService = new WorkflowService();
 
-        // ดึงสถิติ
-        $stats = $workflowService->getWorkflowStats();
+        // ดึงสถิติ (กรองตาม company_id สำหรับ role=6)
+        if ($roleName === 'super_admin') {
+            $stats = $workflowService->getWorkflowStats();
+        } else {
+            $stats = $workflowService->getWorkflowStats($companyId);
+        }
 
         // ส่งข้อมูลไปยัง view
         $_SESSION['workflow_stats'] = $stats;
@@ -563,57 +753,101 @@ class AdminController {
     /**
      * ดึงจำนวนผู้ใช้ทั้งหมด
      */
-    private function getTotalUsers() {
-        $sql = "SELECT COUNT(*) as total FROM users WHERE is_active = 1";
-        $result = $this->db->fetchOne($sql);
+    private function getTotalUsers($companyId = null) {
+        if ($companyId) {
+            $sql = "SELECT COUNT(*) as total FROM users WHERE is_active = 1 AND company_id = ?";
+            $result = $this->db->fetchOne($sql, [$companyId]);
+        } else {
+            $sql = "SELECT COUNT(*) as total FROM users WHERE is_active = 1";
+            $result = $this->db->fetchOne($sql);
+        }
         return $result['total'] ?? 0;
     }
     
     /**
      * ดึงจำนวนลูกค้าทั้งหมด
      */
-    private function getTotalCustomers() {
-        $sql = "SELECT COUNT(*) as total FROM customers WHERE is_active = 1";
-        $result = $this->db->fetchOne($sql);
+    private function getTotalCustomers($companyId = null) {
+        if ($companyId) {
+            $sql = "SELECT COUNT(*) as total FROM customers WHERE is_active = 1 AND company_id = ?";
+            $result = $this->db->fetchOne($sql, [$companyId]);
+        } else {
+            $sql = "SELECT COUNT(*) as total FROM customers WHERE is_active = 1";
+            $result = $this->db->fetchOne($sql);
+        }
         return $result['total'] ?? 0;
     }
     
     /**
      * ดึงจำนวนคำสั่งซื้อทั้งหมด
      */
-    private function getTotalOrders() {
-        $sql = "SELECT COUNT(*) as total FROM orders WHERE is_active = 1";
-        $result = $this->db->fetchOne($sql);
+    private function getTotalOrders($companyId = null) {
+        if ($companyId) {
+            $sql = "SELECT COUNT(*) as total FROM orders WHERE is_active = 1 AND company_id = ?";
+            $result = $this->db->fetchOne($sql, [$companyId]);
+        } else {
+            $sql = "SELECT COUNT(*) as total FROM orders WHERE is_active = 1";
+            $result = $this->db->fetchOne($sql);
+        }
         return $result['total'] ?? 0;
     }
     
     /**
      * ดึงจำนวนสินค้าทั้งหมด
      */
-    private function getTotalProducts() {
-        $sql = "SELECT COUNT(*) as total FROM products WHERE is_active = 1";
-        $result = $this->db->fetchOne($sql);
+    private function getTotalProducts($companyId = null) {
+        if ($companyId) {
+            $sql = "SELECT COUNT(*) as total FROM products WHERE is_active = 1 AND company_id = ?";
+            $result = $this->db->fetchOne($sql, [$companyId]);
+        } else {
+            $sql = "SELECT COUNT(*) as total FROM products WHERE is_active = 1";
+            $result = $this->db->fetchOne($sql);
+        }
         return $result['total'] ?? 0;
+    }
+    
+    /**
+     * ดึงผู้ใช้ตามบริษัท
+     */
+    private function getUsersByCompany($companyId) {
+        $sql = "SELECT u.*, r.role_name, c.company_name 
+                FROM users u 
+                LEFT JOIN roles r ON u.role_id = r.role_id 
+                LEFT JOIN companies c ON u.company_id = c.company_id 
+                WHERE u.company_id = ?
+                ORDER BY u.created_at DESC";
+        
+        return $this->db->fetchAll($sql, [$companyId]);
     }
     
     /**
      * ดึงกิจกรรมล่าสุด
      */
-    private function getRecentActivities() {
-        $sql = "SELECT ca.*, u.full_name as user_name, c.first_name, c.last_name
-                FROM customer_activities ca
-                LEFT JOIN users u ON ca.user_id = u.user_id
-                LEFT JOIN customers c ON ca.customer_id = c.customer_id
-                ORDER BY ca.created_at DESC
-                LIMIT 10";
-        
-        return $this->db->fetchAll($sql);
+    private function getRecentActivities($companyId = null) {
+        if ($companyId) {
+            $sql = "SELECT ca.*, u.full_name as user_name, c.first_name, c.last_name
+                    FROM customer_activities ca
+                    LEFT JOIN users u ON ca.user_id = u.user_id
+                    LEFT JOIN customers c ON ca.customer_id = c.customer_id
+                    WHERE c.company_id = ?
+                    ORDER BY ca.created_at DESC
+                    LIMIT 10";
+            return $this->db->fetchAll($sql, [$companyId]);
+        } else {
+            $sql = "SELECT ca.*, u.full_name as user_name, c.first_name, c.last_name
+                    FROM customer_activities ca
+                    LEFT JOIN users u ON ca.user_id = u.user_id
+                    LEFT JOIN customers c ON ca.customer_id = c.customer_id
+                    ORDER BY ca.created_at DESC
+                    LIMIT 10";
+            return $this->db->fetchAll($sql);
+        }
     }
     
     /**
      * ดึงสถานะระบบ
      */
-    private function getSystemHealth() {
+    private function getSystemHealth($companyId = null) {
         try {
             $this->db->query("SELECT 1");
             $dbConnected = true;
@@ -638,6 +872,24 @@ class AdminController {
     private function getAllRoles() {
         $sql = "SELECT * FROM roles ORDER BY role_name";
         return $this->db->fetchAll($sql);
+    }
+    
+    /**
+     * ดึงบทบาทที่อนุญาตสำหรับ company_admin
+     */
+    private function getAllowedRoles() {
+        $sql = "SELECT * FROM roles WHERE role_id IN (3, 4) ORDER BY role_name";
+        return $this->db->fetchAll($sql);
+    }
+    
+    /**
+     * ดึงข้อมูลผู้ใช้ตาม ID และ company_id
+     */
+    private function getUserById($userId, $companyId) {
+        $sql = "SELECT u.*, r.role_name FROM users u 
+                LEFT JOIN roles r ON u.role_id = r.role_id 
+                WHERE u.user_id = ? AND u.company_id = ?";
+        return $this->db->fetchOne($sql, [$userId, $companyId]);
     }
     
     /**
@@ -861,23 +1113,33 @@ class AdminController {
     /**
      * ดึงสินค้าทั้งหมด
      */
-    private function getAllProducts() {
-        $sql = "SELECT * FROM products ORDER BY product_name";
-        return $this->db->fetchAll($sql);
+    private function getAllProducts($companyId = null) {
+        if ($companyId) {
+            $sql = "SELECT * FROM products WHERE company_id = ? ORDER BY product_name";
+            return $this->db->fetchAll($sql, [$companyId]);
+        } else {
+            $sql = "SELECT * FROM products ORDER BY product_name";
+            return $this->db->fetchAll($sql);
+        }
     }
     
     /**
      * ดึงสินค้าตาม ID
      */
-    private function getProductById($productId) {
-        $sql = "SELECT * FROM products WHERE product_id = :product_id";
-        return $this->db->fetchOne($sql, ['product_id' => $productId]);
+    private function getProductById($productId, $companyId = null) {
+        $roleName = $_SESSION['role_name'] ?? '';
+        if ($roleName === 'super_admin') {
+            $sql = "SELECT * FROM products WHERE product_id = :product_id";
+            return $this->db->fetchOne($sql, ['product_id' => $productId]);
+        }
+        $sql = "SELECT * FROM products WHERE product_id = :product_id AND company_id = :company_id";
+        return $this->db->fetchOne($sql, ['product_id' => $productId, 'company_id' => ($companyId ?? $_SESSION['company_id'] ?? 2)]);
     }
     
     /**
      * ดึงหมวดหมู่สินค้า
      */
-    private function getProductCategories() {
+    private function getProductCategories($companyId = null) {
         // หมวดหมู่สินค้าที่กำหนดไว้
         return [
             'ปุ๋ยกระสอบใหญ่',
@@ -890,10 +1152,16 @@ class AdminController {
     /**
      * ตรวจสอบรหัสสินค้าที่ซ้ำ
      */
-    private function checkDuplicateProductCode($productCode) {
+    private function checkDuplicateProductCode($productCode, $companyId = null) {
         try {
-            $sql = "SELECT COUNT(*) as count FROM products WHERE product_code = :product_code";
-            $result = $this->db->fetchOne($sql, ['product_code' => $productCode]);
+            $roleName = $_SESSION['role_name'] ?? '';
+            if ($roleName === 'super_admin') {
+                $sql = "SELECT COUNT(*) as count FROM products WHERE product_code = :product_code";
+                $result = $this->db->fetchOne($sql, ['product_code' => $productCode]);
+            } else {
+                $sql = "SELECT COUNT(*) as count FROM products WHERE product_code = :product_code AND company_id = :company_id";
+                $result = $this->db->fetchOne($sql, ['product_code' => $productCode, 'company_id' => ($companyId ?? $_SESSION['company_id'] ?? 2)]);
+            }
             
             return ['exists' => $result['count'] > 0, 'count' => $result['count']];
         } catch (Exception $e) {
@@ -906,10 +1174,14 @@ class AdminController {
      */
     private function createProductRecord($productData) {
         try {
-            $sql = "INSERT INTO products (product_code, product_name, category, description, unit, cost_price, selling_price, stock_quantity) 
-                    VALUES (:product_code, :product_name, :category, :description, :unit, :cost_price, :selling_price, :stock_quantity)";
+            $sql = "INSERT INTO products (company_id, product_code, product_name, category, description, unit, cost_price, selling_price, stock_quantity, is_active, created_at, updated_at) 
+                    VALUES (:company_id, :product_code, :product_name, :category, :description, :unit, :cost_price, :selling_price, :stock_quantity, 1, NOW(), NOW())";
             
-            $this->db->query($sql, $productData);
+            $params = $productData;
+            if (!isset($params['company_id'])) {
+                $params['company_id'] = $_SESSION['company_id'] ?? 2;
+            }
+            $this->db->query($sql, $params);
             
             return ['success' => true, 'message' => 'สร้างสินค้าใหม่สำเร็จ'];
         } catch (Exception $e) {
@@ -922,6 +1194,7 @@ class AdminController {
      */
     private function updateProductRecord($productData) {
         try {
+            $roleName = $_SESSION['role_name'] ?? '';
             $sql = "UPDATE products SET 
                     product_code = :product_code,
                     product_name = :product_name,
@@ -933,9 +1206,15 @@ class AdminController {
                     stock_quantity = :stock_quantity,
                     is_active = :is_active,
                     updated_at = NOW()
-                    WHERE product_id = :product_id";
+                    WHERE product_id = :product_id" . ($roleName === 'super_admin' ? "" : " AND company_id = :company_id");
             
-            $this->db->query($sql, $productData);
+            $params = $productData;
+            if ($roleName !== 'super_admin') { 
+                if (!isset($params['company_id'])) {
+                    $params['company_id'] = $_SESSION['company_id'] ?? 2;
+                }
+            }
+            $this->db->query($sql, $params);
             
             return ['success' => true, 'message' => 'อัปเดตสินค้าสำเร็จ'];
         } catch (Exception $e) {
@@ -946,7 +1225,7 @@ class AdminController {
     /**
      * ลบสินค้า
      */
-    private function deleteProductRecord($productId) {
+    private function deleteProductRecord($productId, $companyId = null) {
         try {
             // ตรวจสอบว่าสินค้าถูกใช้ในคำสั่งซื้อหรือไม่
             $sql = "SELECT COUNT(*) as count FROM order_details WHERE product_id = :product_id";
@@ -956,8 +1235,14 @@ class AdminController {
                 return ['success' => false, 'message' => 'ไม่สามารถลบสินค้าได้ เนื่องจากถูกใช้ในคำสั่งซื้อ'];
             }
             
-            $sql = "DELETE FROM products WHERE product_id = :product_id";
-            $this->db->query($sql, ['product_id' => $productId]);
+            $roleName = $_SESSION['role_name'] ?? '';
+            if ($roleName === 'super_admin') {
+                $sql = "DELETE FROM products WHERE product_id = :product_id";
+                $this->db->query($sql, ['product_id' => $productId]);
+            } else {
+                $sql = "DELETE FROM products WHERE product_id = :product_id AND company_id = :company_id";
+                $this->db->query($sql, ['product_id' => $productId, 'company_id' => ($companyId ?? $_SESSION['company_id'] ?? 2)]);
+            }
             
             return ['success' => true, 'message' => 'ลบสินค้าสำเร็จ'];
         } catch (Exception $e) {
@@ -991,7 +1276,8 @@ class AdminController {
                         'unit' => trim($data[4]),
                         'cost_price' => floatval($data[5]),
                         'selling_price' => floatval($data[6]),
-                        'stock_quantity' => intval($data[7])
+                        'stock_quantity' => intval($data[7]),
+                        'company_id' => $_SESSION['company_id'] ?? null
                     ];
                     
                     $result = $this->createProductRecord($productData);
@@ -1019,7 +1305,7 @@ class AdminController {
     /**
      * ดึงการตั้งค่าระบบ
      */
-    private function getSystemSettings() {
+    private function getSystemSettings($companyId = null) {
         $sql = "SELECT * FROM system_settings ORDER BY setting_key";
         $results = $this->db->fetchAll($sql);
         
@@ -1059,9 +1345,19 @@ class AdminController {
 
         // ตรวจสอบสิทธิ์
         $roleName = $_SESSION['role_name'] ?? '';
-        if (!in_array($roleName, ['admin', 'supervisor', 'super_admin'])) {
+        if (!in_array($roleName, ['admin', 'company_admin', 'supervisor', 'super_admin'])) {
             header('Location: index.php');
             exit;
+        }
+
+        // อนุญาตให้ override เฉพาะ super_admin เท่านั้น
+        if ($roleName === 'super_admin' && isset($_REQUEST['company_override_id'])) {
+            $id = (int)$_REQUEST['company_override_id'];
+            if ($id > 0) {
+                $_SESSION['override_company_id'] = $id;
+            } else {
+                unset($_SESSION['override_company_id']);
+            }
         }
 
         // Set page title and prepare content for layout
@@ -1071,11 +1367,51 @@ class AdminController {
 
         // Capture customer distribution content
         ob_start();
-        include __DIR__ . '/../views/admin/customer_distribution_new.php';
+        include __DIR__ . '/../views/admin/customer_distribution.php';
         $content = ob_get_clean();
 
         // Use main layout
         include __DIR__ . '/../views/layouts/main.php';
+    }
+
+    /**
+     * ดึงข้อมูลหัวหน้าทีมทั้งหมด (สำหรับ super_admin)
+     */
+    private function getAllSupervisors() {
+        try {
+            return $this->db->fetchAll("
+                SELECT u.user_id, u.full_name, c.company_name
+                FROM users u
+                LEFT JOIN companies c ON u.company_id = c.company_id
+                WHERE u.role_id = 3 AND u.is_active = 1
+                ORDER BY c.company_name, u.full_name
+            ");
+        } catch (Exception $e) {
+            error_log("Error fetching all supervisors: " . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * ดึงข้อมูลหัวหน้าทีมตามบริษัท (สำหรับ company_admin)
+     */
+    private function getSupervisorsByCompany($companyId) {
+        try {
+            if (!$companyId) {
+                return [];
+            }
+            
+            return $this->db->fetchAll("
+                SELECT u.user_id, u.full_name, c.company_name
+                FROM users u
+                LEFT JOIN companies c ON u.company_id = c.company_id
+                WHERE u.role_id = 3 AND u.company_id = ? AND u.is_active = 1
+                ORDER BY u.full_name
+            ", [$companyId]);
+        } catch (Exception $e) {
+            error_log("Error fetching supervisors by company: " . $e->getMessage());
+            return [];
+        }
     }
 }
 ?> 

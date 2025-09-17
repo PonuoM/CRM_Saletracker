@@ -19,9 +19,45 @@ require_once 'config/config.php';
 
 // Check if user is logged in
 if (!isset($_SESSION['user_id'])) {
+    error_log("Import/Export: No user_id in session, redirecting to login");
     header('Location: login.php');
     exit;
 }
+
+// ตรวจสอบ session ที่จำเป็น
+if (!isset($_SESSION['role_id']) || !isset($_SESSION['role_name'])) {
+    error_log("Import/Export: Missing role_id or role_name in session");
+    header('Location: login.php');
+    exit;
+}
+
+// ตรวจสอบสิทธิ์การเข้าถึง import/export
+$roleId = $_SESSION['role_id'] ?? 0;
+$roleName = $_SESSION['role_name'] ?? '';
+
+// Debug log สำหรับตรวจสอบ session data
+error_log("Import/Export Access Check - User ID: " . ($_SESSION['user_id'] ?? 'null') . 
+          ", Role ID: " . $roleId . 
+          ", Role Name: " . $roleName . 
+          ", Session ID: " . session_id() .
+          ", Request Method: " . $_SERVER['REQUEST_METHOD'] .
+          ", Action: " . ($_GET['action'] ?? 'index'));
+
+// ป้องกัน telesales (role_id = 4) เข้าถึง import/export
+if ($roleId == 4) {
+    error_log("Access denied: Telesales (role_id = 4) attempted to access import/export");
+    header('Location: dashboard.php');
+    exit;
+}
+
+// อนุญาต role_id = 1 (super_admin), 2 (admin), 6
+if (!in_array($roleId, [1, 2, 6])) {
+    error_log("Access denied: User with role_id = " . $roleId . " and role_name = " . $roleName . " attempted to access import/export");
+    header('Location: dashboard.php');
+    exit;
+}
+
+error_log("Access granted: User with role_id = " . $roleId . " and role_name = " . $roleName . " accessing import/export");
 
 // Load controller
 require_once 'app/controllers/ImportExportController.php';

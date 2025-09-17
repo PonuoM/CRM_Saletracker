@@ -150,6 +150,34 @@
                                 </div>
                                 
                                 <div class="col-md-6">
+                                    <div class="mb-3" id="supervisor_field" style="display: none;">
+                                        <label for="supervisor_id" class="form-label">
+                                            <i class="fas fa-users-cog me-1"></i>หัวหน้าทีม
+                                        </label>
+                                        <select class="form-select" id="supervisor_id" name="supervisor_id">
+                                            <option value="">เลือกหัวหน้าทีม (ไม่บังคับ)</option>
+                                            <?php if (isset($supervisors)): ?>
+                                                <?php foreach ($supervisors as $supervisor): ?>
+                                                    <option value="<?php echo $supervisor['user_id']; ?>" 
+                                                            <?php 
+                                                            $selectedSupervisorId = $_POST['supervisor_id'] ?? $user['supervisor_id'] ?? '';
+                                                            echo ($selectedSupervisorId == $supervisor['user_id']) ? 'selected' : ''; 
+                                                            ?>>
+                                                        <?php echo htmlspecialchars($supervisor['full_name']); ?>
+                                                        <?php if (!empty($supervisor['company_name'])): ?>
+                                                            - <?php echo htmlspecialchars($supervisor['company_name']); ?>
+                                                        <?php endif; ?>
+                                                    </option>
+                                                <?php endforeach; ?>
+                                            <?php endif; ?>
+                                        </select>
+                                        <div class="form-text">เลือกหัวหน้าทีมสำหรับพนักงานขาย (สามารถเว้นว่างไว้ได้)</div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
                                     <div class="mb-3">
                                         <label class="form-label">
                                             <i class="fas fa-toggle-on me-1"></i>สถานะ
@@ -221,4 +249,30 @@
                         </div>
                     </div>
                 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const roleSelect = document.getElementById('role_id');
+    const supervisorField = document.getElementById('supervisor_field');
+    const supervisorSelect = document.getElementById('supervisor_id');
+    
+    function toggleSupervisorField() {
+        const selectedRoleId = roleSelect.value;
+        
+        if (selectedRoleId === '4') { // telesales role_id = 4
+            supervisorField.style.display = 'block';
+            // ไม่บังคับ required เพื่อให้สามารถเว้นว่างได้ในกรณีที่ยังไม่มีหัวหน้าทีม
+        } else {
+            supervisorField.style.display = 'none';
+            supervisorSelect.value = ''; // รีเซ็ตค่า
+        }
+    }
+    
+    // เรียกใช้เมื่อเปลี่ยนบทบาท
+    roleSelect.addEventListener('change', toggleSupervisorField);
+    
+    // เรียกใช้เมื่อโหลดหน้าเสร็จ (สำหรับกรณี form validation error หรือ role เดิมเป็น telesales)
+    toggleSupervisorField();
+});
+</script>
             

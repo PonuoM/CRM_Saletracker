@@ -110,6 +110,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                                         <tr>
                                             <th>เลขที่คำสั่งซื้อ</th>
                                             <th>ลูกค้า</th>
+                                            <th>เบอร์โทร</th>
                                             <th>วันที่</th>
                                             <th>จำนวนรายการ</th>
                                             <th>จำนวน (ชิ้น)</th>
@@ -126,6 +127,7 @@ $userId = $_SESSION['user_id'] ?? 0;
                                                     <strong><?php echo htmlspecialchars($order['order_number']); ?></strong>
                                                 </td>
                                                 <td><?php echo htmlspecialchars($order['customer_name']); ?></td>
+                                                <td><?php echo htmlspecialchars($order['phone'] ?? ''); ?></td>
                                                 <td><?php echo date('d/m/Y', strtotime($order['order_date'])); ?></td>
                                                 <td><?php echo $order['item_count'] ?? 0; ?> รายการ</td>
                                                 <td><?php echo (int)($order['total_quantity'] ?? 0); ?></td>

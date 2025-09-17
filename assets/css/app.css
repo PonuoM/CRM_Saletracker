@@ -1623,3 +1623,28 @@ body.transfer-page-body .modal-backdrop.fade.show {
     visibility: hidden !important;
     pointer-events: none !important;
 }
+
+/* Customer Distribution Page Styles */
+#telesalesTable .form-check-input {
+    width: 18px;
+    height: 18px;
+    margin: 0;
+    vertical-align: middle;
+}
+
+#telesalesTable .form-check-label {
+    vertical-align: middle;
+}
+
+#telesalesTable th:nth-child(1) {
+    width: 50px;
+}
+
+#telesalesTable th:nth-child(4) {
+    width: 80px;
+}
+
+#customerCountAlert .text-info {
+    padding: 8px 0;
+    margin: 0;
+}

@@ -5,6 +5,7 @@
  */
 
 require_once __DIR__ . '/../core/Database.php';
+require_once __DIR__ . '/CompanyContext.php';
 
 class CustomerService {
     private $db;
@@ -27,12 +28,19 @@ class CustomerService {
             $assignedCount = 0;
             $errors = [];
             
+            $companyId = CompanyContext::getCompanyId($this->db);
+            
             foreach ($customerIds as $customerId) {
                 // ตรวจสอบว่าลูกค้าอยู่ในตะกร้าแจกหรือไม่
-                $customer = $this->db->fetchOne(
-                    "SELECT * FROM customers WHERE customer_id = :customer_id AND basket_type = 'distribution'",
-                    ['customer_id' => $customerId]
-                );
+                $sql = "SELECT * FROM customers WHERE customer_id = :customer_id AND basket_type = 'distribution'";
+                $params = ['customer_id' => $customerId];
+                
+                if ($companyId) {
+                    $sql .= " AND company_id = :company_id";
+                    $params['company_id'] = $companyId;
+                }
+                
+                $customer = $this->db->fetchOne($sql, $params);
                 
                 if (!$customer) {
                     $errors[] = "ลูกค้า ID {$customerId} ไม่สามารถมอบหมายได้ (ไม่อยู่ในตะกร้าแจก)";
@@ -88,11 +96,18 @@ class CustomerService {
         try {
             $this->db->beginTransaction();
             
+            $companyId = $_SESSION['company_id'] ?? null;
+            
             // ตรวจสอบลูกค้า
-            $customer = $this->db->fetchOne(
-                "SELECT * FROM customers WHERE customer_id = :customer_id",
-                ['customer_id' => $customerId]
-            );
+            $sql = "SELECT * FROM customers WHERE customer_id = :customer_id";
+            $params = ['customer_id' => $customerId];
+            
+            if ($companyId) {
+                $sql .= " AND company_id = :company_id";
+                $params['company_id'] = $companyId;
+            }
+            
+            $customer = $this->db->fetchOne($sql, $params);
             
             if (!$customer) {
                 return ['success' => false, 'message' => 'ไม่พบลูกค้า'];
@@ -145,11 +160,18 @@ class CustomerService {
         try {
             $this->db->beginTransaction();
             
+            $companyId = $_SESSION['company_id'] ?? null;
+            
             // ตรวจสอบลูกค้า
-            $customer = $this->db->fetchOne(
-                "SELECT * FROM customers WHERE customer_id = :customer_id",
-                ['customer_id' => $customerId]
-            );
+            $sql = "SELECT * FROM customers WHERE customer_id = :customer_id";
+            $params = ['customer_id' => $customerId];
+            
+            if ($companyId) {
+                $sql .= " AND company_id = :company_id";
+                $params['company_id'] = $companyId;
+            }
+            
+            $customer = $this->db->fetchOne($sql, $params);
             
             if (!$customer) {
                 return ['success' => false, 'message' => 'ไม่พบลูกค้า'];
@@ -194,17 +216,39 @@ class CustomerService {
      */
     public function getCustomersByBasket($basketType, $filters = []) {
         $userId = $filters['current_user_id'] ?? $_SESSION['user_id'] ?? null;
+        $companyId = CompanyContext::getCompanyId($this->db);
         
+        // ใช้ view สำหรับการแสดงผลที่ถูกต้อง
         $sql = "SELECT c.*, u.full_name as assigned_to_name,
                        GROUP_CONCAT(ct.tag_name ORDER BY ct.created_at DESC) as customer_tags,
                        GROUP_CONCAT(ct.tag_color ORDER BY ct.created_at DESC) as tag_colors,
-                       (SELECT MAX(cl.created_at) FROM call_logs cl WHERE cl.customer_id = c.customer_id) as last_call_date
+                       (SELECT MAX(cl.created_at) FROM call_logs cl WHERE cl.customer_id = c.customer_id) as last_call_date,
+                       CASE 
+                           WHEN c.customer_status = 'new' THEN 'ลูกค้าใหม่'
+                           WHEN c.customer_status = 'existing' THEN 'ลูกค้าเก่า'
+                           WHEN c.customer_status = 'existing_3m' THEN 'ลูกค้าเก่า 3 เดือน'
+                           WHEN c.customer_status = 'followup' THEN 'ติดตาม'
+                           WHEN c.customer_status = 'call_followup' THEN 'ติดตามโทร'
+                           WHEN c.customer_status = 'daily_distribution' THEN 'แจกรายวัน'
+                           ELSE 'ไม่ทราบสถานะ'
+                       END as status_text
                 FROM customers c 
                 LEFT JOIN users u ON c.assigned_to = u.user_id 
-                LEFT JOIN customer_tags ct ON c.customer_id = ct.customer_id AND ct.user_id = ?
+                LEFT JOIN customer_tags ct ON c.customer_id = ct.customer_id
                 WHERE c.is_active = 1";
         
-        $params = [$userId];
+        $params = [];
+        
+        // เพิ่มการกรองตาม company_id
+        if (!empty($filters['company_id'])) {
+            // ใช้ company_id จาก filters parameter ก่อน
+            $sql .= " AND c.company_id = ?";
+            $params[] = $filters['company_id'];
+        } elseif ($companyId) {
+            // ใช้ company_id จาก CompanyContext
+            $sql .= " AND c.company_id = ?";
+            $params[] = $companyId;
+        }
         
         // เงื่อนไข basket_type: ถ้าเป็น 'all' จะไม่กรองตาม basket
         if (!empty($basketType) && $basketType !== 'all') {
@@ -270,32 +314,54 @@ class CustomerService {
      * @return array รายการลูกค้าที่ต้องติดตาม
      */
     public function getFollowUpCustomers($userId, $filters = []) {
+        $companyId = CompanyContext::getCompanyId($this->db);
+        
         $sql = "SELECT c.*, u.full_name as assigned_to_name,
                        DATEDIFF(c.customer_time_expiry, NOW()) as days_remaining,
                        DATEDIFF(c.next_followup_at, NOW()) as followup_days,
                        GROUP_CONCAT(ct.tag_name ORDER BY ct.created_at DESC) as customer_tags,
                        GROUP_CONCAT(ct.tag_color ORDER BY ct.created_at DESC) as tag_colors,
                        (SELECT MAX(cl.created_at) FROM call_logs cl WHERE cl.customer_id = c.customer_id) as last_call_date,
+                       COALESCE(c.assigned_at, c.created_at) as received_at,
                        CASE
                            WHEN c.next_followup_at IS NOT NULL THEN 'appointment'
-                           WHEN c.customer_status = 'new' THEN 'new'
-                           WHEN c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 7 DAY) THEN 'expiry'
+                           WHEN c.customer_status IN ('new', 'daily_distribution') THEN 'new'
+                           WHEN c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 5 DAY) THEN 'expiry'
                            ELSE 'other'
                        END as reason_type
                 FROM customers c
                 LEFT JOIN users u ON c.assigned_to = u.user_id
-                LEFT JOIN customer_tags ct ON c.customer_id = ct.customer_id AND ct.user_id = ?
+                LEFT JOIN customer_tags ct ON c.customer_id = ct.customer_id
                 WHERE c.assigned_to = ?
                 AND c.basket_type = 'assigned'
                 AND c.is_active = 1
                 AND (
-                    c.customer_status = 'new' OR
-                    c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 3 DAY) OR
-                    (c.next_followup_at IS NOT NULL AND c.next_followup_at <= DATE_ADD(NOW(), INTERVAL 1 DAY))
+                    -- เฉพาะคิวติดตามที่ถึงกำหนด/เกินกำหนดแล้วเท่านั้น (แสดงตั้งแต่ 1 วันก่อนวันนัด โดยไม่เปลี่ยนข้อมูลจริง)
+                    (c.next_followup_at IS NOT NULL AND DATE(c.next_followup_at) <= DATE_ADD(CURDATE(), INTERVAL 1 DAY))
+                    OR
+                    -- กรณีใกล้หมดอายุการดูแล
+                    (c.customer_time_expiry IS NOT NULL AND c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 5 DAY))
+                    OR
+                    -- ลูกค้าใหม่/แจกรายวัน เฉพาะเมื่อยังไม่ได้โทรวันนี้ และไม่มีนัดหมายที่ยังไม่ completed ค้างอยู่
+                    (
+                        c.customer_status IN ('new', 'daily_distribution')
+                        AND COALESCE((SELECT MAX(cl2.created_at) FROM call_logs cl2 WHERE cl2.customer_id = c.customer_id), '1970-01-01') < CURDATE()
+                        AND NOT EXISTS (
+                            SELECT 1 FROM appointments a2
+                            WHERE a2.customer_id = c.customer_id
+                              AND a2.appointment_status <> 'completed'
+                        )
+                    )
                 )
                 ";
 
-        $params = [$userId, $userId];
+        $params = [$userId];
+        
+        // เพิ่มการกรองตาม company_id
+        if ($companyId) {
+            $sql .= " AND c.company_id = ?";
+            $params[] = $companyId;
+        }
         if (!empty($filters['temperature'])) {
             $sql .= " AND c.temperature_status = ?"; 
             $params[] = $filters['temperature'];
@@ -322,10 +388,25 @@ class CustomerService {
 
         $sql .= " GROUP BY c.customer_id 
                   ORDER BY 
-                    (c.next_followup_at IS NULL) ASC,
-                    c.next_followup_at ASC,
-                    (c.customer_status <> 'new') ASC,
-                    c.created_at DESC";
+                    -- กลุ่ม: 1) นัดหมาย 2) ใกล้หมดอายุ 3) แจกใหม่/แจกรายวัน
+                    CASE 
+                        WHEN (c.next_followup_at IS NOT NULL AND DATE(c.next_followup_at) <= DATE_ADD(CURDATE(), INTERVAL 1 DAY)) THEN 1
+                        WHEN (c.customer_time_expiry IS NOT NULL AND c.customer_time_expiry <= DATE_ADD(NOW(), INTERVAL 5 DAY)) THEN 2
+                        WHEN (
+                            c.customer_status IN ('new','daily_distribution')
+                            AND COALESCE((SELECT MAX(cl2.created_at) FROM call_logs cl2 WHERE cl2.customer_id = c.customer_id), '1970-01-01') < CURDATE()
+                            AND NOT EXISTS (
+                                SELECT 1 FROM appointments a2
+                                WHERE a2.customer_id = c.customer_id
+                                  AND a2.appointment_status <> 'completed'
+                            )
+                        ) THEN 3
+                        ELSE 4
+                    END ASC,
+                    -- ภายในกลุ่ม: นัดหมายเรียงใกล้สุด, ใกล้หมดเรียงใกล้สุด, แจกใหม่เรียงได้รับล่าสุด
+                    CASE WHEN (c.next_followup_at IS NOT NULL) THEN c.next_followup_at END ASC,
+                    CASE WHEN (c.customer_time_expiry IS NOT NULL) THEN c.customer_time_expiry END ASC,
+                    CASE WHEN (c.customer_status IN ('new','daily_distribution')) THEN COALESCE(c.assigned_at, c.created_at) END DESC";
 
         return $this->db->fetchAll($sql, $params);
     }

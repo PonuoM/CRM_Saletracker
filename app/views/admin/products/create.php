@@ -175,11 +175,42 @@
                     </div>
                 </div>
                 
-                <!-- JavaScript Validation -->
+                <!-- JavaScript Validation and Profit Calculation -->
                 <script>
                 document.addEventListener("DOMContentLoaded", function() {
                     const productCodeInput = document.getElementById("product_code");
                     const productForm = document.getElementById("productForm");
+                    const costPriceInput = document.getElementById("cost_price");
+                    const sellingPriceInput = document.getElementById("selling_price");
+                    const profitPerUnitEl = document.getElementById("profit_per_unit");
+                    const profitMarginEl = document.getElementById("profit_margin");
+                    
+                    // Profit calculation function
+                    function calculateProfit() {
+                        const costPrice = parseFloat(costPriceInput.value) || 0;
+                        const sellingPrice = parseFloat(sellingPriceInput.value) || 0;
+                        
+                        const profitPerUnit = sellingPrice - costPrice;
+                        const profitMargin = costPrice > 0 ? ((profitPerUnit / costPrice) * 100) : 0;
+                        
+                        if (profitPerUnitEl) {
+                            profitPerUnitEl.textContent = `฿${profitPerUnit.toFixed(2)}`;
+                            profitPerUnitEl.className = profitPerUnit >= 0 ? 'fw-bold text-success' : 'fw-bold text-danger';
+                        }
+                        
+                        if (profitMarginEl) {
+                            profitMarginEl.textContent = `${profitMargin.toFixed(1)}%`;
+                            profitMarginEl.className = profitMargin >= 0 ? 'fw-bold text-success' : 'fw-bold text-danger';
+                        }
+                    }
+                    
+                    // Add event listeners for profit calculation
+                    if (costPriceInput && sellingPriceInput) {
+                        costPriceInput.addEventListener('input', calculateProfit);
+                        sellingPriceInput.addEventListener('input', calculateProfit);
+                        // Calculate on page load
+                        calculateProfit();
+                    }
                     
                     if (productCodeInput && productForm) {
                         // ตรวจสอบรหัสสินค้าที่ซ้ำก่อนส่งฟอร์ม

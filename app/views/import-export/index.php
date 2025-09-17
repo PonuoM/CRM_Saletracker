@@ -14,19 +14,19 @@
 
                 <!-- Success/Error Messages -->
                 <?php if (isset($_SESSION['upload_success'])): ?>
-                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                    <div class="alert alert-success alert-dismissible show permanent-alert" role="alert">
                         <i class="fas fa-check-circle me-2"></i>
                         <?php echo htmlspecialchars($_SESSION['upload_success']); ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="ปิด"></button>
                     </div>
                     <?php unset($_SESSION['upload_success']); ?>
                 <?php endif; ?>
 
                 <?php if (isset($_SESSION['upload_error'])): ?>
-                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                    <div class="alert alert-danger alert-dismissible show permanent-alert" role="alert">
                         <i class="fas fa-exclamation-triangle me-2"></i>
                         <?php echo htmlspecialchars($_SESSION['upload_error']); ?>
-                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="ปิด"></button>
                     </div>
                     <?php unset($_SESSION['upload_error']); ?>
                 <?php endif; ?>
@@ -62,19 +62,19 @@
                         <div>
                             <i class="fas fa-building me-2"></i>
                             <strong>บริษัทปลายทาง:</strong>
-                            <select class="form-select d-inline-block w-auto ms-2" form="importSalesForm" name="company_override">
+                            <select class="form-select d-inline-block w-auto ms-2" form="importSalesForm" name="company_override_id">
                                 <option value="">เลือกบริษัท...</option>
                                 <?php foreach (($companies ?? []) as $co): ?>
-                                    <option value="<?php echo htmlspecialchars(isset($co['company_code']) && $co['company_code'] !== '' ? $co['company_code'] : $co['company_name']); ?>"><?php echo htmlspecialchars($co['company_name']); ?></option>
+                                    <option value="<?php echo (int)$co['company_id']; ?>"><?php echo htmlspecialchars($co['company_name']); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
                             <?php if (($roleName ?? '') === 'super_admin'): ?>
-                            <input type="hidden" form="importCustomersOnlyForm" name="company_override" id="companyOverrideHidden">
+                            <input type="hidden" form="importCustomersOnlyForm" name="company_override_id" id="companyOverrideHidden">
                             <script>
                             // Keep both forms in sync: when top dropdown changes, update hidden input of customers-only form
                             (function(){
-                                const topSelect = document.querySelector('select[name="company_override"][form="importSalesForm"]');
+                                const topSelect = document.querySelector('select[name="company_override_id"][form="importSalesForm"]');
                                 const hidden = document.getElementById('companyOverrideHidden');
                                 if (topSelect && hidden) {
                                     const sync = () => { hidden.value = topSelect.value; };
@@ -119,6 +119,32 @@
                                                 </button>
                                             </div>
 
+                                            <div class="mb-3">
+                                                <label for="salesCustomerStatus" class="form-label">สถานะลูกค้า</label>
+                                                <select class="form-select" id="salesCustomerStatus" name="customer_status">
+                                                    <option value="">ยึดตามกฎอัตโนมัติ</option>
+                                                    <option value="new">ลูกค้าใหม่</option>
+                                                    <option value="existing">ลูกค้าเก่า</option>
+                                                    <option value="followup">ติดตาม</option>
+                                                    <option value="call_followup">ติดตามโทร</option>
+                                                    <option value="daily_distribution">แจกรายวัน</option>
+                                                </select>
+                                                <div class="form-text">ถ้าไม่เลือก ระบบจะตั้งตามกฎ (มีผู้ติดตาม = existing, ไม่มี = new)</div>
+                                            </div>
+
+                                            <div class="mb-3">
+                                                <div class="form-check">
+                                                    <input class="form-check-input" type="checkbox" id="updateCustomerTimeExpiry" name="update_customer_time_expiry" value="1">
+                                                    <label class="form-check-label" for="updateCustomerTimeExpiry">
+                                                        <strong>อัปเดตวันคงเหลือเป็น 90 วัน</strong>
+                                                    </label>
+                                                </div>
+                                                <div class="form-text">
+                                                    <strong>ติ๊ก:</strong> สำหรับข้อมูลใหม่ - อัปเดตวันคงเหลือเป็น 90 วัน<br>
+                                                    <strong>ไม่ติ๊ก:</strong> สำหรับข้อมูลเก่า - เพิ่มประวัติและอัปเดตสถานะเป็น "ลูกค้าเก่า 3 เดือน" (เฉพาะในกรอบ 90 วัน)
+                                                </div>
+                                            </div>
+
                                             <button type="submit" class="btn btn-primary">
                                                 <i class="fas fa-upload me-1"></i>
                                                 นำเข้ายอดขาย
@@ -131,9 +157,10 @@
                                         </form>
 
                                         <div id="salesImportResults" class="mt-3" style="display: none;">
-                                            <div class="alert" role="alert">
+                                            <div class="alert alert-dismissible" role="alert">
                                                 <div id="salesImportMessage"></div>
                                                 <div id="salesImportDetails" class="mt-2"></div>
+                                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="ปิด"></button>
                                             </div>
                                         </div>
                                     </div>
@@ -159,6 +186,18 @@
                                             </div>
 
                                             <div class="mb-3">
+                                                <label for="customerStatusSelect" class="form-label">สถานะลูกค้า</label>
+                                                <select class="form-select" id="customerStatusSelect" name="customer_status">
+                                                    <option value="new">ลูกค้าใหม่</option>
+                                                    <option value="existing">ลูกค้าเก่า</option>
+                                                    <option value="followup">ติดตาม</option>
+                                                    <option value="call_followup">ติดตามโทร</option>
+                                                    <option value="daily_distribution">แจกรายวัน</option>
+                                                </select>
+                                                <div class="form-text">สถานะที่จะตั้งให้กับลูกค้าที่นำเข้า</div>
+                                            </div>
+
+                                            <div class="mb-3">
                                                 <button type="button" class="btn btn-outline-primary btn-sm" onclick="downloadTemplate('customers_only')">
                                                     <i class="fas fa-download me-1"></i>
                                                     ดาวน์โหลด Template รายชื่อ
@@ -172,9 +211,10 @@
                                         </form>
 
                                         <div id="customersOnlyImportResults" class="mt-3" style="display: none;">
-                                            <div class="alert" role="alert">
+                                            <div class="alert alert-dismissible" role="alert">
                                                 <div id="customersOnlyImportMessage"></div>
                                                 <div id="customersOnlyImportDetails" class="mt-2"></div>
+                                                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="ปิด"></button>
                                             </div>
                                         </div>
                                     </div>
@@ -215,6 +255,8 @@
                                                     <li>✅ <strong>ติดตามอยู่แล้ว</strong> → ตัดออก</li>
                                                     <li>✅ <strong>ข้อมูลที่ต้องมี:</strong> ชื่อ, เบอร์โทร</li>
                                                     <li>✅ <strong>ฟิลด์ใหม่:</strong> รหัสสินค้า, ผู้ติดตาม (ชื่อหรือรหัสพนักงาน)</li>
+                                                    <li>🔥 <strong>ฟีเจอร์ใหม่:</strong> วันคงเหลือ (ไม่ใส่ = 30 วัน)</li>
+                                                    <li>🔥 <strong>สถานะ:</strong> ลูกค้าร้อน (Hot) + ลูกค้าใหม่ เสมอ</li>
                                                 </ul>
                                             </div>
                                         </div>
@@ -570,3 +612,20 @@
         }, 1000);
     }
     </script>
+
+    <style>
+    /* Prevent automatic fade out of permanent alerts */
+    .permanent-alert {
+        animation: none !important;
+    }
+    
+    .permanent-alert.fade {
+        opacity: 1 !important;
+    }
+    
+    /* Ensure permanent alerts stay visible */
+    .permanent-alert.show {
+        display: block !important;
+        opacity: 1 !important;
+    }
+    </style>

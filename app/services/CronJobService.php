@@ -529,7 +529,7 @@ class CronJobService {
                 AND assigned_to IS NOT NULL
                 AND assigned_at IS NOT NULL
                 AND assigned_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
-                AND (customer_time_expiry IS NULL OR customer_time_expiry > NOW())
+                AND customer_time_expiry IS NULL
                 AND customer_id NOT IN (
                     SELECT DISTINCT customer_id FROM orders
                     WHERE created_at > assigned_at
@@ -658,6 +658,9 @@ class CronJobService {
 
         // 6. อัปเดตการติดตามการโทร
         $results['call_followup'] = $this->updateCallFollowups();
+
+        // 6. Maintain 3-month existing status from recent orders
+        $results['existing_3m_status'] = $this->updateExisting3MonthStatus();
         
         // 7. ทำความสะอาดข้อมูล (รันทุกวันอาทิตย์)
         if (date('w') == 0) { // Sunday
@@ -674,6 +677,64 @@ class CronJobService {
             'execution_time' => $executionTime,
             'results' => $results
         ];
+    }
+    
+    /**
+     * Update customer_status to 'existing_3m' for managed customers with recent sales (<= 90 days)
+     * and revert to 'existing' when no qualifying sales remain. Ignore follow-up states.
+     */
+    public function updateExisting3MonthStatus() {
+        try {
+            // Promote to existing_3m: last paid/partial order within 90 days AND created_by equals assigned_to
+            $sql1 = "UPDATE customers c
+                     JOIN orders o ON o.customer_id = c.customer_id
+                     SET c.customer_status = 'existing_3m'
+                     WHERE c.is_active = 1
+                       AND c.assigned_to IS NOT NULL
+                       AND c.customer_status NOT IN ('followup','call_followup')
+                       AND o.payment_status IN ('paid','partial')
+                       AND o.order_date >= DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                       AND o.created_by = c.assigned_to
+                       AND o.order_id = (
+                            SELECT o2.order_id FROM orders o2
+                            WHERE o2.customer_id = c.customer_id
+                              AND o2.payment_status IN ('paid','partial')
+                            ORDER BY o2.order_date DESC, o2.order_id DESC
+                            LIMIT 1
+                       )";
+            $this->db->query($sql1);
+
+            // Demote back to existing when: no last paid order in 90 days OR last paid order created_by != assigned_to
+            $sql2 = "UPDATE customers c
+                     LEFT JOIN orders o ON o.customer_id = c.customer_id
+                       AND o.payment_status IN ('paid','partial')
+                       AND o.order_id = (
+                            SELECT o2.order_id FROM orders o2
+                            WHERE o2.customer_id = c.customer_id
+                              AND o2.payment_status IN ('paid','partial')
+                            ORDER BY o2.order_date DESC, o2.order_id DESC
+                            LIMIT 1
+                       )
+                     SET c.customer_status = 'existing'
+                     WHERE c.is_active = 1
+                       AND c.customer_status = 'existing_3m'
+                       AND (
+                            o.order_id IS NULL
+                            OR o.order_date < DATE_SUB(CURDATE(), INTERVAL 90 DAY)
+                            OR o.created_by <> c.assigned_to
+                       )";
+            $this->db->query($sql2);
+
+            return [
+                'success' => true
+            ];
+        } catch (Exception $e) {
+            $this->log('updateExisting3MonthStatus error: ' . $e->getMessage());
+            return [
+                'success' => false,
+                'error' => $e->getMessage()
+            ];
+        }
     }
     
     /**
@@ -713,8 +774,12 @@ class CronJobService {
      */
     private function logGradeChange($customerId, $oldGrade, $newGrade, $totalPurchase) {
         try {
-            $sql = "INSERT INTO activity_logs (user_id, activity_type, table_name, record_id, action, old_values, new_values, created_at) 
-                    VALUES (NULL, 'grade_change', 'customers', ?, 'update', ?, ?, NOW())";
+            // Resolve company_id from the affected customer
+            $cust = $this->db->fetchOne("SELECT company_id FROM customers WHERE customer_id = ?", [$customerId]);
+            $companyId = $cust['company_id'] ?? null;
+
+            $sql = "INSERT INTO activity_logs (user_id, company_id, activity_type, table_name, record_id, action, old_values, new_values, created_at) 
+                    VALUES (NULL, :company_id, 'grade_change', 'customers', :record_id, 'update', :old_values, :new_values, NOW())";
             
             $oldValues = json_encode(['customer_grade' => $oldGrade]);
             $newValues = json_encode([
@@ -724,7 +789,12 @@ class CronJobService {
             ]);
             
             $stmt = $this->db->prepare($sql);
-            $stmt->execute([$customerId, $oldValues, $newValues]);
+            $stmt->execute([
+                'company_id' => $companyId,
+                'record_id' => $customerId,
+                'old_values' => $oldValues,
+                'new_values' => $newValues
+            ]);
         } catch (Exception $e) {
             $this->log("Error logging grade change: " . $e->getMessage());
         }
@@ -735,8 +805,12 @@ class CronJobService {
      */
     private function logTemperatureChange($customerId, $oldTemperature, $newTemperature, $daysSinceContact) {
         try {
-            $sql = "INSERT INTO activity_logs (user_id, activity_type, table_name, record_id, action, old_values, new_values, created_at) 
-                    VALUES (NULL, 'temperature_change', 'customers', ?, 'update', ?, ?, NOW())";
+            // Resolve company_id from the affected customer
+            $cust = $this->db->fetchOne("SELECT company_id FROM customers WHERE customer_id = ?", [$customerId]);
+            $companyId = $cust['company_id'] ?? null;
+
+            $sql = "INSERT INTO activity_logs (user_id, company_id, activity_type, table_name, record_id, action, old_values, new_values, created_at) 
+                    VALUES (NULL, :company_id, 'temperature_change', 'customers', :record_id, 'update', :old_values, :new_values, NOW())";
             
             $oldValues = json_encode(['temperature_status' => $oldTemperature]);
             $newValues = json_encode([
@@ -746,7 +820,12 @@ class CronJobService {
             ]);
             
             $stmt = $this->db->prepare($sql);
-            $stmt->execute([$customerId, $oldValues, $newValues]);
+            $stmt->execute([
+                'company_id' => $companyId,
+                'record_id' => $customerId,
+                'old_values' => $oldValues,
+                'new_values' => $newValues
+            ]);
         } catch (Exception $e) {
             $this->log("Error logging temperature change: " . $e->getMessage());
         }

@@ -20,8 +20,8 @@ if (!isset($_SESSION['role_name']) || !in_array($_SESSION['role_name'], $allowed
 require_once 'config/config.php';
 require_once 'app/core/Database.php';
 
-// Get user's company source
-function getCurrentCompanySource() {
+// Get user's company id
+function getCurrentCompanyId() {
     try {
         $db = new Database();
         $user = $db->fetchOne("
@@ -32,23 +32,18 @@ function getCurrentCompanySource() {
         ", [$_SESSION['user_id']]);
         
         if (!$user || !$user['company_id']) {
-            return 'PRIMA'; // Default fallback
+            return null;
         }
-        
-        // Map company_id to source
-        $companySourceMap = [
-            1 => 'PRIMA',
-            2 => 'PRIONIC'
-        ];
-        
-        return $companySourceMap[$user['company_id']] ?? 'PRIMA';
+        return (int)$user['company_id'];
     } catch (Exception $e) {
-        error_log("Error getting company source: " . $e->getMessage());
-        return 'PRIMA'; // Default fallback
+        error_log("Error getting company id: " . $e->getMessage());
+        return null; // Default fallback
     }
 }
 
-$userSource = getCurrentCompanySource();
+$companyId = getCurrentCompanyId();
+// Backward compatibility shim for legacy references
+$userSource = $companyId;
 
 // Handle AJAX search request
 if (isset($_GET['action']) && $_GET['action'] === 'search') {
@@ -63,7 +58,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
         
         $db = new Database();
         
-        // Search query with user's company source
+        // Search query with user's company
         $sql = "
             SELECT 
                 c.customer_id,
@@ -73,11 +68,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
                 c.email,
                 c.customer_grade,
                 c.total_purchase_amount,
-                c.source,
+                c.basket_type,
+                u.full_name AS assigned_to_name,
                 COUNT(DISTINCT o.order_id) as total_orders
             FROM customers c
             LEFT JOIN orders o ON c.customer_id = o.customer_id AND o.is_active = 1
-            WHERE c.is_active = 1 AND c.source = ? AND (
+            LEFT JOIN users u ON c.assigned_to = u.user_id
+            WHERE c.is_active = 1 AND c.company_id = ? AND (
                 CONCAT(c.first_name, ' ', c.last_name) LIKE ? 
                 OR c.phone LIKE ?
                 OR c.first_name LIKE ?
@@ -89,7 +86,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'search') {
         ";
         
         $searchTerm = "%{$term}%";
-        $params = [$userSource, $searchTerm, $searchTerm, $searchTerm, $searchTerm];
+        $params = [$companyId, $searchTerm, $searchTerm, $searchTerm, $searchTerm];
         
         $results = $db->fetchAll($sql, $params);
         
@@ -131,10 +128,10 @@ if (isset($_GET['action']) && $_GET['action'] === 'customer_details') {
         
         // Check if customer exists and belongs to user's company
         $customer = $db->fetchOne("
-            SELECT customer_id, CONCAT(first_name, ' ', last_name) as name, source
+            SELECT customer_id, CONCAT(first_name, ' ', last_name) as name
             FROM customers 
-            WHERE customer_id = ? AND source = ? AND is_active = 1
-        ", [$customerId, $userSource]);
+WHERE customer_id = ? AND company_id = ? AND is_active = 1
+        ", [$customerId, $companyId]);
         
         if (!$customer) {
             echo json_encode([
@@ -158,10 +155,11 @@ if (isset($_GET['action']) && $_GET['action'] === 'customer_details') {
                 o.created_by,
                 COALESCE(users.full_name, CONCAT('User ', o.created_by)) as seller_name
             FROM orders o
+            JOIN customers c ON o.customer_id = c.customer_id
             LEFT JOIN users ON o.created_by = users.user_id
-            WHERE o.customer_id = ? AND o.is_active = 1
+            WHERE o.customer_id = ? AND c.company_id = ? AND o.is_active = 1
             ORDER BY o.order_date DESC
-        ", [$customerId]);
+        ", [$customerId, $companyId]);
         
         if (!empty($orders)) {
             echo json_encode([
@@ -201,13 +199,13 @@ if (isset($_GET['action']) && $_GET['action'] === 'order_details') {
         
         // Get order details with customer verification
         $order = $db->fetchOne("
-            SELECT o.*, c.source, 
+            SELECT o.*, 
                    CONCAT(c.first_name, ' ', c.last_name) as customer_name,
                    users.full_name as seller_name
             FROM orders o
             JOIN customers c ON o.customer_id = c.customer_id
             LEFT JOIN users ON o.created_by = users.user_id
-            WHERE o.order_id = ? AND c.source = ? AND o.is_active = 1
+WHERE o.order_id = ? AND c.company_id = ? AND o.is_active = 1
         ", [$orderId, $userSource]);
         
         if (!$order) {
@@ -308,6 +306,20 @@ if (isset($_GET['action']) && $_GET['action'] === 'order_details') {
     #customerDetails .row .col-md-2 {
         padding-left: 0.5rem !important;
         padding-right: 0.5rem !important;
+    }
+
+    /* Customer details inline full-width layout */
+    #customerDetails .customer-inline {
+        display: flex;
+        flex-wrap: nowrap;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        width: 100%;
+    }
+    #customerDetails .customer-inline > div {
+        flex: 1 1 0;
+        min-width: 120px;
     }
     
     #customerDetails small.text-muted {
@@ -619,13 +631,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'order_details') {
         function displayCustomerList(customers) {
             const customerDetails = document.getElementById('customerDetails');
             
+            // keep last results for selection with full fields
+            window._lastSearchCustomers = customers;
+            
             let html = '<h6 class="mb-3">พบลูกค้าหลายรายการ กรุณาเลือก:</h6>';
             html += '<div class="list-group">';
             
             customers.forEach(customer => {
                 html += `
                     <button type="button" class="list-group-item list-group-item-action" 
-                            onclick="selectCustomer(${customer.customer_id}, '${customer.full_name}', '${customer.customer_code}', '${customer.phone}', '${customer.email}', '${customer.customer_grade}', '${customer.total_purchase_amount}', '${customer.total_orders}')">
+                            onclick="selectCustomer(${customer.customer_id})">
                         <div class="d-flex w-100 justify-content-between">
                             <h6 class="mb-1">${customer.full_name}</h6>
                             <small>รหัส: ${customer.customer_code}</small>
@@ -644,44 +659,36 @@ if (isset($_GET['action']) && $_GET['action'] === 'order_details') {
         function displayCustomerDetails(customer) {
             const customerDetails = document.getElementById('customerDetails');
             customerDetails.innerHTML = `
-                <div class="row">
-                    <div class="col-md-2">
-                        <div class="mb-2">
-                            <small class="text-muted">ชื่อ:</small><br>
-                            <strong>${customer.full_name || 'ไม่ระบุ'}</strong>
-                        </div>
+                <div class="customer-inline">
+                    <div>
+                        <small class="text-muted">ชื่อ:</small><br>
+                        <strong>${customer.full_name || 'ไม่ระบุ'}</strong>
                     </div>
-                    <div class="col-md-2">
-                        <div class="mb-2">
-                            <small class="text-muted">รหัสลูกค้า:</small><br>
-                            <strong>${customer.customer_code || 'ไม่ระบุ'}</strong>
-                        </div>
+                    <div>
+                        <small class="text-muted">รหัสลูกค้า:</small><br>
+                        <strong>${customer.customer_code || 'ไม่ระบุ'}</strong>
                     </div>
-                    <div class="col-md-2">
-                        <div class="mb-2">
-                            <small class="text-muted">เบอร์โทร:</small><br>
-                            <strong>${customer.phone || 'ไม่ระบุ'}</strong>
-                        </div>
+                    <div>
+                        <small class="text-muted">เบอร์โทร:</small><br>
+                        <strong>${customer.phone || 'ไม่ระบุ'}</strong>
                     </div>
-                    <div class="col-md-2">
-                        <div class="mb-2">
-                            <small class="text-muted">เกรดลูกค้า:</small><br>
-                            <span class="badge ${getGradeBadgeClass(customer.customer_grade)}">
-                                ${customer.customer_grade || 'D'}
-                            </span>
-                        </div>
+                    <div>
+                        <small class="text-muted">เกรดลูกค้า:</small><br>
+                        <span class="badge ${getGradeBadgeClass(customer.customer_grade)}">
+                            ${customer.customer_grade || 'D'}
+                        </span>
                     </div>
-                    <div class="col-md-2">
-                        <div class="mb-2">
-                            <small class="text-muted">ยอดซื้อรวม:</small><br>
-                            <strong class="text-success">${parseInt(customer.total_purchase_amount || 0).toLocaleString()} บาท</strong>
-                        </div>
+                    <div>
+                        <small class="text-muted">ยอดซื้อรวม:</small><br>
+                        <strong class="text-success">${parseInt(customer.total_purchase_amount || 0).toLocaleString()} บาท</strong>
                     </div>
-                    <div class="col-md-2">
-                        <div class="mb-2">
-                            <small class="text-muted">จำนวนครั้งที่ซื้อ:</small><br>
-                            <strong class="text-info">${customer.total_orders || 0} ครั้ง</strong>
-                        </div>
+                    <div>
+                        <small class="text-muted">จำนวนครั้งที่ซื้อ:</small><br>
+                        <strong class="text-info">${customer.total_orders || 0} ครั้ง</strong>
+                    </div>
+                    <div>
+                        <small class="text-muted">ผู้ดูแลปัจจุบัน:</small><br>
+                        <strong>${(customer.basket_type === 'assigned' && customer.assigned_to_name) ? customer.assigned_to_name : 'ไม่มี (ตะกร้ารอ/พร้อมแจก)'}</strong>
                     </div>
                 </div>
             `;
@@ -938,18 +945,16 @@ if (isset($_GET['action']) && $_GET['action'] === 'order_details') {
         }
         
         // Global functions for onclick
-        window.selectCustomer = function(id, name, code, phone, email, grade, amount, orders) {
-            const customer = {
-                customer_id: id,
-                full_name: name,
-                customer_code: code,
-                phone: phone,
-                email: email,
-                customer_grade: grade,
-                total_purchase_amount: amount,
-                total_orders: orders
-            };
-            displayCustomerDetails(customer);
+        window.selectCustomer = function(id) {
+            if (Array.isArray(window._lastSearchCustomers)) {
+                const found = window._lastSearchCustomers.find(c => String(c.customer_id) === String(id));
+                if (found) {
+                    displayCustomerDetails(found);
+                    return;
+                }
+            }
+            // fallback minimal
+            displayCustomerDetails({ customer_id: id });
         };
         
         window.showOrderDetails = showOrderDetails;

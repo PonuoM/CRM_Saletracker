@@ -18,7 +18,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 /**
- * Show message at top of page
+ * Show message at top of page - stays until manually closed
  */
 function showPageMessage(message, type = 'success') {
     // Remove existing messages
@@ -33,24 +33,20 @@ function showPageMessage(message, type = 'success') {
     messageDiv.style.left = '50%';
     messageDiv.style.transform = 'translateX(-50%)';
     messageDiv.style.zIndex = '9999';
-    messageDiv.style.minWidth = '300px';
+    messageDiv.style.minWidth = '400px';
+    messageDiv.style.maxWidth = '90vw';
     
     const icon = type === 'success' ? 'check-circle' : 'exclamation-triangle';
     messageDiv.innerHTML = `
         <i class="fas fa-${icon} me-2"></i>
         ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="ปิด"></button>
     `;
     
     // Add to page
     document.body.appendChild(messageDiv);
     
-    // Auto remove after 5 seconds
-    setTimeout(() => {
-        if (messageDiv.parentNode) {
-            messageDiv.remove();
-        }
-    }, 5000);
+    // No auto-remove - stays until manually closed
 }
 
 // Initialize Call Logs Import
@@ -102,6 +98,12 @@ function initializeSalesImportForm() {
         const topSelect = document.querySelector('select[name="company_override"][form="importSalesForm"]');
         if (topSelect) {
             formData.set('company_override', topSelect.value || '');
+        }
+        
+        // Debug: Log form data
+        console.log('Form data being sent:');
+        for (let [key, value] of formData.entries()) {
+            console.log(key + ': ' + value);
         }
         const resultsDiv = document.getElementById('salesImportResults');
         const messageDiv = document.getElementById('salesImportMessage');
@@ -177,17 +179,9 @@ function initializeSalesImportForm() {
                 }
                 
                 // Show success message at top of page
-                showPageMessage('นำเข้ายอดขายสำเร็จ! ' + data.total + ' รายการ', 'success');
+                showPageMessage(`นำเข้ายอดขายสำเร็จ! รวม ${data.total} รายการ, สำเร็จ ${data.success} รายการ, ลูกค้าใหม่ ${data.customers_created || 0} ราย`, 'success');
                 
-                // Refresh page after 2 seconds to fix white screen issue
-                setTimeout(() => {
-                    window.location.reload();
-                }, 2000);
-                
-                // Hide results after 5 seconds
-                setTimeout(() => {
-                    resultsDiv.style.display = 'none';
-                }, 5000);
+                // Keep results visible - no auto-hide or refresh
             } else {
                 // Unknown response
                 resultsDiv.className = 'alert alert-warning';
@@ -289,17 +283,9 @@ function initializeCustomersOnlyImportForm() {
                 }
                 
                 // Show success message at top of page
-                showPageMessage('นำเข้ารายชื่อสำเร็จ! ' + data.total + ' รายการ', 'success');
+                showPageMessage(`นำเข้ารายชื่อสำเร็จ! รวม ${data.total} รายการ, สำเร็จ ${data.success} รายการ, ลูกค้าใหม่ ${data.customers_created || 0} ราย`, 'success');
                 
-                // Refresh page after 2 seconds to fix white screen issue
-                setTimeout(() => {
-                    window.location.reload();
-                }, 2000);
-                
-                // Hide results after 5 seconds
-                setTimeout(() => {
-                    resultsDiv.style.display = 'none';
-                }, 5000);
+                // Keep results visible - no auto-hide or refresh
             } else {
                 // Unknown response
                 resultsDiv.className = 'alert alert-warning';

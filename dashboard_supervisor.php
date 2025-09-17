@@ -21,6 +21,7 @@ if (!$auth->isLoggedIn() || $auth->getCurrentUser()['role_name'] !== 'supervisor
 
 $user = $auth->getCurrentUser();
 $supervisorId = $user['user_id'];
+$companyId = $user['company_id']; // เพิ่มการดึง company_id
 
 // Get selected month
 $selectedMonth = $_GET['month'] ?? date('Y-m');
@@ -31,10 +32,10 @@ $currentPage = 'dashboard';
 // Get data
 try {
     // แถวที่ 1: จำนวนลูกค้าทั้งหมด, ยอดคำสั่งซื้อทั้งหมด (เดือน), ยอดขายเดือนนี้, สมาชิกทีม
-    $totalCustomers = $db->fetchOne("SELECT COUNT(*) as count FROM customers WHERE assigned_to = ? AND is_active = 1", [$supervisorId]);
-    $monthlyOrders = $db->fetchOne("SELECT COUNT(*) as count FROM orders WHERE created_by = ? AND DATE_FORMAT(created_at, '%Y-%m') = ?", [$supervisorId, $selectedMonth]);
-    $monthlySales = $db->fetchOne("SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE created_by = ? AND DATE_FORMAT(created_at, '%Y-%m') = ?", [$supervisorId, $selectedMonth]);
-    $teamMembers = $db->fetchOne("SELECT COUNT(*) as count FROM users WHERE supervisor_id = ? AND is_active = 1", [$supervisorId]);
+    $totalCustomers = $db->fetchOne("SELECT COUNT(*) as count FROM customers WHERE assigned_to = ? AND company_id = ? AND is_active = 1", [$supervisorId, $companyId]);
+    $monthlyOrders = $db->fetchOne("SELECT COUNT(*) as count FROM orders WHERE created_by = ? AND company_id = ? AND DATE_FORMAT(created_at, '%Y-%m') = ?", [$supervisorId, $companyId, $selectedMonth]);
+    $monthlySales = $db->fetchOne("SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE created_by = ? AND company_id = ? AND DATE_FORMAT(created_at, '%Y-%m') = ?", [$supervisorId, $companyId, $selectedMonth]);
+    $teamMembers = $db->fetchOne("SELECT COUNT(*) as count FROM users WHERE supervisor_id = ? AND company_id = ? AND is_active = 1", [$supervisorId, $companyId]);
 
     // แถวที่ 2: ยอดขาย/จำนวนชิ้น ตามประเภทสินค้า
     // ปุ๋ยใหญ่ (ปุ๋ยกระสอบใหญ่)
@@ -43,9 +44,9 @@ try {
         FROM order_items oi
         JOIN orders o ON oi.order_id = o.order_id
         JOIN products p ON oi.product_id = p.product_id
-        WHERE o.created_by = ? AND DATE_FORMAT(o.created_at, '%Y-%m') = ?
+        WHERE o.created_by = ? AND o.company_id = ? AND DATE_FORMAT(o.created_at, '%Y-%m') = ?
         AND p.category = 'ปุ๋ยกระสอบใหญ่'
-    ", [$supervisorId, $selectedMonth]);
+    ", [$supervisorId, $companyId, $selectedMonth]);
 
     // ปุ๋ยเล็ก (ปุ๋ยกระสอบเล็ก)
     $fertilizer_small = $db->fetchOne("
@@ -53,9 +54,9 @@ try {
         FROM order_items oi
         JOIN orders o ON oi.order_id = o.order_id
         JOIN products p ON oi.product_id = p.product_id
-        WHERE o.created_by = ? AND DATE_FORMAT(o.created_at, '%Y-%m') = ?
+        WHERE o.created_by = ? AND o.company_id = ? AND DATE_FORMAT(o.created_at, '%Y-%m') = ?
         AND p.category = 'ปุ๋ยกระสอบเล็ก'
-    ", [$supervisorId, $selectedMonth]);
+    ", [$supervisorId, $companyId, $selectedMonth]);
 
     // ชีวิภัณฑ์
     $biological = $db->fetchOne("
@@ -63,9 +64,9 @@ try {
         FROM order_items oi
         JOIN orders o ON oi.order_id = o.order_id
         JOIN products p ON oi.product_id = p.product_id
-        WHERE o.created_by = ? AND DATE_FORMAT(o.created_at, '%Y-%m') = ?
+        WHERE o.created_by = ? AND o.company_id = ? AND DATE_FORMAT(o.created_at, '%Y-%m') = ?
         AND p.category = 'ชีวภัณฑ์'
-    ", [$supervisorId, $selectedMonth]);
+    ", [$supervisorId, $companyId, $selectedMonth]);
 
     // ข้อมูลสำหรับกราฟ
     // กราฟที่ 1: ยอดขายประจำเดือนตามประเภทสินค้า
@@ -82,7 +83,7 @@ try {
         FROM order_items oi
         JOIN orders o ON oi.order_id = o.order_id
         JOIN products p ON oi.product_id = p.product_id
-        WHERE o.created_by = ? AND DATE_FORMAT(o.created_at, '%Y-%m') = ?
+        WHERE o.created_by = ? AND o.company_id = ? AND DATE_FORMAT(o.created_at, '%Y-%m') = ?
         GROUP BY CASE
             WHEN p.category = 'ปุ๋ยกระสอบใหญ่' THEN 'ปุ๋ยใหญ่'
             WHEN p.category = 'ปุ๋ยกระสอบเล็ก' THEN 'ปุ๋ยเล็ก'
@@ -92,7 +93,7 @@ try {
         END
         HAVING sales > 0
         ORDER BY sales DESC
-    ", [$supervisorId, $selectedMonth]);
+    ", [$supervisorId, $companyId, $selectedMonth]);
 
     // กราฟที่ 2: จำนวนคำสั่งซื้อและลูกค้าที่ติดต่อรายเดือน
     $monthlyStats = $db->fetchAll("
@@ -100,23 +101,23 @@ try {
             DATE_FORMAT(created_at, '%Y-%m') as month,
             COUNT(*) as orders_count
         FROM orders
-        WHERE created_by = ?
+        WHERE created_by = ? AND company_id = ?
         AND created_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
         GROUP BY DATE_FORMAT(created_at, '%Y-%m')
         ORDER BY month ASC
-    ", [$supervisorId]);
+    ", [$supervisorId, $companyId]);
 
     $monthlyContacts = $db->fetchAll("
         SELECT
             DATE_FORMAT(last_contact_at, '%Y-%m') as month,
             COUNT(DISTINCT customer_id) as contacts_count
         FROM customers
-        WHERE assigned_to = ?
+        WHERE assigned_to = ? AND company_id = ?
         AND last_contact_at >= DATE_SUB(CURDATE(), INTERVAL 12 MONTH)
         AND last_contact_at IS NOT NULL
         GROUP BY DATE_FORMAT(last_contact_at, '%Y-%m')
         ORDER BY month ASC
-    ", [$supervisorId]);
+    ", [$supervisorId, $companyId]);
 
     // กราฟที่ 3: ยอดขายรายวันของทีม
     $teamDailySales = $db->fetchAll("
@@ -126,11 +127,11 @@ try {
             COALESCE(SUM(o.total_amount), 0) as sales
         FROM orders o
         JOIN users u ON o.created_by = u.user_id
-        WHERE u.supervisor_id = ?
+        WHERE u.supervisor_id = ? AND u.company_id = ? AND o.company_id = ?
         AND DATE_FORMAT(o.created_at, '%Y-%m') = ?
         GROUP BY DATE(o.created_at), u.user_id, u.full_name
         ORDER BY date ASC, u.full_name ASC
-    ", [$supervisorId, $selectedMonth]);
+    ", [$supervisorId, $companyId, $companyId, $selectedMonth]);
     
 } catch (Exception $e) {
     $error = $e->getMessage();

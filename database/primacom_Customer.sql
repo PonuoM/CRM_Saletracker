@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: localhost
--- Generation Time: Aug 27, 2025 at 06:43 AM
+-- Generation Time: Sep 10, 2025 at 03:54 AM
 -- Server version: 10.6.19-MariaDB
 -- PHP Version: 8.0.30
 
@@ -30,6 +30,7 @@ SET time_zone = "+00:00";
 CREATE TABLE `activity_logs` (
   `id` int(11) NOT NULL,
   `user_id` int(11) DEFAULT NULL,
+  `company_id` int(11) DEFAULT NULL,
   `activity_type` varchar(50) NOT NULL,
   `table_name` varchar(50) DEFAULT NULL,
   `record_id` int(11) DEFAULT NULL,
@@ -50,6 +51,7 @@ CREATE TABLE `activity_logs` (
 
 CREATE TABLE `appointments` (
   `appointment_id` int(11) NOT NULL,
+  `company_id` int(11) DEFAULT NULL,
   `customer_id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
   `call_log_id` int(11) DEFAULT NULL,
@@ -90,6 +92,16 @@ CREATE TRIGGER `after_appointment_insert` AFTER INSERT ON `appointments` FOR EAC
    END
 $$
 DELIMITER ;
+DELIMITER $$
+CREATE TRIGGER `bi_appointments_set_company` BEFORE INSERT ON `appointments` FOR EACH ROW BEGIN
+    DECLARE c_company2 INT DEFAULT NULL;
+    IF NEW.customer_id IS NOT NULL THEN
+        SELECT company_id INTO c_company2 FROM customers WHERE customer_id = NEW.customer_id LIMIT 1;
+        SET NEW.company_id = c_company2;
+    END IF;
+END
+$$
+DELIMITER ;
 
 -- --------------------------------------------------------
 
@@ -100,6 +112,7 @@ DELIMITER ;
 CREATE TABLE `appointment_activities` (
   `activity_id` int(11) NOT NULL,
   `appointment_id` int(11) NOT NULL,
+  `company_id` int(11) DEFAULT NULL,
   `user_id` int(11) NOT NULL,
   `activity_type` enum('created','updated','confirmed','completed','cancelled','reminder_sent') NOT NULL,
   `activity_description` text NOT NULL,
@@ -193,6 +206,7 @@ CREATE TABLE `call_followup_rules` (
 
 CREATE TABLE `call_logs` (
   `log_id` int(11) NOT NULL,
+  `company_id` int(11) DEFAULT NULL,
   `customer_id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
   `call_type` enum('outbound','inbound') DEFAULT 'outbound',
@@ -207,6 +221,20 @@ CREATE TABLE `call_logs` (
   `followup_days` int(11) DEFAULT 0,
   `followup_priority` enum('low','medium','high','urgent') DEFAULT 'medium' COMMENT 'ความสำคัญของการติดตาม'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Triggers `call_logs`
+--
+DELIMITER $$
+CREATE TRIGGER `bi_call_logs_set_company` BEFORE INSERT ON `call_logs` FOR EACH ROW BEGIN
+    DECLARE c_company3 INT DEFAULT NULL;
+    IF NEW.customer_id IS NOT NULL THEN
+        SELECT company_id INTO c_company3 FROM customers WHERE customer_id = NEW.customer_id LIMIT 1;
+        SET NEW.company_id = c_company3;
+    END IF;
+END
+$$
+DELIMITER ;
 
 -- --------------------------------------------------------
 
@@ -269,6 +297,7 @@ CREATE TABLE `cron_job_settings` (
 
 CREATE TABLE `customers` (
   `customer_id` int(11) NOT NULL,
+  `company_id` int(11) DEFAULT NULL,
   `customer_code` varchar(50) DEFAULT NULL,
   `first_name` varchar(50) NOT NULL,
   `last_name` varchar(50) NOT NULL,
@@ -299,7 +328,80 @@ CREATE TABLE `customers` (
   `appointment_extension_expiry` timestamp NULL DEFAULT NULL COMMENT 'วันหมดอายุการต่อเวลาจากการนัดหมาย',
   `max_appointment_extensions` int(11) DEFAULT 3 COMMENT 'จำนวนครั้งสูงสุดที่สามารถต่อเวลาได้ (default: 3)',
   `appointment_extension_days` int(11) DEFAULT 30 COMMENT 'จำนวนวันที่ต่อเวลาต่อการนัดหมาย 1 ครั้ง (default: 30 วัน)',
-  `customer_status` enum('new','existing','followup','call_followup') DEFAULT 'new',
+  `customer_status` enum('new','existing','existing_3m','followup','call_followup','daily_distribution') DEFAULT 'new',
+  `customer_time_extension` int(11) DEFAULT 0 COMMENT 'จำนวนวันที่ต่อเวลาแล้ว',
+  `customer_time_base` timestamp NULL DEFAULT NULL COMMENT 'วันเริ่มต้นการดูแลลูกค้า',
+  `customer_time_expiry` timestamp NULL DEFAULT NULL COMMENT 'วันหมดอายุการดูแลลูกค้า'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Triggers `customers`
+--
+DELIMITER $$
+CREATE TRIGGER `bi_customers_enforce_company` BEFORE INSERT ON `customers` FOR EACH ROW BEGIN
+    DECLARE u_company INT DEFAULT NULL;
+    IF NEW.assigned_to IS NOT NULL THEN
+        SELECT company_id INTO u_company FROM users WHERE user_id = NEW.assigned_to LIMIT 1;
+        IF u_company IS NOT NULL AND NEW.company_id IS NOT NULL AND u_company <> NEW.company_id THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'assigned_to user must belong to the same company';
+        END IF;
+    END IF;
+END
+$$
+DELIMITER ;
+DELIMITER $$
+CREATE TRIGGER `bu_customers_enforce_company` BEFORE UPDATE ON `customers` FOR EACH ROW BEGIN
+    DECLARE u_company2 INT DEFAULT NULL;
+    IF NEW.assigned_to IS NOT NULL THEN
+        SELECT company_id INTO u_company2 FROM users WHERE user_id = NEW.assigned_to LIMIT 1;
+        IF u_company2 IS NOT NULL AND NEW.company_id IS NOT NULL AND u_company2 <> NEW.company_id THEN
+            SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'assigned_to user must belong to the same company';
+        END IF;
+    END IF;
+END
+$$
+DELIMITER ;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `customers_backup_20250905_waiting_company1`
+--
+
+CREATE TABLE `customers_backup_20250905_waiting_company1` (
+  `customer_id` int(11) NOT NULL DEFAULT 0,
+  `company_id` int(11) DEFAULT NULL,
+  `customer_code` varchar(50) DEFAULT NULL,
+  `first_name` varchar(50) NOT NULL,
+  `last_name` varchar(50) NOT NULL,
+  `phone` varchar(20) DEFAULT NULL,
+  `email` varchar(100) DEFAULT NULL,
+  `address` text DEFAULT NULL,
+  `district` varchar(50) DEFAULT NULL,
+  `province` varchar(50) DEFAULT NULL,
+  `postal_code` varchar(10) DEFAULT NULL,
+  `temperature_status` enum('hot','warm','cold','frozen') DEFAULT 'hot',
+  `customer_grade` enum('A+','A','B','C','D') DEFAULT 'D',
+  `total_purchase_amount` decimal(12,2) DEFAULT 0.00,
+  `assigned_to` int(11) DEFAULT NULL,
+  `basket_type` enum('distribution','waiting','assigned','expired') DEFAULT 'distribution',
+  `assigned_at` timestamp NULL DEFAULT NULL,
+  `last_contact_at` timestamp NULL DEFAULT NULL,
+  `next_followup_at` timestamp NULL DEFAULT NULL,
+  `recall_at` timestamp NULL DEFAULT NULL,
+  `recall_reason` varchar(100) DEFAULT NULL,
+  `source` varchar(50) DEFAULT NULL,
+  `notes` text DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `appointment_count` int(11) DEFAULT 0 COMMENT 'จำนวนการนัดหมายที่ทำไปแล้ว',
+  `appointment_extension_count` int(11) DEFAULT 0 COMMENT 'จำนวนครั้งที่ต่อเวลาจากการนัดหมาย',
+  `last_appointment_date` timestamp NULL DEFAULT NULL COMMENT 'วันที่นัดหมายล่าสุด',
+  `appointment_extension_expiry` timestamp NULL DEFAULT NULL COMMENT 'วันหมดอายุการต่อเวลาจากการนัดหมาย',
+  `max_appointment_extensions` int(11) DEFAULT 3 COMMENT 'จำนวนครั้งสูงสุดที่สามารถต่อเวลาได้ (default: 3)',
+  `appointment_extension_days` int(11) DEFAULT 30 COMMENT 'จำนวนวันที่ต่อเวลาต่อการนัดหมาย 1 ครั้ง (default: 30 วัน)',
+  `customer_status` enum('new','existing','existing_3m','followup','call_followup','daily_distribution') DEFAULT 'new',
   `customer_time_extension` int(11) DEFAULT 0 COMMENT 'จำนวนวันที่ต่อเวลาแล้ว',
   `customer_time_base` timestamp NULL DEFAULT NULL COMMENT 'วันเริ่มต้นการดูแลลูกค้า',
   `customer_time_expiry` timestamp NULL DEFAULT NULL COMMENT 'วันหมดอายุการดูแลลูกค้า'
@@ -386,7 +488,7 @@ CREATE TABLE `customer_call_followup_list` (
 -- Table structure for table `customer_do_list`
 --
 
-CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_do_list`  AS SELECT `c`.`customer_id` AS `customer_id`, `c`.`customer_code` AS `customer_code`, `c`.`first_name` AS `first_name`, `c`.`last_name` AS `last_name`, `c`.`phone` AS `phone`, `c`.`email` AS `email`, `c`.`address` AS `address`, `c`.`district` AS `district`, `c`.`province` AS `province`, `c`.`postal_code` AS `postal_code`, `c`.`temperature_status` AS `temperature_status`, `c`.`customer_grade` AS `customer_grade`, `c`.`total_purchase_amount` AS `total_purchase_amount`, `c`.`assigned_to` AS `assigned_to`, `c`.`basket_type` AS `basket_type`, `c`.`assigned_at` AS `assigned_at`, `c`.`last_contact_at` AS `last_contact_at`, `c`.`next_followup_at` AS `next_followup_at`, `c`.`recall_at` AS `recall_at`, `c`.`source` AS `source`, `c`.`notes` AS `notes`, `c`.`is_active` AS `is_active`, `c`.`created_at` AS `created_at`, `c`.`updated_at` AS `updated_at`, `c`.`total_purchase` AS `total_purchase`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`last_appointment_date` AS `last_appointment_date`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`customer_status` AS `customer_status`, `c`.`customer_time_extension` AS `customer_time_extension`, `c`.`customer_time_base` AS `customer_time_base`, `c`.`customer_time_expiry` AS `customer_time_expiry`, to_days(`c`.`customer_time_expiry`) - to_days(current_timestamp()) AS `days_remaining`, CASE WHEN `c`.`customer_status` = 'new' THEN 'ลูกค้าใหม่' WHEN `c`.`customer_status` = 'existing' THEN 'ลูกค้าเก่า' END AS `status_text`, CASE WHEN `c`.`customer_time_expiry` <= current_timestamp() THEN 'เกินกำหนด' WHEN `c`.`customer_time_expiry` <= current_timestamp() + interval 7 day THEN 'ใกล้หมดเวลา' ELSE 'ปกติ' END AS `urgency_status` FROM `customers` AS `c` WHERE `c`.`assigned_to` is not null AND `c`.`basket_type` = 'assigned' AND `c`.`is_active` = 1 AND (`c`.`customer_time_expiry` <= current_timestamp() + interval 7 day OR `c`.`next_followup_at` <= current_timestamp()) ;
+CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_do_list`  AS SELECT `c`.`customer_id` AS `customer_id`, `c`.`customer_code` AS `customer_code`, `c`.`first_name` AS `first_name`, `c`.`last_name` AS `last_name`, `c`.`phone` AS `phone`, `c`.`email` AS `email`, `c`.`address` AS `address`, `c`.`district` AS `district`, `c`.`province` AS `province`, `c`.`postal_code` AS `postal_code`, `c`.`temperature_status` AS `temperature_status`, `c`.`customer_grade` AS `customer_grade`, `c`.`total_purchase_amount` AS `total_purchase_amount`, `c`.`assigned_to` AS `assigned_to`, `c`.`basket_type` AS `basket_type`, `c`.`assigned_at` AS `assigned_at`, `c`.`last_contact_at` AS `last_contact_at`, `c`.`next_followup_at` AS `next_followup_at`, `c`.`recall_at` AS `recall_at`, `c`.`source` AS `source`, `c`.`notes` AS `notes`, `c`.`is_active` AS `is_active`, `c`.`created_at` AS `created_at`, `c`.`updated_at` AS `updated_at`, `c`.`total_purchase` AS `total_purchase`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`last_appointment_date` AS `last_appointment_date`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`customer_status` AS `customer_status`, `c`.`customer_time_extension` AS `customer_time_extension`, `c`.`customer_time_base` AS `customer_time_base`, `c`.`customer_time_expiry` AS `customer_time_expiry`, to_days(`c`.`customer_time_expiry`) - to_days(current_timestamp()) AS `days_remaining`, CASE WHEN `c`.`customer_status` = 'new' THEN 'ลูกค้าใหม่' WHEN `c`.`customer_status` = 'existing' THEN 'ลูกค้าเก่า' WHEN `c`.`customer_status` = 'existing_3m' THEN 'ลูกค้าเก่า 3 เดือน' END AS `status_text`, CASE WHEN `c`.`customer_time_expiry` <= current_timestamp() THEN 'เกินกำหนด' WHEN `c`.`customer_time_expiry` <= current_timestamp() + interval 7 day THEN 'ใกล้หมดเวลา' ELSE 'ปกติ' END AS `urgency_status` FROM `customers` AS `c` WHERE `c`.`assigned_to` is not null AND `c`.`basket_type` = 'assigned' AND `c`.`is_active` = 1 AND (`c`.`customer_time_expiry` <= current_timestamp() + interval 7 day OR `c`.`next_followup_at` <= current_timestamp()) ;
 
 -- --------------------------------------------------------
 
@@ -403,6 +505,21 @@ CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY 
 --
 
 CREATE ALGORITHM=UNDEFINED DEFINER=`primacom_bloguser`@`localhost` SQL SECURITY DEFINER VIEW `customer_followup_list`  AS SELECT `c`.`customer_id` AS `customer_id`, `c`.`customer_code` AS `customer_code`, `c`.`first_name` AS `first_name`, `c`.`last_name` AS `last_name`, `c`.`phone` AS `phone`, `c`.`email` AS `email`, `c`.`address` AS `address`, `c`.`district` AS `district`, `c`.`province` AS `province`, `c`.`postal_code` AS `postal_code`, `c`.`temperature_status` AS `temperature_status`, `c`.`customer_grade` AS `customer_grade`, `c`.`total_purchase_amount` AS `total_purchase_amount`, `c`.`assigned_to` AS `assigned_to`, `c`.`basket_type` AS `basket_type`, `c`.`assigned_at` AS `assigned_at`, `c`.`last_contact_at` AS `last_contact_at`, `c`.`next_followup_at` AS `next_followup_at`, `c`.`recall_at` AS `recall_at`, `c`.`source` AS `source`, `c`.`notes` AS `notes`, `c`.`is_active` AS `is_active`, `c`.`created_at` AS `created_at`, `c`.`updated_at` AS `updated_at`, `c`.`total_purchase` AS `total_purchase`, `c`.`appointment_count` AS `appointment_count`, `c`.`appointment_extension_count` AS `appointment_extension_count`, `c`.`last_appointment_date` AS `last_appointment_date`, `c`.`appointment_extension_expiry` AS `appointment_extension_expiry`, `c`.`max_appointment_extensions` AS `max_appointment_extensions`, `c`.`appointment_extension_days` AS `appointment_extension_days`, `c`.`customer_status` AS `customer_status`, `c`.`customer_time_extension` AS `customer_time_extension`, `c`.`customer_time_base` AS `customer_time_base`, `c`.`customer_time_expiry` AS `customer_time_expiry`, to_days(`c`.`next_followup_at`) - to_days(current_timestamp()) AS `followup_days_remaining` FROM `customers` AS `c` WHERE `c`.`assigned_to` is not null AND `c`.`basket_type` = 'assigned' AND `c`.`next_followup_at` is not null AND `c`.`next_followup_at` <= current_timestamp() AND `c`.`is_active` = 1 ;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `customer_info_tags`
+--
+
+CREATE TABLE `customer_info_tags` (
+  `id` int(11) NOT NULL,
+  `customer_id` int(11) NOT NULL,
+  `tag_name` varchar(100) NOT NULL,
+  `tag_color` varchar(7) DEFAULT '#6c757d',
+  `created_by` int(11) DEFAULT NULL,
+  `created_at` datetime DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
 
 -- --------------------------------------------------------
 
@@ -489,6 +606,7 @@ CREATE TABLE `customer_time_extensions` (
 
 CREATE TABLE `customer_transfers` (
   `transfer_id` int(11) NOT NULL,
+  `company_id` int(11) DEFAULT NULL,
   `source_telesales_id` int(11) NOT NULL,
   `target_telesales_id` int(11) NOT NULL,
   `customer_count` int(11) NOT NULL,
@@ -507,6 +625,7 @@ CREATE TABLE `customer_transfers` (
 CREATE TABLE `customer_transfer_details` (
   `detail_id` int(11) NOT NULL,
   `transfer_id` int(11) NOT NULL,
+  `company_id` int(11) DEFAULT NULL,
   `customer_id` int(11) NOT NULL,
   `customer_code` varchar(50) DEFAULT NULL,
   `customer_name` varchar(255) DEFAULT NULL,
@@ -522,6 +641,7 @@ CREATE TABLE `customer_transfer_details` (
 CREATE TABLE `notifications` (
   `id` int(11) NOT NULL,
   `user_id` int(11) NOT NULL,
+  `company_id` int(11) DEFAULT NULL,
   `type` varchar(50) NOT NULL,
   `title` varchar(255) NOT NULL,
   `message` text NOT NULL,
@@ -537,6 +657,49 @@ CREATE TABLE `notifications` (
 
 CREATE TABLE `orders` (
   `order_id` int(11) NOT NULL,
+  `company_id` int(11) DEFAULT NULL,
+  `order_number` varchar(50) NOT NULL,
+  `customer_id` int(11) NOT NULL,
+  `created_by` int(11) NOT NULL,
+  `order_date` date NOT NULL,
+  `total_amount` decimal(12,2) NOT NULL,
+  `discount_amount` decimal(10,2) DEFAULT 0.00,
+  `discount_percentage` decimal(5,2) DEFAULT 0.00,
+  `net_amount` decimal(12,2) NOT NULL,
+  `payment_method` enum('cash','transfer','cod','credit','other') DEFAULT 'cash',
+  `payment_status` enum('pending','paid','partial','cancelled','returned') DEFAULT 'pending',
+  `delivery_date` date DEFAULT NULL,
+  `delivery_address` text DEFAULT NULL,
+  `delivery_status` enum('pending','confirmed','shipped','delivered','cancelled') DEFAULT 'pending',
+  `notes` text DEFAULT NULL,
+  `is_active` tinyint(1) DEFAULT 1,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp(),
+  `updated_at` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+--
+-- Triggers `orders`
+--
+DELIMITER $$
+CREATE TRIGGER `bi_orders_set_company` BEFORE INSERT ON `orders` FOR EACH ROW BEGIN
+    DECLARE c_company INT DEFAULT NULL;
+    IF NEW.customer_id IS NOT NULL THEN
+        SELECT company_id INTO c_company FROM customers WHERE customer_id = NEW.customer_id LIMIT 1;
+        SET NEW.company_id = c_company;
+    END IF;
+END
+$$
+DELIMITER ;
+
+-- --------------------------------------------------------
+
+--
+-- Table structure for table `orders_backup_20250904`
+--
+
+CREATE TABLE `orders_backup_20250904` (
+  `order_id` int(11) NOT NULL DEFAULT 0,
+  `company_id` int(11) DEFAULT NULL,
   `order_number` varchar(50) NOT NULL,
   `customer_id` int(11) NOT NULL,
   `created_by` int(11) NOT NULL,
@@ -606,6 +769,21 @@ CREATE TABLE `order_items` (
 -- --------------------------------------------------------
 
 --
+-- Table structure for table `order_items_backup_20250904`
+--
+
+CREATE TABLE `order_items_backup_20250904` (
+  `item_id` int(11) NOT NULL DEFAULT 0,
+  `order_id` int(11) NOT NULL,
+  `product_id` int(11) NOT NULL,
+  `quantity` int(11) NOT NULL,
+  `unit_price` decimal(10,2) NOT NULL,
+  `total_price` decimal(12,2) NOT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- --------------------------------------------------------
+
+--
 -- Table structure for table `predefined_tags`
 --
 
@@ -625,6 +803,7 @@ CREATE TABLE `predefined_tags` (
 
 CREATE TABLE `products` (
   `product_id` int(11) NOT NULL,
+  `company_id` int(11) DEFAULT NULL,
   `product_code` varchar(50) NOT NULL,
   `product_name` varchar(200) NOT NULL,
   `category` varchar(100) DEFAULT NULL,
@@ -739,7 +918,8 @@ ALTER TABLE `activity_logs`
   ADD KEY `idx_user_id` (`user_id`),
   ADD KEY `idx_activity_type` (`activity_type`),
   ADD KEY `idx_table_name` (`table_name`),
-  ADD KEY `idx_created_at` (`created_at`);
+  ADD KEY `idx_created_at` (`created_at`),
+  ADD KEY `idx_activity_logs_company_id` (`company_id`);
 
 --
 -- Indexes for table `appointments`
@@ -752,7 +932,8 @@ ALTER TABLE `appointments`
   ADD KEY `idx_appointment_status` (`appointment_status`),
   ADD KEY `idx_appointment_type` (`appointment_type`),
   ADD KEY `idx_created_at` (`created_at`),
-  ADD KEY `idx_call_log_id` (`call_log_id`);
+  ADD KEY `idx_call_log_id` (`call_log_id`),
+  ADD KEY `idx_company_id` (`company_id`);
 
 --
 -- Indexes for table `appointment_activities`
@@ -762,7 +943,8 @@ ALTER TABLE `appointment_activities`
   ADD KEY `idx_appointment_id` (`appointment_id`),
   ADD KEY `idx_user_id` (`user_id`),
   ADD KEY `idx_activity_type` (`activity_type`),
-  ADD KEY `idx_created_at` (`created_at`);
+  ADD KEY `idx_created_at` (`created_at`),
+  ADD KEY `idx_appointment_activities_company_id` (`company_id`);
 
 --
 -- Indexes for table `appointment_extensions`
@@ -812,7 +994,8 @@ ALTER TABLE `call_logs`
   ADD KEY `idx_call_date` (`created_at`),
   ADD KEY `idx_next_followup` (`next_followup_at`),
   ADD KEY `idx_call_logs_customer_followup` (`customer_id`,`next_followup_at`),
-  ADD KEY `idx_call_logs_result_followup` (`call_result`,`next_followup_at`);
+  ADD KEY `idx_call_logs_result_followup` (`call_result`,`next_followup_at`),
+  ADD KEY `idx_company_id` (`company_id`);
 
 --
 -- Indexes for table `companies`
@@ -820,6 +1003,7 @@ ALTER TABLE `call_logs`
 ALTER TABLE `companies`
   ADD PRIMARY KEY (`company_id`),
   ADD UNIQUE KEY `company_code` (`company_code`),
+  ADD UNIQUE KEY `uq_companies_company_code` (`company_code`),
   ADD KEY `idx_company_code` (`company_code`);
 
 --
@@ -846,7 +1030,8 @@ ALTER TABLE `cron_job_settings`
 --
 ALTER TABLE `customers`
   ADD PRIMARY KEY (`customer_id`),
-  ADD UNIQUE KEY `customer_code` (`customer_code`),
+  ADD UNIQUE KEY `uq_customers_company_phone` (`company_id`,`phone`),
+  ADD UNIQUE KEY `uq_customer_code_company` (`customer_code`,`company_id`),
   ADD KEY `idx_assigned_to` (`assigned_to`),
   ADD KEY `idx_basket_type` (`basket_type`),
   ADD KEY `idx_temperature` (`temperature_status`),
@@ -862,7 +1047,8 @@ ALTER TABLE `customers`
   ADD KEY `idx_customer_time_expiry` (`customer_time_expiry`),
   ADD KEY `idx_customer_time_base` (`customer_time_base`),
   ADD KEY `idx_assigned_at` (`assigned_at`),
-  ADD KEY `idx_customers_status_followup` (`customer_status`,`next_followup_at`);
+  ADD KEY `idx_customers_status_followup` (`customer_status`,`next_followup_at`),
+  ADD KEY `idx_company_id` (`company_id`);
 
 --
 -- Indexes for table `customer_activities`
@@ -873,6 +1059,14 @@ ALTER TABLE `customer_activities`
   ADD KEY `idx_user_id` (`user_id`),
   ADD KEY `idx_activity_type` (`activity_type`),
   ADD KEY `idx_created_at` (`created_at`);
+
+--
+-- Indexes for table `customer_info_tags`
+--
+ALTER TABLE `customer_info_tags`
+  ADD PRIMARY KEY (`id`),
+  ADD UNIQUE KEY `uniq_customer_info_tag` (`customer_id`,`tag_name`),
+  ADD KEY `idx_customer_info_tags_customer_id` (`customer_id`);
 
 --
 -- Indexes for table `customer_recalls`
@@ -925,7 +1119,8 @@ ALTER TABLE `customer_transfers`
   ADD KEY `idx_source_telesales` (`source_telesales_id`),
   ADD KEY `idx_target_telesales` (`target_telesales_id`),
   ADD KEY `idx_transferred_by` (`transferred_by`),
-  ADD KEY `idx_created_at` (`created_at`);
+  ADD KEY `idx_created_at` (`created_at`),
+  ADD KEY `idx_customer_transfers_company_id` (`company_id`);
 
 --
 -- Indexes for table `customer_transfer_details`
@@ -933,7 +1128,8 @@ ALTER TABLE `customer_transfers`
 ALTER TABLE `customer_transfer_details`
   ADD PRIMARY KEY (`detail_id`),
   ADD KEY `idx_transfer_id` (`transfer_id`),
-  ADD KEY `idx_customer_id` (`customer_id`);
+  ADD KEY `idx_customer_id` (`customer_id`),
+  ADD KEY `idx_customer_transfer_details_company_id` (`company_id`);
 
 --
 -- Indexes for table `notifications`
@@ -942,7 +1138,8 @@ ALTER TABLE `notifications`
   ADD PRIMARY KEY (`id`),
   ADD KEY `idx_user_id` (`user_id`),
   ADD KEY `idx_type` (`type`),
-  ADD KEY `idx_created_at` (`created_at`);
+  ADD KEY `idx_created_at` (`created_at`),
+  ADD KEY `idx_notifications_company_id` (`company_id`);
 
 --
 -- Indexes for table `orders`
@@ -961,7 +1158,8 @@ ALTER TABLE `orders`
   ADD KEY `idx_orders_order_date` (`order_date`),
   ADD KEY `idx_orders_payment_status` (`payment_status`),
   ADD KEY `idx_orders_delivery_status` (`delivery_status`),
-  ADD KEY `idx_orders_created_at` (`created_at`);
+  ADD KEY `idx_orders_created_at` (`created_at`),
+  ADD KEY `idx_company_id` (`company_id`);
 
 --
 -- Indexes for table `order_activities`
@@ -1006,11 +1204,13 @@ ALTER TABLE `predefined_tags`
 ALTER TABLE `products`
   ADD PRIMARY KEY (`product_id`),
   ADD UNIQUE KEY `product_code` (`product_code`),
+  ADD UNIQUE KEY `uq_products_company_code` (`company_id`,`product_code`),
   ADD KEY `idx_product_code` (`product_code`),
   ADD KEY `idx_category` (`category`),
   ADD KEY `idx_active` (`is_active`),
   ADD KEY `idx_products_product_code` (`product_code`),
-  ADD KEY `idx_products_is_active` (`is_active`);
+  ADD KEY `idx_products_is_active` (`is_active`),
+  ADD KEY `idx_company_id` (`company_id`);
 
 --
 -- Indexes for table `roles`
@@ -1135,6 +1335,12 @@ ALTER TABLE `customer_activities`
   MODIFY `activity_id` int(11) NOT NULL AUTO_INCREMENT;
 
 --
+-- AUTO_INCREMENT for table `customer_info_tags`
+--
+ALTER TABLE `customer_info_tags`
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT;
+
+--
 -- AUTO_INCREMENT for table `customer_recalls`
 --
 ALTER TABLE `customer_recalls`
@@ -1244,6 +1450,7 @@ ALTER TABLE `users`
 -- Constraints for table `activity_logs`
 --
 ALTER TABLE `activity_logs`
+  ADD CONSTRAINT `fk_activity_logs_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`company_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_activity_logs_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE SET NULL;
 
 --
@@ -1251,14 +1458,16 @@ ALTER TABLE `activity_logs`
 --
 ALTER TABLE `appointments`
   ADD CONSTRAINT `appointments_ibfk_1` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`customer_id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `appointments_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`);
+  ADD CONSTRAINT `appointments_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`),
+  ADD CONSTRAINT `fk_appointments_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`company_id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `appointment_activities`
 --
 ALTER TABLE `appointment_activities`
   ADD CONSTRAINT `appointment_activities_ibfk_1` FOREIGN KEY (`appointment_id`) REFERENCES `appointments` (`appointment_id`) ON DELETE CASCADE,
-  ADD CONSTRAINT `appointment_activities_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`);
+  ADD CONSTRAINT `appointment_activities_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`),
+  ADD CONSTRAINT `fk_appointment_activities_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`company_id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `appointment_extensions`
@@ -1281,13 +1490,15 @@ ALTER TABLE `call_followup_queue`
 --
 ALTER TABLE `call_logs`
   ADD CONSTRAINT `call_logs_ibfk_1` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`customer_id`),
-  ADD CONSTRAINT `call_logs_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`);
+  ADD CONSTRAINT `call_logs_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`),
+  ADD CONSTRAINT `fk_call_logs_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`company_id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `customers`
 --
 ALTER TABLE `customers`
-  ADD CONSTRAINT `customers_ibfk_1` FOREIGN KEY (`assigned_to`) REFERENCES `users` (`user_id`);
+  ADD CONSTRAINT `customers_ibfk_1` FOREIGN KEY (`assigned_to`) REFERENCES `users` (`user_id`),
+  ADD CONSTRAINT `fk_customers_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`company_id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `customer_activities`
@@ -1325,21 +1536,30 @@ ALTER TABLE `customer_time_extensions`
   ADD CONSTRAINT `customer_time_extensions_ibfk_2` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`);
 
 --
+-- Constraints for table `customer_transfers`
+--
+ALTER TABLE `customer_transfers`
+  ADD CONSTRAINT `fk_customer_transfers_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`company_id`) ON DELETE SET NULL;
+
+--
 -- Constraints for table `customer_transfer_details`
 --
 ALTER TABLE `customer_transfer_details`
-  ADD CONSTRAINT `customer_transfer_details_ibfk_1` FOREIGN KEY (`transfer_id`) REFERENCES `customer_transfers` (`transfer_id`) ON DELETE CASCADE;
+  ADD CONSTRAINT `customer_transfer_details_ibfk_1` FOREIGN KEY (`transfer_id`) REFERENCES `customer_transfers` (`transfer_id`) ON DELETE CASCADE,
+  ADD CONSTRAINT `fk_customer_transfer_details_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`company_id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `notifications`
 --
 ALTER TABLE `notifications`
+  ADD CONSTRAINT `fk_notifications_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`company_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `fk_notifications_user_id` FOREIGN KEY (`user_id`) REFERENCES `users` (`user_id`) ON DELETE CASCADE;
 
 --
 -- Constraints for table `orders`
 --
 ALTER TABLE `orders`
+  ADD CONSTRAINT `fk_orders_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`company_id`) ON DELETE SET NULL,
   ADD CONSTRAINT `orders_ibfk_1` FOREIGN KEY (`customer_id`) REFERENCES `customers` (`customer_id`),
   ADD CONSTRAINT `orders_ibfk_2` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`);
 
@@ -1369,6 +1589,12 @@ ALTER TABLE `order_items`
 --
 ALTER TABLE `predefined_tags`
   ADD CONSTRAINT `predefined_tags_ibfk_1` FOREIGN KEY (`created_by`) REFERENCES `users` (`user_id`);
+
+--
+-- Constraints for table `products`
+--
+ALTER TABLE `products`
+  ADD CONSTRAINT `fk_products_company_id` FOREIGN KEY (`company_id`) REFERENCES `companies` (`company_id`) ON DELETE SET NULL;
 
 --
 -- Constraints for table `sales_history`

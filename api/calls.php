@@ -49,6 +49,10 @@ try {
             logCall($db);
             break;
             
+        case 'get_history':
+            getCallHistory($db);
+            break;
+            
         default:
             http_response_code(400);
             echo json_encode(['error' => 'Invalid action']);
@@ -211,30 +215,128 @@ function logCall($db) {
         // Map Thai labels to internal codes (status/result)
         $statusMap = [
             'รับสาย' => 'answered',
+            'ได้คุย' => 'got_talk',
             'ไม่รับสาย' => 'no_answer',
             'สายไม่ว่าง' => 'busy',
-            'ตัดสายทิ้ง' => 'hangup',
-            'ติดต่อไม่ได้' => 'unable_to_contact',
+            'ตัดสายทิ้ง' => 'hang_up',
+            'ไม่มีสัญญาณ' => 'no_signal',
+        ];
+        
+        // Map internal codes to Thai labels for display
+        $statusDisplayMap = [
+            'answered' => 'รับสาย',
+            'got_talk' => 'ได้คุย',
+            'no_answer' => 'ไม่รับสาย',
+            'busy' => 'สายไม่ว่าง',
+            'hang_up' => 'ตัดสายทิ้ง',
+            'no_signal' => 'ไม่มีสัญญาณ',
         ];
         $resultMap = [
-            'สั่งซื้อ' => 'order',
-            'สนใจ' => 'interested',
-            'Add Line แล้ว' => 'add_line',
-            'ต้องการซื้อทางเพจ' => 'buy_on_page',
-            'น้ำท่วม' => 'flood',
-            'รอติดต่อใหม่' => 'callback',
-            'นัดหมาย' => 'appointment',
-            'เบอร์ไม่ถูก' => 'invalid_number',
-            'ไม่สะดวกคุย' => 'not_convenient',
-            'ไม่สนใจ' => 'not_interested',
-            'อย่าโทรมาอีก' => 'do_not_call',
+            'สินค้ายังไม่หมด' => 'สินค้ายังไม่หมด',
+            'ใช้แล้วไม่เห็นผล' => 'ใช้แล้วไม่เห็นผล',
+            'ยังไม่ได้ลองใช้' => 'ยังไม่ได้ลองใช้',
+            'ยังไม่ถึงรอบใช้งาน' => 'ยังไม่ถึงรอบใช้งาน',
+            'สั่งช่องทางอื่นแล้ว' => 'สั่งช่องทางอื่นแล้ว',
+            'ไม่สะดวกคุย' => 'ไม่สะดวกคุย',
+            'ตัดสายทิ้ง' => 'ตัดสายทิ้ง',
+            'ฝากสั่งไม่ได้ใช้เอง' => 'ฝากสั่งไม่ได้ใช้เอง',
+            'คนอื่นรับสายแทน' => 'คนอื่นรับสายแทน',
+            'เลิกทำสวน' => 'เลิกทำสวน',
+            'ไม่สนใจ' => 'ไม่สนใจ',
+            'ห้ามติดต่อ' => 'ห้ามติดต่อ',
+            'ได้คุย' => 'ได้คุย',
+            'ไม่รับสาย' => 'ไม่รับสาย',
+            'สายไม่ว่าง' => 'สายไม่ว่าง',
+            'ไม่มีสัญญาณ' => 'ไม่มีสัญญาณ',
         ];
 
-        $callStatus = $input['call_status'] ?? null;
-        $callResult = $input['call_result'] ?? null;
-        // Do not force-normalize result; allow full set based on selection
+        // Preserve raw UI selections for display columns
+        $uiStatusRaw = $input['call_status'] ?? null;
+        $uiResultRaw = $input['call_result'] ?? null;
+
+        $callStatus = $uiStatusRaw;
+        $callResult = $uiResultRaw;
+        // First-pass mapping (as originally implemented)
         if (isset($statusMap[$callStatus])) $callStatus = $statusMap[$callStatus];
         if (isset($resultMap[$callResult])) $callResult = $resultMap[$callResult];
+
+        // Normalize to DB enums and add safe fallbacks
+        $allowedStatuses = ['answered','no_answer','busy','invalid'];
+        $allowedResults = ['interested','not_interested','callback','order','complaint'];
+        $normalizeStatusExtras = [
+            'got_talk' => 'answered',
+            'hang_up' => 'no_answer',
+            'no_signal' => 'no_answer',
+            'invaild' => 'invalid',
+        ];
+        $normalizeResultExtras = [
+            'add_line' => 'callback',
+            'buy_on_page' => 'order',
+            'appointment' => 'callback',
+            'not_convenient' => 'callback',
+            'flood' => 'callback',
+        ];
+        if (isset($normalizeStatusExtras[$callStatus])) {
+            $callStatus = $normalizeStatusExtras[$callStatus];
+        }
+        if (isset($normalizeResultExtras[$callResult])) {
+            $callResult = $normalizeResultExtras[$callResult];
+        }
+        if (!in_array($callStatus, $allowedStatuses, true)) {
+            $callStatus = 'no_answer';
+        }
+        if (!in_array($callResult, $allowedResults, true)) {
+            $callResult = ($callStatus === 'answered') ? 'not_interested' : 'callback';
+        }
+
+        // Compute display labels (Thai) for UI selections
+        $statusLabelMap = [
+            // Internal codes
+            'answered' => 'รับสาย',
+            'got_talk' => 'ได้คุย',
+            'no_answer' => 'ไม่รับสาย',
+            'busy' => 'สายไม่ว่าง',
+            'hang_up' => 'ตัดสายทิ้ง',
+            'no_signal' => 'ไม่มีสัญญาณ',
+            'invalid' => 'เบอร์ไม่ถูกต้อง',
+            'invaild' => 'เบอร์ไม่ถูกต้อง',
+            // Thai labels passthrough
+            'รับสาย' => 'รับสาย',
+            'ได้คุย' => 'ได้คุย',
+            'ไม่รับสาย' => 'ไม่รับสาย',
+            'สายไม่ว่าง' => 'สายไม่ว่าง',
+            'ตัดสายทิ้ง' => 'ตัดสายทิ้ง',
+            'ไม่มีสัญญาณ' => 'ไม่มีสัญญาณ',
+            'เบอร์ไม่ถูกต้อง' => 'เบอร์ไม่ถูกต้อง',
+        ];
+        $resultLabelMap = [
+            // DB enums
+            'interested' => 'สนใจ',
+            'not_interested' => 'ไม่สนใจ',
+            'callback' => 'ติดต่อนัด/โทรกลับ',
+            'order' => 'สั่งซื้อ',
+            'complaint' => 'ร้องเรียน',
+            // Thai passthrough common options used by UI
+            'สนใจ' => 'สนใจ',
+            'ไม่สนใจ' => 'ไม่สนใจ',
+            'โทรกลับ' => 'โทรกลับ',
+            'นัดโทรกลับ' => 'นัดโทรกลับ',
+            'นัดหมาย' => 'นัดหมาย',
+            'ไม่สะดวก' => 'ไม่สะดวก',
+            'น้ำท่วม' => 'น้ำท่วม',
+            'แอดไลน์' => 'แอดไลน์',
+            'ซื้อในเพจ' => 'ซื้อในเพจ',
+            'สั่งซื้อ' => 'สั่งซื้อ',
+            'ร้องเรียน' => 'ร้องเรียน',
+            // Some UIs set result same as status
+            'ได้คุย' => 'ได้คุย',
+            'ไม่รับสาย' => 'ไม่รับสาย',
+            'สายไม่ว่าง' => 'สายไม่ว่าง',
+            'ตัดสายทิ้ง' => 'ตัดสายทิ้ง',
+            'ไม่มีสัญญาณ' => 'ไม่มีสัญญาณ',
+        ];
+        $statusDisplay = $statusLabelMap[$uiStatusRaw] ?? (preg_match('/[\x{0E00}-\x{0E7F}]/u', (string)$uiStatusRaw) ? $uiStatusRaw : null);
+        $resultDisplay = $resultLabelMap[$uiResultRaw] ?? (preg_match('/[\x{0E00}-\x{0E7F}]/u', (string)$uiResultRaw) ? $uiResultRaw : null);
 
         $data = [
             'customer_id' => $input['customer_id'] ?? null,
@@ -246,6 +348,10 @@ function logCall($db) {
             'notes' => $input['notes'] ?? null,
             'next_action' => $input['next_action'] ?? null,
             'next_followup_at' => $input['next_followup'] ?? ($input['next_followup_at'] ?? null),
+            'plant_variety' => $input['plant_variety'] ?? null,
+            'garden_size' => $input['garden_size'] ?? null,
+            'status_display' => $statusDisplay,
+            'result_display' => $resultDisplay,
         ];
         
         // Validate required fields
@@ -266,18 +372,27 @@ function logCall($db) {
             'notes' => $data['notes'],
             'next_action' => $data['next_action'],
             'next_followup_at' => $data['next_followup_at'],
+            'plant_variety' => $data['plant_variety'],
+            'garden_size' => $data['garden_size'],
+            'status_display' => $data['status_display'] ?? null,
+            'result_display' => $data['result_display'] ?? null,
             'created_at' => date('Y-m-d H:i:s')
         ];
         
         $callLogId = $db->insert('call_logs', $callData);
         
-        // Update customer's last_contact_at, next_followup_at, and extend time_expiry with 90-day cap
+        // Update customer's last_contact_at, next_followup_at and extend time_expiry with 90-day cap
+        // ไม่ต้องอัปเดต plant_variety และ garden_size ใน customers เพราะข้อมูลอยู่ใน call_logs แล้ว
         if ($data['next_followup_at']) {
             // ถ้ามีการนัดติดตาม = เพิ่มเวลา 30 วัน แต่ไม่เกิน 90 วัน
             $db->execute(
                 "UPDATE customers SET 
                     last_contact_at = NOW(), 
                     next_followup_at = ?,
+                    customer_status = CASE 
+                        WHEN customer_status IN ('new','existing','daily_distribution') THEN 'followup' 
+                        ELSE customer_status 
+                    END,
                     customer_time_expiry = LEAST(DATE_ADD(customer_time_expiry, INTERVAL 30 DAY), DATE_ADD(NOW(), INTERVAL 90 DAY))
                 WHERE customer_id = ?",
                 [$data['next_followup_at'], $data['customer_id']]
@@ -288,7 +403,9 @@ function logCall($db) {
             
         } else {
             $db->execute(
-                "UPDATE customers SET last_contact_at = NOW() WHERE customer_id = ?",
+                "UPDATE customers SET 
+                    last_contact_at = NOW()
+                WHERE customer_id = ?",
                 [$data['customer_id']]
             );
         }
@@ -315,22 +432,146 @@ function logCall($db) {
         // Handle customer status changes based on call result
         try {
             $cust = $db->fetchOne("SELECT customer_status FROM customers WHERE customer_id = ?", [$data['customer_id']]);
-            
-            // If first activity for NEW customer, move to followup (except for final results)
-            if (($cust['customer_status'] ?? '') === 'new' && !in_array($data['call_result'], $clearFollowupResults)) {
-                $db->execute("UPDATE customers SET customer_status = 'followup' WHERE customer_id = ?", [$data['customer_id']]);
-            }
-            
-            // For NEW customers with final call results, mark as existing to remove from Do tab
+
+            // If there is a follow-up scheduled (handled above), status already updated to 'followup'
+            // Handle final results that end the follow-up pipeline for NEW customers
             if (($cust['customer_status'] ?? '') === 'new' && in_array($data['call_result'], ['ไม่สนใจ', 'เบอร์ผิด'])) {
                 $db->execute("UPDATE customers SET customer_status = 'existing' WHERE customer_id = ?", [$data['customer_id']]);
             }
+        } catch (Exception $e) { /* ignore */ }
+
+        // Normalize follow-up status to reflect current pending state after logging the call
+        try {
+            require_once __DIR__ . '/../app/services/AppointmentService.php';
+            $aptSvc = new AppointmentService();
+            $aptSvc->normalizeFollowup($data['customer_id']);
         } catch (Exception $e) { /* ignore */ }
 
         echo json_encode([
             'success' => true,
             'call_log_id' => $callLogId,
             'message' => 'บันทึกการโทรสำเร็จ'
+        ]);
+        
+    } catch (Exception $e) {
+        http_response_code(500);
+        echo json_encode([
+            'success' => false,
+            'error' => $e->getMessage()
+        ]);
+    }
+}
+
+/**
+ * ดึงประวัติการโทรของลูกค้า
+ */
+function getCallHistory($db) {
+    try {
+        $customerId = $_GET['customer_id'] ?? null;
+        $limit = $_GET['limit'] ?? 10;
+        
+        if (!$customerId) {
+            http_response_code(400);
+            echo json_encode(['error' => 'Missing customer_id parameter']);
+            return;
+        }
+        
+        $callLogs = $db->fetchAll(
+            "SELECT cl.*, u.full_name as user_name 
+             FROM call_logs cl 
+             LEFT JOIN users u ON cl.user_id = u.user_id 
+             WHERE cl.customer_id = :customer_id 
+             ORDER BY cl.created_at DESC 
+             LIMIT :limit",
+            ['customer_id' => $customerId, 'limit' => $limit]
+        );
+
+        // Post-process for consistent display fields (prefer stored display columns)
+        $statusDisplayMap2 = [
+            'answered' => 'รับสาย',
+            'no_answer' => 'ไม่รับสาย',
+            'busy' => 'สายไม่ว่าง',
+            'invalid' => 'เบอร์ไม่ถูกต้อง',
+        ];
+        $normalizeStatusExtras2 = [
+            'got_talk' => 'answered',
+            'hang_up' => 'no_answer',
+            'no_signal' => 'no_answer',
+            'invaild' => 'invalid',
+        ];
+        $resultDisplayMap2 = [
+            'interested' => 'สนใจ',
+            'not_interested' => 'ไม่สนใจ',
+            'callback' => 'ติดต่อนัด/โทรกลับ',
+            'order' => 'สั่งซื้อ',
+            'complaint' => 'ร้องเรียน',
+        ];
+        foreach ($callLogs as &$__call) {
+            // Status: use stored display if present; otherwise map enum
+            $storedStatusDisplay = $__call['status_display'] ?? '';
+            if ($storedStatusDisplay) {
+                $__call['call_status_display'] = $storedStatusDisplay;
+            } else {
+                $sk = $__call['call_status'] ?? '';
+                if (isset($normalizeStatusExtras2[$sk])) { $sk = $normalizeStatusExtras2[$sk]; }
+                $__call['call_status_display'] = $statusDisplayMap2[$sk] ?? ($__call['call_status'] ?? '');
+            }
+
+            // Result: use stored display if present; otherwise map enum
+            $storedResultDisplay = $__call['result_display'] ?? '';
+            if ($storedResultDisplay) {
+                $__call['call_result_display'] = $storedResultDisplay;
+            } else {
+                $rk = $__call['call_result'] ?? '';
+                $__call['call_result_display'] = $resultDisplayMap2[$rk] ?? $rk;
+            }
+        }
+        
+        // แปลงข้อมูลให้เป็นข้อความภาษาไทย
+        $statusDisplayMap = [
+            'answered' => 'รับสาย',
+            'got_talk' => 'ได้คุย',
+            'no_answer' => 'ไม่รับสาย',
+            'busy' => 'สายไม่ว่าง',
+            'hang_up' => 'ตัดสายทิ้ง',
+            'no_signal' => 'ไม่มีสัญญาณ',
+        ];
+        
+        foreach ($callLogs as &$call) {
+            // แปลงสถานะการโทร
+            if (isset($statusDisplayMap[$call['call_status']])) {
+                $call['call_status_display'] = $statusDisplayMap[$call['call_status']];
+            } else {
+                $call['call_status_display'] = $call['call_status'];
+            }
+            
+            // ผลการโทรไม่ต้องแปลงเพราะเก็บเป็นภาษาไทยอยู่แล้ว
+            $call['call_result_display'] = $call['call_result'];
+        }
+        
+        // Finalize display fields (override with stored display labels if present)
+        foreach ($callLogs as &$__final) {
+            if (!empty($__final['status_display'])) {
+                $__final['call_status_display'] = $__final['status_display'];
+            }
+            if (!empty($__final['result_display'])) {
+                $__final['call_result_display'] = $__final['result_display'];
+            } else {
+                $resultDisplayMapF = [
+                    'interested' => 'สนใจ',
+                    'not_interested' => 'ไม่สนใจ',
+                    'callback' => 'ติดต่อนัด/โทรกลับ',
+                    'order' => 'สั่งซื้อ',
+                    'complaint' => 'ร้องเรียน',
+                ];
+                $rkf = $__final['call_result'] ?? '';
+                $__final['call_result_display'] = $resultDisplayMapF[$rkf] ?? $rkf;
+            }
+        }
+
+        echo json_encode([
+            'success' => true,
+            'data' => $callLogs
         ]);
         
     } catch (Exception $e) {

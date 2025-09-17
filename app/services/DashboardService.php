@@ -16,7 +16,7 @@ class DashboardService {
     /**
      * ดึงข้อมูล KPI สำหรับ Dashboard
      */
-    public function getDashboardData($userId = null, $role = null) {
+    public function getDashboardData($userId = null, $role = null, $companyId = null) {
         try {
             // สำหรับ supervisor ใช้ข้อมูลเฉพาะทีม
             if ($role === 'supervisor') {
@@ -31,16 +31,16 @@ class DashboardService {
                     'order_status' => $this->getTeamOrderStatus($userId)
                 ];
             } else {
-                // สำหรับ admin และ super_admin ใช้ข้อมูลทั้งหมด
+                // สำหรับ admin และ super_admin ใช้ข้อมูลตาม company
                 $data = [
-                    'total_customers' => $this->getTotalCustomers(),
-                    'hot_customers' => $this->getHotCustomers(),
-                    'total_orders' => $this->getTotalOrders(),
-                    'total_sales' => $this->getTotalSales(),
-                    'monthly_sales' => $this->getMonthlySales(),
+                    'total_customers' => $this->getTotalCustomers($companyId),
+                    'hot_customers' => $this->getHotCustomers($companyId),
+                    'total_orders' => $this->getTotalOrders($companyId),
+                    'total_sales' => $this->getTotalSales($companyId),
+                    'monthly_sales' => $this->getMonthlySales($companyId),
                     'recent_activities' => $this->getRecentActivities($userId),
-                    'customer_grades' => $this->getCustomerGrades(),
-                    'order_status' => $this->getOrderStatus()
+                    'customer_grades' => $this->getCustomerGrades($companyId),
+                    'order_status' => $this->getOrderStatus($companyId)
                 ];
             }
             
@@ -60,115 +60,195 @@ class DashboardService {
     /**
      * นับจำนวนลูกค้าทั้งหมด
      */
-    private function getTotalCustomers() {
-        $result = $this->db->fetchOne("SELECT COUNT(*) as count FROM customers");
+    private function getTotalCustomers($companyId = null) {
+        if ($companyId) {
+            $result = $this->db->fetchOne("SELECT COUNT(*) as count FROM customers WHERE company_id = ?", [$companyId]);
+        } else {
+            $result = $this->db->fetchOne("SELECT COUNT(*) as count FROM customers");
+        }
         return $result['count'] ?? 0;
     }
     
     /**
      * นับจำนวนลูกค้า Hot
      */
-    private function getHotCustomers() {
-        $result = $this->db->fetchOne("SELECT COUNT(*) as count FROM customers WHERE temperature_status = 'hot'");
+    private function getHotCustomers($companyId = null) {
+        if ($companyId) {
+            $result = $this->db->fetchOne("SELECT COUNT(*) as count FROM customers WHERE temperature_status = 'hot' AND company_id = ?", [$companyId]);
+        } else {
+            $result = $this->db->fetchOne("SELECT COUNT(*) as count FROM customers WHERE temperature_status = 'hot'");
+        }
         return $result['count'] ?? 0;
     }
     
     /**
      * นับจำนวนคำสั่งซื้อทั้งหมด
      */
-    private function getTotalOrders() {
-        $result = $this->db->fetchOne("SELECT COUNT(*) as count FROM orders");
+    private function getTotalOrders($companyId = null) {
+        if ($companyId) {
+            $result = $this->db->fetchOne("SELECT COUNT(*) as count FROM orders WHERE company_id = ?", [$companyId]);
+        } else {
+            $result = $this->db->fetchOne("SELECT COUNT(*) as count FROM orders");
+        }
         return $result['count'] ?? 0;
     }
     
     /**
      * คำนวณยอดขายรวม
      */
-    private function getTotalSales() {
-        $result = $this->db->fetchOne("SELECT SUM(net_amount) as total FROM orders WHERE payment_status = 'paid'");
+    private function getTotalSales($companyId = null) {
+        if ($companyId) {
+            $result = $this->db->fetchOne("SELECT SUM(net_amount) as total FROM orders WHERE payment_status = 'paid' AND company_id = ?", [$companyId]);
+        } else {
+            $result = $this->db->fetchOne("SELECT SUM(net_amount) as total FROM orders WHERE payment_status = 'paid'");
+        }
         return $result['total'] ?? 0;
     }
     
     /**
      * ดึงข้อมูลยอดขายรายเดือน
      */
-    private function getMonthlySales() {
-        $sql = "SELECT 
-                    DATE_FORMAT(order_date, '%Y-%m') as month,
-                    SUM(net_amount) as total_sales,
-                    COUNT(*) as order_count
-                FROM orders 
-                WHERE payment_status = 'paid' 
-                AND order_date >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
-                GROUP BY DATE_FORMAT(order_date, '%Y-%m')
-                ORDER BY month DESC";
-        
-        return $this->db->fetchAll($sql);
+    private function getMonthlySales($companyId = null) {
+        if ($companyId) {
+            $sql = "SELECT 
+                        DATE_FORMAT(order_date, '%Y-%m') as month,
+                        SUM(net_amount) as total_sales,
+                        COUNT(*) as order_count
+                    FROM orders 
+                    WHERE payment_status = 'paid' AND company_id = ?
+                    AND order_date >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                    GROUP BY DATE_FORMAT(order_date, '%Y-%m')
+                    ORDER BY month DESC";
+            return $this->db->fetchAll($sql, [$companyId]);
+        } else {
+            $sql = "SELECT 
+                        DATE_FORMAT(order_date, '%Y-%m') as month,
+                        SUM(net_amount) as total_sales,
+                        COUNT(*) as order_count
+                    FROM orders 
+                    WHERE payment_status = 'paid' 
+                    AND order_date >= DATE_SUB(NOW(), INTERVAL 6 MONTH)
+                    GROUP BY DATE_FORMAT(order_date, '%Y-%m')
+                    ORDER BY month DESC";
+            return $this->db->fetchAll($sql);
+        }
     }
     
     /**
      * ดึงกิจกรรมล่าสุด
      */
-    private function getRecentActivities($userId = null) {
-        $sql = "SELECT 
-                    'order' as type,
-                    o.order_number as title,
-                    CONCAT(c.first_name, ' ', c.last_name) as customer_name,
-                    o.created_at as date,
-                    'สร้างคำสั่งซื้อใหม่' as description
-                FROM orders o
-                LEFT JOIN customers c ON o.customer_id = c.customer_id
-                WHERE o.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-                
-                UNION ALL
-                
-                SELECT 
-                    'customer' as type,
-                    CONCAT(c.first_name, ' ', c.last_name) as title,
-                    c.phone as customer_name,
-                    c.created_at as date,
-                    'เพิ่มลูกค้าใหม่' as description
-                FROM customers c
-                WHERE c.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
-                
-                ORDER BY date DESC
-                LIMIT 10";
-        
-        return $this->db->fetchAll($sql);
+    private function getRecentActivities($userId = null, $companyId = null) {
+        if ($companyId) {
+            $sql = "SELECT 
+                        'order' as type,
+                        o.order_number as title,
+                        CONCAT(c.first_name, ' ', c.last_name) as customer_name,
+                        o.created_at as date,
+                        'สร้างคำสั่งซื้อใหม่' as description
+                    FROM orders o
+                    LEFT JOIN customers c ON o.customer_id = c.customer_id
+                    WHERE o.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) AND o.company_id = ?
+                    
+                    UNION ALL
+                    
+                    SELECT 
+                        'customer' as type,
+                        CONCAT(c.first_name, ' ', c.last_name) as title,
+                        c.phone as customer_name,
+                        c.created_at as date,
+                        'เพิ่มลูกค้าใหม่' as description
+                    FROM customers c
+                    WHERE c.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY) AND c.company_id = ?
+                    
+                    ORDER BY date DESC
+                    LIMIT 10";
+            return $this->db->fetchAll($sql, [$companyId, $companyId]);
+        } else {
+            $sql = "SELECT 
+                        'order' as type,
+                        o.order_number as title,
+                        CONCAT(c.first_name, ' ', c.last_name) as customer_name,
+                        o.created_at as date,
+                        'สร้างคำสั่งซื้อใหม่' as description
+                    FROM orders o
+                    LEFT JOIN customers c ON o.customer_id = c.customer_id
+                    WHERE o.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                    
+                    UNION ALL
+                    
+                    SELECT 
+                        'customer' as type,
+                        CONCAT(c.first_name, ' ', c.last_name) as title,
+                        c.phone as customer_name,
+                        c.created_at as date,
+                        'เพิ่มลูกค้าใหม่' as description
+                    FROM customers c
+                    WHERE c.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)
+                    
+                    ORDER BY date DESC
+                    LIMIT 10";
+            return $this->db->fetchAll($sql);
+        }
     }
     
     /**
      * ดึงข้อมูลเกรดลูกค้า
      */
-    private function getCustomerGrades() {
-        $sql = "SELECT 
-                    customer_grade,
-                    COUNT(*) as count
-                FROM customers 
-                GROUP BY customer_grade
-                ORDER BY 
-                    CASE customer_grade
-                        WHEN 'A' THEN 1
-                        WHEN 'B' THEN 2
-                        WHEN 'C' THEN 3
-                        WHEN 'D' THEN 4
-                        ELSE 5
-                    END";
-        
-        return $this->db->fetchAll($sql);
+    private function getCustomerGrades($companyId = null) {
+        if ($companyId) {
+            $sql = "SELECT 
+                        customer_grade,
+                        COUNT(*) as count
+                    FROM customers 
+                    WHERE company_id = ?
+                    GROUP BY customer_grade
+                    ORDER BY 
+                        CASE customer_grade
+                            WHEN 'A' THEN 1
+                            WHEN 'B' THEN 2
+                            WHEN 'C' THEN 3
+                            WHEN 'D' THEN 4
+                            ELSE 5
+                        END";
+            return $this->db->fetchAll($sql, [$companyId]);
+        } else {
+            $sql = "SELECT 
+                        customer_grade,
+                        COUNT(*) as count
+                    FROM customers 
+                    GROUP BY customer_grade
+                    ORDER BY 
+                        CASE customer_grade
+                            WHEN 'A' THEN 1
+                            WHEN 'B' THEN 2
+                            WHEN 'C' THEN 3
+                            WHEN 'D' THEN 4
+                            ELSE 5
+                        END";
+            return $this->db->fetchAll($sql);
+        }
     }
     
     /**
      * ดึงข้อมูลสถานะคำสั่งซื้อ
      */
-    private function getOrderStatus() {
-        $sql = "SELECT 
-                    payment_status,
-                    COUNT(*) as count
-                FROM orders 
-                GROUP BY payment_status";
-        
-        return $this->db->fetchAll($sql);
+    private function getOrderStatus($companyId = null) {
+        if ($companyId) {
+            $sql = "SELECT 
+                        payment_status,
+                        COUNT(*) as count
+                    FROM orders 
+                    WHERE company_id = ?
+                    GROUP BY payment_status";
+            return $this->db->fetchAll($sql, [$companyId]);
+        } else {
+            $sql = "SELECT 
+                        payment_status,
+                        COUNT(*) as count
+                    FROM orders 
+                    GROUP BY payment_status";
+            return $this->db->fetchAll($sql);
+        }
     }
     
     /**

@@ -172,6 +172,10 @@ class OrderManager {
                     item.discount_amount = parseFloat(item.discount_amount || 0);
                     item.total_price = parseFloat(item.total_price || 0);
                     item.quantity = parseInt(item.quantity || 0);
+                    // กำหนดสถานะแถมจากราคา (ราคา 0 ถือเป็นแถม)
+                    if (typeof item.is_gift === 'undefined') {
+                        item.is_gift = (parseFloat(item.unit_price || 0) === 0);
+                    }
                 });
                 console.log('Converted order items:', window.orderItems);
                 this.updateOrderItemsTable();
@@ -362,13 +366,14 @@ class OrderManager {
             return;
         }
         
-        // Check if product already exists
-        const existingItem = window.orderItems.find(item => item.product_id == productId);
+        // Check if product already exists with same gift state
+        const existingItem = window.orderItems.find(item => item.product_id == productId && item.is_gift === isGift);
         if (existingItem) {
             existingItem.quantity += quantity;
-            const subtotal = existingItem.quantity * unitPrice;
-            existingItem.discount_amount = discountAmount;
-            existingItem.total_price = subtotal - discountAmount;
+            // สะสมส่วนลดในรายการเดียวกัน
+            existingItem.discount_amount = parseFloat(existingItem.discount_amount || 0) + discountAmount;
+            const subtotal = existingItem.quantity * parseFloat(existingItem.unit_price || 0);
+            existingItem.total_price = subtotal - parseFloat(existingItem.discount_amount || 0);
         } else {
             const subtotal = quantity * unitPrice;
             const totalPrice = subtotal - discountAmount;
@@ -380,7 +385,8 @@ class OrderManager {
                 quantity: quantity,
                 unit_price: unitPrice,
                 discount_amount: discountAmount,
-                total_price: totalPrice
+                total_price: totalPrice,
+                is_gift: isGift
             });
         }
         
@@ -433,7 +439,7 @@ class OrderManager {
         tbody.innerHTML = window.orderItems.map((item, index) => `
             <tr>
                 <td>
-                    <strong>${item.product_name}</strong>
+                    <strong>${item.product_name}</strong>${item.is_gift ? ' <span class="badge bg-success ms-2">แถม</span>' : ''}
                 </td>
                 <td class="text-center">${item.product_code || '-'}</td>
                 <td class="text-center">

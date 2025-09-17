@@ -36,6 +36,27 @@ class CallService {
             $followupDate = $this->calculateFollowupDate($data['call_result']);
             
             // บันทึกการโทร
+            // Build call log payload (with display labels)
+            $statusLabelMap = [
+                'answered' => 'รับสาย',
+                'got_talk' => 'ได้คุย',
+                'no_answer' => 'ไม่รับสาย',
+                'busy' => 'สายไม่ว่าง',
+                'hang_up' => 'ตัดสายทิ้ง',
+                'no_signal' => 'ไม่มีสัญญาณ',
+                'invalid' => 'เบอร์ไม่ถูกต้อง',
+                'invaild' => 'เบอร์ไม่ถูกต้อง',
+            ];
+            $resultLabelMap = [
+                'interested' => 'สนใจ',
+                'not_interested' => 'ไม่สนใจ',
+                'callback' => 'ติดต่อนัด/โทรกลับ',
+                'order' => 'สั่งซื้อ',
+                'complaint' => 'ร้องเรียน',
+            ];
+            $statusDisplay = $statusLabelMap[$data['call_status']] ?? (preg_match('/[\x{0E00}-\x{0E7F}]/u', (string)$data['call_status']) ? $data['call_status'] : null);
+            $resultDisplay = $resultLabelMap[$data['call_result']] ?? (preg_match('/[\x{0E00}-\x{0E7F}]/u', (string)$data['call_result']) ? $data['call_result'] : null);
+
             $callData = [
                 'customer_id' => $data['customer_id'],
                 'user_id' => $data['user_id'],
@@ -49,6 +70,10 @@ class CallService {
                 'followup_notes' => $data['followup_notes'] ?? null,
                 'followup_days' => $this->getFollowupDays($data['call_result']),
                 'followup_priority' => $this->getFollowupPriority($data['call_result']),
+                'plant_variety' => $data['plant_variety'] ?? null,
+                'garden_size' => $data['garden_size'] ?? null,
+                'status_display' => $statusDisplay,
+                'result_display' => $resultDisplay,
                 'created_at' => date('Y-m-d H:i:s')
             ];
             
@@ -194,8 +219,22 @@ class CallService {
         ];
         
         $resultText = [
-            'interested' => 'สนใจ',
+            'product_not_out' => 'สินค้ายังไม่หมด',
+            'no_result' => 'ใช้แล้วไม่เห็นผล',
+            'not_tried' => 'ยังไม่ได้ลองใช้',
+            'not_ready_to_use' => 'ยังไม่ถึงรอบใช้งาน',
+            'ordered_elsewhere' => 'สั่งช่องทางอื่นแล้ว',
+            'not_convenient' => 'ไม่สะดวกคุย',
+            'hang_up' => 'ตัดสายทิ้ง',
+            'order_for_others' => 'ฝากสั่งไม่ได้ใช้เอง',
+            'someone_else_answered' => 'คนอื่นรับสายแทน',
+            'stopped_gardening' => 'เลิกทำสวน',
             'not_interested' => 'ไม่สนใจ',
+            'do_not_call' => 'ห้ามติดต่อ',
+            'got_talk' => 'ได้คุย',
+            'sold' => 'ขายได้',
+            // Keep old mappings for backward compatibility
+            'interested' => 'สนใจ',
             'callback' => 'ขอโทรกลับ',
             'order' => 'สั่งซื้อ',
             'complaint' => 'ร้องเรียน'

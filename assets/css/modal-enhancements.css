@@ -1,0 +1,241 @@
+/**
+ * Modal Enhancements CSS
+ * สำหรับปรับปรุง popup ในหน้าลูกค้า
+ */
+
+/* ปรับปรุง modal backdrop ให้แยกความต่างชัดเจน */
+.modal-backdrop {
+    z-index: 1040 !important;
+    background-color: rgba(0, 0, 0, 0.75) !important; /* เพิ่มความเข้ม */
+}
+
+.modal-backdrop.fade {
+    opacity: 0.75 !important;
+}
+
+.modal-backdrop.show {
+    opacity: 0.75 !important;
+}
+
+/* ปรับปรุง modal ให้อยู่กลางจอ */
+.modal-dialog {
+    display: flex !important;
+    align-items: center !important;
+    min-height: calc(100vh - 1rem) !important;
+    margin: 0.5rem auto !important;
+}
+
+.modal-content {
+    width: 100% !important;
+    max-height: 90vh !important;
+    overflow-y: auto !important;
+    border: none !important;
+    border-radius: 15px !important;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 8px 25px rgba(0, 0, 0, 0.3) !important; /* เงาที่ชัดเจนขึ้น */
+    background-color: #ffffff !important; /* พื้นหลังสีขาว */
+    color: #333333 !important; /* ตัวหนังสือสีเข้ม */
+    border: 2px solid rgba(255, 255, 255, 0.9) !important; /* เส้นขอบสีขาว */
+    /* ซ่อน scrollbar */
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+.modal-content::-webkit-scrollbar {
+    display: none !important; /* Chrome, Safari and Opera */
+}
+
+/* ปรับปรุง modal-lg ให้ใหญ่ขึ้นและอยู่กลางจอ */
+.modal-dialog.modal-lg {
+    max-width: 800px !important;
+    margin: 1rem auto !important;
+}
+
+/* เพิ่ม animation สำหรับ modal */
+.modal.fade .modal-dialog {
+    transition: transform 0.3s ease-out, opacity 0.3s ease-out !important;
+    transform: translate(0, -50px) scale(0.95) !important;
+    opacity: 0 !important;
+}
+
+.modal.show .modal-dialog {
+    transform: none !important;
+    opacity: 1 !important;
+}
+
+/* เพิ่มเอฟเฟกต์ glow รอบ modal */
+.modal.show .modal-content {
+    animation: modalGlow 0.5s ease-out !important;
+}
+
+@keyframes modalGlow {
+    0% {
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 8px 25px rgba(0, 0, 0, 0.3) !important;
+    }
+    50% {
+        box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6), 0 12px 35px rgba(0, 0, 0, 0.4), 0 0 0 4px rgba(255, 255, 255, 0.8) !important;
+    }
+    100% {
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 8px 25px rgba(0, 0, 0, 0.3) !important;
+    }
+}
+
+/* ปรับปรุง modal header และ footer */
+.modal-header {
+    border-bottom: 1px solid #dee2e6 !important;
+    border-radius: 15px 15px 0 0 !important;
+    position: relative !important;
+}
+
+.modal-header.bg-primary {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+    border-bottom: 1px solid #dee2e6 !important;
+}
+
+.modal-footer {
+    border-top: 1px solid #dee2e6 !important;
+    border-radius: 0 0 15px 15px !important;
+    background-color: #f8f9fa !important;
+}
+
+/* เพิ่มเส้นขอบเรืองแสงรอบ modal */
+.modal-content::before {
+    content: '' !important;
+    position: absolute !important;
+    top: -2px !important;
+    left: -2px !important;
+    right: -2px !important;
+    bottom: -2px !important;
+    background: linear-gradient(45deg, rgba(255,255,255,0.8), rgba(255,255,255,0.4)) !important;
+    border-radius: 17px !important;
+    z-index: -1 !important;
+    opacity: 0.7 !important;
+}
+
+/* ปรับปรุง table ใน modal */
+.modal-body .table {
+    margin-bottom: 0 !important;
+    background-color: #ffffff !important; /* พื้นหลังสีขาว */
+    color: #333333 !important; /* ตัวหนังสือสีเข้ม */
+}
+
+.modal-body .table th {
+    background-color: #f8f9fa !important;
+    border-top: none !important;
+    font-weight: 600 !important;
+    color: #333333 !important; /* ตัวหนังสือสีเข้ม */
+}
+
+.modal-body .table td {
+    vertical-align: middle !important;
+    background-color: #ffffff !important; /* พื้นหลังสีขาว */
+    color: #333333 !important; /* ตัวหนังสือสีเข้ม */
+}
+
+/* ปรับปรุงปุ่มใน modal */
+.modal-footer .btn {
+    border-radius: 8px !important;
+    font-weight: 500 !important;
+}
+
+/* เพิ่ม responsive design */
+@media (max-width: 768px) {
+    .modal-dialog.modal-lg {
+        max-width: 95% !important;
+        margin: 0.5rem !important;
+    }
+    
+    .modal-content {
+        max-height: 95vh !important;
+    }
+    
+    .modal-header h5 {
+        font-size: 1.1rem !important;
+    }
+}
+
+@media (max-width: 576px) {
+    .modal-dialog {
+        margin: 0.25rem !important;
+    }
+    
+    .modal-content {
+        max-height: 98vh !important;
+    }
+}
+
+/* ปรับปรุง modal สำหรับ order items */
+#orderItemsModal .modal-header {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+    border-bottom: 1px solid #dee2e6 !important;
+}
+
+#orderItemsModal .modal-body {
+    padding: 1.5rem !important;
+    background-color: #ffffff !important; /* พื้นหลังสีขาว */
+    color: #333333 !important; /* ตัวหนังสือสีเข้ม */
+}
+
+#orderItemsModal .table-responsive {
+    border-radius: 8px !important;
+    overflow: hidden !important;
+}
+
+/* ปรับปรุง modal body ทั่วไป */
+.modal-body {
+    background-color: #ffffff !important; /* พื้นหลังสีขาว */
+    color: #333333 !important; /* ตัวหนังสือสีเข้ม */
+    /* ซ่อน scrollbar */
+    scrollbar-width: none !important; /* Firefox */
+    -ms-overflow-style: none !important; /* IE and Edge */
+}
+
+.modal-body::-webkit-scrollbar {
+    display: none !important; /* Chrome, Safari and Opera */
+}
+
+/* เพิ่ม hover effects */
+.modal-body .table tbody tr:hover {
+    background-color: #f8f9fa !important;
+}
+
+/* ปรับปรุง close button */
+.btn-close-white {
+    filter: invert(1) grayscale(100%) brightness(200%) !important;
+}
+
+/* เพิ่ม focus styles */
+.modal:focus {
+    outline: none !important;
+}
+
+.modal-content:focus {
+    outline: none !important;
+}
+
+/* ปรับปรุง backdrop click behavior */
+.modal-backdrop {
+    cursor: pointer !important;
+}
+
+/* เพิ่ม loading state */
+.modal-loading {
+    position: relative !important;
+}
+
+.modal-loading::after {
+    content: '' !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    bottom: 0 !important;
+    background: rgba(255, 255, 255, 0.8) !important;
+    display: flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    z-index: 1000 !important;
+}
+
+/* ปิด dark mode เพื่อให้ใช้สีขาวเสมอ */

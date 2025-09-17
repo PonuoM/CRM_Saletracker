@@ -102,10 +102,20 @@ $userId = $_SESSION['user_id'] ?? '';
                     <label for="resultFilter" class="form-label">ผลการโทร</label>
                     <select class="form-select" id="resultFilter">
                         <option value="">ทั้งหมด</option>
-                        <option value="not_interested">ไม่สนใจ</option>
-                        <option value="callback">ขอโทรกลับ</option>
-                        <option value="interested">สนใจ</option>
-                        <option value="complaint">ร้องเรียน</option>
+                        <option value="สินค้ายังไม่หมด">สินค้ายังไม่หมด</option>
+                        <option value="ใช้แล้วไม่เห็นผล">ใช้แล้วไม่เห็นผล</option>
+                        <option value="ยังไม่ได้ลองใช้">ยังไม่ได้ลองใช้</option>
+                        <option value="ยังไม่ถึงรอบใช้งาน">ยังไม่ถึงรอบใช้งาน</option>
+                        <option value="สั่งช่องทางอื่นแล้ว">สั่งช่องทางอื่นแล้ว</option>
+                        <option value="ไม่สะดวกคุย">ไม่สะดวกคุย</option>
+                        <option value="ตัดสายทิ้ง">ตัดสายทิ้ง</option>
+                        <option value="ฝากสั่งไม่ได้ใช้เอง">ฝากสั่งไม่ได้ใช้เอง</option>
+                        <option value="คนอื่นรับสายแทน">คนอื่นรับสายแทน</option>
+                        <option value="เลิกทำสวน">เลิกทำสวน</option>
+                        <option value="ไม่สนใจ">ไม่สนใจ</option>
+                        <option value="ห้ามติดต่อ">ห้ามติดต่อ</option>
+                        <option value="ได้คุย">ได้คุย</option>
+                        <option value="ขายได้">ขายได้</option>
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -436,6 +446,21 @@ function getCallResultColor(result) {
 
 function getCallResultText(result) {
     const texts = {
+        'สินค้ายังไม่หมด': 'สินค้ายังไม่หมด',
+        'ใช้แล้วไม่เห็นผล': 'ใช้แล้วไม่เห็นผล',
+        'ยังไม่ได้ลองใช้': 'ยังไม่ได้ลองใช้',
+        'ยังไม่ถึงรอบใช้งาน': 'ยังไม่ถึงรอบใช้งาน',
+        'สั่งช่องทางอื่นแล้ว': 'สั่งช่องทางอื่นแล้ว',
+        'ไม่สะดวกคุย': 'ไม่สะดวกคุย',
+        'ตัดสายทิ้ง': 'ตัดสายทิ้ง',
+        'ฝากสั่งไม่ได้ใช้เอง': 'ฝากสั่งไม่ได้ใช้เอง',
+        'คนอื่นรับสายแทน': 'คนอื่นรับสายแทน',
+        'เลิกทำสวน': 'เลิกทำสวน',
+        'ไม่สนใจ': 'ไม่สนใจ',
+        'ห้ามติดต่อ': 'ห้ามติดต่อ',
+        'ได้คุย': 'ได้คุย',
+        'ขายได้': 'ขายได้',
+        // Keep old mappings for backward compatibility
         'interested': 'สนใจ',
         'not_interested': 'ไม่สนใจ',
         'callback': 'ขอโทรกลับ',

@@ -34,6 +34,7 @@ class OrderController {
         
         $roleName = $_SESSION['role_name'] ?? '';
         $userId = $_SESSION['user_id'];
+        $companyId = $_SESSION['company_id'] ?? null;
         
         // ตั้งค่าตัวกรอง
         $filters = [];
@@ -43,14 +44,15 @@ class OrderController {
         if ($roleName === 'telesales') {
             $filters['created_by'] = $userId;
         } elseif ($roleName === 'supervisor') {
-            // Supervisor เห็นเฉพาะคำสั่งซื้อของทีมตัวเอง
-            $teamMemberIds = $this->getTeamMemberIds($userId);
-            if (!empty($teamMemberIds)) {
-                $filters['created_by'] = $teamMemberIds;
-            } else {
-                $filters['created_by'] = [-1]; // ไม่มีทีม
+            // Supervisor เห็นเฉพาะคำสั่งซื้อของตัวเองเท่านั้น (ไม่รวมลูกทีม)
+            $filters['created_by'] = $userId;
+        } elseif (in_array($roleName, ['admin', 'company_admin'])) {
+            // Admin company เห็นเฉพาะคำสั่งซื้อของบริษัทตัวเอง
+            if ($companyId) {
+                $filters['company_id'] = $companyId;
             }
         }
+        // super_admin เห็นข้อมูลทั้งหมด (ไม่ต้องกรอง)
         
         // ตัวกรองจาก URL parameters
         if (!empty($_GET['customer_id'])) {
@@ -103,22 +105,16 @@ class OrderController {
         
         // ดึงข้อมูลลูกค้าสำหรับตัวกรอง
         $customers = [];
-        if (in_array($roleName, ['admin', 'super_admin'])) {
+        if (in_array($roleName, ['admin', 'company_admin', 'super_admin'])) {
             $customers = $this->db->fetchAll(
                 "SELECT customer_id, CONCAT(first_name, ' ', last_name) as customer_name FROM customers ORDER BY first_name, last_name"
             );
         } elseif ($roleName === 'supervisor') {
-            // Supervisor เห็นเฉพาะลูกค้าของทีมตัวเอง
-            $teamMemberIds = $this->getTeamMemberIds($userId);
-            if (!empty($teamMemberIds)) {
-                $placeholders = str_repeat('?,', count($teamMemberIds) - 1) . '?';
-                $customers = $this->db->fetchAll(
-                    "SELECT customer_id, CONCAT(first_name, ' ', last_name) as customer_name FROM customers WHERE assigned_to IN ($placeholders) ORDER BY first_name, last_name",
-                    $teamMemberIds
-                );
-            } else {
-                $customers = [];
-            }
+            // Supervisor เห็นเฉพาะลูกค้าของตัวเอง (ไม่รวมลูกทีม)
+            $customers = $this->db->fetchAll(
+                "SELECT customer_id, CONCAT(first_name, ' ', last_name) as customer_name FROM customers WHERE assigned_to = :user_id ORDER BY first_name, last_name",
+                ['user_id' => $userId]
+            );
         } else {
             // Telesales เห็นเฉพาะลูกค้าที่ได้รับมอบหมาย
             $customers = $this->db->fetchAll(
@@ -158,8 +154,14 @@ class OrderController {
             if ($roleName === 'telesales') {
                 $filters['created_by'] = $userId;
             } elseif ($roleName === 'supervisor') {
-                $teamMemberIds = $this->getTeamMemberIds($userId);
-                $filters['created_by'] = !empty($teamMemberIds) ? $teamMemberIds : [-1];
+                // Supervisor เห็นเฉพาะคำสั่งซื้อของตัวเองเท่านั้น (ไม่รวมลูกทีม)
+                $filters['created_by'] = $userId;
+            } elseif (in_array($roleName, ['admin', 'company_admin'])) {
+                // Admin company เห็นเฉพาะคำสั่งซื้อของบริษัทตัวเอง
+                $companyId = $_SESSION['company_id'] ?? null;
+                if ($companyId) {
+                    $filters['company_id'] = $companyId;
+                }
             }
 
             // Optional filters from query
@@ -365,7 +367,7 @@ class OrderController {
             $userId = $_SESSION['user_id'];
             
             // ตรวจสอบสิทธิ์
-            if (!in_array($roleName, ['telesales', 'supervisor', 'admin', 'super_admin'])) {
+            if (!in_array($roleName, ['telesales', 'supervisor', 'admin', 'company_admin', 'super_admin'])) {
                 header('Content-Type: application/json');
                 echo json_encode(['success' => false, 'message' => 'ไม่มีสิทธิ์แก้ไขคำสั่งซื้อ']);
                 return;
@@ -450,7 +452,7 @@ class OrderController {
             $userId = $_SESSION['user_id'];
             
             // ตรวจสอบสิทธิ์
-            if (!in_array($roleName, ['telesales', 'supervisor', 'admin', 'super_admin'])) {
+            if (!in_array($roleName, ['telesales', 'supervisor', 'admin', 'company_admin', 'super_admin'])) {
                 header('Content-Type: application/json');
                 echo json_encode(['success' => false, 'message' => 'ไม่มีสิทธิ์สร้างคำสั่งซื้อ']);
                 return;
@@ -859,7 +861,7 @@ class OrderController {
             $userId = $_SESSION['user_id'];
             
             // ตรวจสอบสิทธิ์
-            if (!in_array($roleName, ['supervisor', 'admin', 'super_admin'])) {
+            if (!in_array($roleName, ['supervisor', 'admin', 'company_admin', 'super_admin'])) {
                 // ตรวจสอบว่าเป็นผู้สร้างคำสั่งซื้อหรือไม่
                 $order = $this->db->fetchOne(
                     "SELECT created_by FROM orders WHERE order_id = :order_id",
@@ -940,11 +942,9 @@ class OrderController {
                 $whereClause .= " AND created_by = ?";
                 $params[] = $userId;
             } elseif ($roleName === 'supervisor') {
-                $teamMemberIds = $this->getTeamMemberIds($userId);
-                if (!empty($teamMemberIds)) {
-                    $whereClause .= " AND created_by IN (" . implode(',', array_fill(0, count($teamMemberIds), '?')) . ")";
-                    $params = array_merge($params, $teamMemberIds);
-                }
+                // Supervisor เห็นเฉพาะคำสั่งซื้อของตัวเองเท่านั้น (ไม่รวมลูกทีม)
+                $whereClause .= " AND created_by = ?";
+                $params[] = $userId;
             }
 
             // ตรวจสอบว่าคำสั่งซื้อทั้งหมดมีอยู่และผู้ใช้มีสิทธิ์เข้าถึง

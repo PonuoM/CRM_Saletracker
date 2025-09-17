@@ -186,7 +186,8 @@ class Auth {
             return ['success' => true, 'user_id' => $userId];
             
         } catch (Exception $e) {
-            return ['success' => false, 'message' => 'เกิดข้อผิดพลาดในการสร้างผู้ใช้'];
+            error_log("Auth::createUser error: " . $e->getMessage());
+            return ['success' => false, 'message' => 'เกิดข้อผิดพลาดในการสร้างผู้ใช้: ' . $e->getMessage()];
         }
     }
     

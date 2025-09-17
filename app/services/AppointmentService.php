@@ -21,13 +21,18 @@ class AppointmentService {
             // Log input data for debugging
             error_log("AppointmentService - Input data: " . print_r($data, true));
             
+            // Resolve company_id from customer
+            $cust = $this->db->fetchOne("SELECT company_id FROM customers WHERE customer_id = ?", [$data['customer_id']]);
+            $companyId = $cust['company_id'] ?? null;
+
             $sql = "INSERT INTO appointments (
-                customer_id, user_id, appointment_date, appointment_type, 
+                company_id, customer_id, user_id, appointment_date, appointment_type, 
                 appointment_status, location, contact_person, contact_phone,
                 title, description, notes
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
             
             $params = [
+                $companyId,
                 $data['customer_id'],
                 $data['user_id'],
                 $data['appointment_date'],
@@ -61,7 +66,10 @@ class AppointmentService {
                     $this->db->query(
                         "UPDATE customers 
                          SET next_followup_at = ?, 
-                             customer_status = CASE WHEN customer_status = 'new' THEN 'followup' ELSE customer_status END,
+                             customer_status = CASE 
+                                 WHEN customer_status IN ('new','existing','daily_distribution') THEN 'followup' 
+                                 ELSE customer_status 
+                             END,
                              customer_time_expiry = LEAST(DATE_ADD(customer_time_expiry, INTERVAL 30 DAY), DATE_ADD(NOW(), INTERVAL 90 DAY)),
                              updated_at = NOW()
                          WHERE customer_id = ?",
@@ -70,6 +78,9 @@ class AppointmentService {
                 } catch (Exception $e) {
                     error_log('Failed to update customer followup info: ' . $e->getMessage());
                 }
+                
+                // Normalize follow-up status to reflect current pending state
+                $this->normalizeCustomerFollowupStatus($data['customer_id']);
                 
                 return [
                     'success' => true,
@@ -134,11 +145,15 @@ class AppointmentService {
                 $oldDate = $currentAppointment['data']['appointment_date'];
                 $newDate = $data['appointment_date'];
                 
-                if ($oldDate !== $newDate && $data['appointment_status'] !== 'completed' && $data['appointment_status'] !== 'cancelled') {
+                if ($data['appointment_status'] !== 'completed' && $data['appointment_status'] !== 'cancelled') {
                     try {
                         $this->db->query(
                             "UPDATE customers 
                              SET next_followup_at = ?,
+                                 customer_status = CASE 
+                                     WHEN customer_status IN ('new','existing','daily_distribution') THEN 'followup' 
+                                     ELSE customer_status 
+                                 END,
                                  customer_time_expiry = LEAST(DATE_ADD(customer_time_expiry, INTERVAL 30 DAY), DATE_ADD(NOW(), INTERVAL 90 DAY)),
                                  updated_at = NOW()
                              WHERE customer_id = ?",
@@ -148,6 +163,9 @@ class AppointmentService {
                         error_log('Failed to sync customer followup date: ' . $e->getMessage());
                     }
                 }
+                
+                // Normalize follow-up status to reflect current pending state
+                $this->normalizeCustomerFollowupStatus($customerId);
                 
                 return [
                     'success' => true,
@@ -173,10 +191,16 @@ class AppointmentService {
      */
     public function deleteAppointment($appointmentId, $userId) {
         try {
+            // normalize for customer before delete? We need customer_id
+            $current = $this->getAppointmentById($appointmentId);
+            $customerIdForDelete = $current['success'] ? ($current['data']['customer_id'] ?? null) : null;
             $sql = "DELETE FROM appointments WHERE appointment_id = ?";
             $result = $this->db->query($sql, [$appointmentId]);
             
             if ($result) {
+                if ($customerIdForDelete) {
+                    $this->normalizeCustomerFollowupStatus($customerIdForDelete);
+                }
                 return [
                     'success' => true,
                     'message' => 'ลบนัดหมายสำเร็จ'
@@ -194,6 +218,74 @@ class AppointmentService {
                 'message' => 'เกิดข้อผิดพลาด: ' . $e->getMessage()
             ];
         }
+    }
+    
+    /**
+     * ปรับสถานะติดตามของลูกค้าตามความเป็นจริงจากข้อมูลที่ค้างอยู่
+     * - ถ้ามี follow-up ค้าง (customers.next_followup_at หรือ call_logs.next_followup_at หรือ appointments ที่ไม่ completed) => บังคับเป็น followup
+     * - ถ้าไม่มี follow-up ค้างเลย => ตั้งเป็น existing และล้าง next_followup_at
+     */
+    private function normalizeCustomerFollowupStatus($customerId) {
+        try {
+            $sql = "
+                SELECT 
+                    c.customer_id,
+                    GREATEST(
+                        COALESCE(UNIX_TIMESTAMP(c.next_followup_at), 0),
+                        COALESCE(UNIX_TIMESTAMP(MAX(cl.next_followup_at)), 0),
+                        COALESCE(UNIX_TIMESTAMP(MAX(CASE WHEN a.appointment_status <> 'completed' THEN a.appointment_date END)), 0)
+                    ) AS max_ts,
+                    FROM_UNIXTIME(
+                        GREATEST(
+                            COALESCE(UNIX_TIMESTAMP(c.next_followup_at), 0),
+                            COALESCE(UNIX_TIMESTAMP(MAX(cl.next_followup_at)), 0),
+                            COALESCE(UNIX_TIMESTAMP(MAX(CASE WHEN a.appointment_status <> 'completed' THEN a.appointment_date END)), 0)
+                        )
+                    ) AS computed_next,
+                    c.customer_status
+                FROM customers c
+                LEFT JOIN call_logs cl ON cl.customer_id = c.customer_id AND cl.next_followup_at IS NOT NULL
+                LEFT JOIN appointments a ON a.customer_id = c.customer_id
+                WHERE c.customer_id = ?
+                GROUP BY c.customer_id, c.customer_status
+            ";
+            $row = $this->db->fetchOne($sql, [$customerId]);
+            if (!$row) { return; }
+            $hasPending = ((int)($row['max_ts'] ?? 0)) > 0;
+            if ($hasPending) {
+                // Ensure status is followup when pending exists
+                $this->db->execute(
+                    "UPDATE customers SET customer_status = CASE 
+                        WHEN customer_status IN ('new','existing','daily_distribution') THEN 'followup' 
+                        ELSE customer_status END,
+                        updated_at = NOW()
+                     WHERE customer_id = ?",
+                    [$customerId]
+                );
+                // Optionally backfill next_followup_at if null
+                if (empty($row['next_followup_at']) && !empty($row['computed_next'])) {
+                    $this->db->execute(
+                        "UPDATE customers SET next_followup_at = ? WHERE customer_id = ? AND next_followup_at IS NULL",
+                        [$row['computed_next'], $customerId]
+                    );
+                }
+            } else {
+                // No pending => demote to existing
+                $this->db->execute(
+                    "UPDATE customers SET customer_status = 'existing', next_followup_at = NULL, updated_at = NOW() WHERE customer_id = ?",
+                    [$customerId]
+                );
+            }
+        } catch (Exception $e) {
+            error_log('normalizeCustomerFollowupStatus error: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Public wrapper for normalization to be used by API endpoints
+     */
+    public function normalizeFollowup($customerId) {
+        $this->normalizeCustomerFollowupStatus($customerId);
     }
     
     /**
@@ -235,14 +327,34 @@ class AppointmentService {
      */
     public function getAppointmentsByCustomer($customerId, $limit = 10) {
         try {
+            // ตรวจสอบ company_id ของลูกค้า
+            $customer = $this->db->fetchOne("SELECT company_id FROM customers WHERE customer_id = ?", [$customerId]);
+            if (!$customer) {
+                return [
+                    'success' => false,
+                    'message' => 'ไม่พบข้อมูลลูกค้า'
+                ];
+            }
+            
+            $companyId = $customer['company_id'];
+            
             $sql = "SELECT a.*, u.full_name as user_name
                     FROM appointments a
                     LEFT JOIN users u ON a.user_id = u.user_id
-                    WHERE a.customer_id = ?
-                    ORDER BY a.appointment_date DESC
-                    LIMIT ?";
+                    WHERE a.customer_id = ?";
             
-            $result = $this->db->fetchAll($sql, [$customerId, $limit]);
+            $params = [$customerId];
+            
+            // กรองตาม company_id ถ้ามี
+            if ($companyId) {
+                $sql .= " AND a.company_id = ?";
+                $params[] = $companyId;
+            }
+            
+            $sql .= " ORDER BY a.appointment_date DESC LIMIT ?";
+            $params[] = $limit;
+            
+            $result = $this->db->fetchAll($sql, $params);
             
             return [
                 'success' => true,
@@ -262,12 +374,29 @@ class AppointmentService {
      */
     public function getAppointmentsByUser($userId, $status = null, $limit = 20) {
         try {
+            // ตรวจสอบ company_id ของผู้ใช้
+            $user = $this->db->fetchOne("SELECT company_id FROM users WHERE user_id = ?", [$userId]);
+            if (!$user) {
+                return [
+                    'success' => false,
+                    'message' => 'ไม่พบข้อมูลผู้ใช้'
+                ];
+            }
+            
+            $companyId = $user['company_id'];
+            
             $sql = "SELECT a.*, c.first_name, c.last_name, c.phone as customer_phone
                     FROM appointments a
                     LEFT JOIN customers c ON a.customer_id = c.customer_id
                     WHERE a.user_id = ?";
             
             $params = [$userId];
+            
+            // กรองตาม company_id ถ้ามี
+            if ($companyId) {
+                $sql .= " AND a.company_id = ?";
+                $params[] = $companyId;
+            }
             
             if ($status) {
                 $sql .= " AND a.appointment_status = ?";
@@ -382,6 +511,19 @@ class AppointmentService {
             
             // ล้าง next_followup_at เพื่อให้ลูกค้าออกจาก Do tab หลังจากการนัดหมายเสร็จสิ้น
             $this->clearCustomerFollowUp($customerId);
+            
+            // เมื่อนัดหมายเสร็จสิ้น: ถ้าสถานะเป็นติดตาม ให้เปลี่ยนกลับเป็น existing
+            try {
+                $this->db->execute(
+                    "UPDATE customers SET customer_status = CASE 
+                        WHEN customer_status IN ('followup','call_followup') THEN 'existing' 
+                        ELSE customer_status 
+                    END WHERE customer_id = ?",
+                    [$customerId]
+                );
+            } catch (Exception $e) {
+                error_log('Failed to reset customer_status after completion: ' . $e->getMessage());
+            }
             
             // ตรวจสอบว่าต้องต่อเวลาหรือไม่
             if ($this->shouldExtendTimeForAppointment($appointment['data'])) {
@@ -498,10 +640,14 @@ class AppointmentService {
      */
     private function logActivity($appointmentId, $userId, $activityType, $description) {
         try {
-            $sql = "INSERT INTO appointment_activities (appointment_id, user_id, activity_type, activity_description) 
-                    VALUES (?, ?, ?, ?)";
+            // Resolve company_id from appointment
+            $row = $this->db->fetchOne("SELECT company_id FROM appointments WHERE appointment_id = ?", [$appointmentId]);
+            $companyId = $row['company_id'] ?? null;
+
+            $sql = "INSERT INTO appointment_activities (appointment_id, company_id, user_id, activity_type, activity_description) 
+                    VALUES (?, ?, ?, ?, ?)";
             
-            $this->db->query($sql, [$appointmentId, $userId, $activityType, $description]);
+            $this->db->query($sql, [$appointmentId, $companyId, $userId, $activityType, $description]);
             
         } catch (Exception $e) {
             // Log error but don't fail the main operation

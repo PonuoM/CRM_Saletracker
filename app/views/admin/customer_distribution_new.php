@@ -5,6 +5,37 @@
  */
 ?>
 
+<?php 
+// Company selector (super_admin/company_admin)
+$roleName = $_SESSION['role_name'] ?? '';
+if (in_array($roleName, ['super_admin','company_admin'])): 
+    require_once __DIR__ . '/../../core/Database.php';
+    $db = new Database();
+    try {
+        $companies = $db->fetchAll("SELECT company_id, company_name FROM companies WHERE is_active = 1 ORDER BY company_name");
+    } catch (Exception $e) { $companies = []; }
+    $currentCompany = $_SESSION['override_company_id'] ?? ($_SESSION['company_id'] ?? null);
+?>
+<form method="get" class="mt-2 px-3">
+    <div class="row g-2 align-items-center">
+        <div class="col-auto">
+            <label class="col-form-label"><i class="fas fa-building me-1"></i>บริษัท</label>
+        </div>
+        <div class="col-auto">
+            <select class="form-select" name="company_override_id" onchange="this.form.submit()">
+                <option value="">เลือกบริษัท...</option>
+                <?php foreach ($companies as $co): ?>
+                    <option value="<?php echo (int)$co['company_id']; ?>" <?php echo ($currentCompany == $co['company_id']) ? 'selected' : ''; ?>>
+                        <?php echo htmlspecialchars($co['company_name']); ?>
+                    </option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+    </div>
+    <input type="hidden" name="action" value="customer_distribution">
+</form>
+<?php endif; ?>
+
 <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
     <div>
         <h1 class="h2">

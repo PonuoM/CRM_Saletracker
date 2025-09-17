@@ -1,0 +1,92 @@
+/**
+ * Modal Fix CSS
+ * แก้ไขปัญหา modal ที่มองไม่เห็นตัวหนังสือ
+ */
+
+/* บังคับให้ modal content มีพื้นหลังสีขาวเสมอ */
+.modal-content {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+}
+
+/* บังคับให้ modal body มีพื้นหลังสีขาวเสมอ */
+.modal-body {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+}
+
+/* บังคับให้ table มีพื้นหลังสีขาวเสมอ */
+.modal-body .table {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+}
+
+.modal-body .table th {
+    background-color: #f8f9fa !important;
+    color: #333333 !important;
+}
+
+.modal-body .table td {
+    background-color: #ffffff !important;
+    color: #333333 !important;
+}
+
+/* บังคับให้ text elements มีสีเข้ม */
+.modal-body p,
+.modal-body div,
+.modal-body span,
+.modal-body h1,
+.modal-body h2,
+.modal-body h3,
+.modal-body h4,
+.modal-body h5,
+.modal-body h6 {
+    color: #333333 !important;
+}
+
+/* ปรับปรุง backdrop ให้แยกความต่างชัดเจน */
+.modal-backdrop {
+    background-color: rgba(0, 0, 0, 0.75) !important;
+    opacity: 0.75 !important;
+}
+
+.modal-backdrop.show {
+    opacity: 0.75 !important;
+}
+
+/* เพิ่มเงาให้ modal content */
+.modal-content {
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5), 0 8px 25px rgba(0, 0, 0, 0.3) !important;
+    border: 2px solid rgba(255, 255, 255, 0.9) !important;
+}
+
+/* ปรับปรุง loading spinner */
+.modal-body .spinner-border {
+    color: #007bff !important;
+}
+
+/* ปรับปรุง alert boxes */
+.modal-body .alert {
+    background-color: #ffffff !important;
+    border: 1px solid #dee2e6 !important;
+}
+
+.modal-body .alert-info {
+    background-color: #d1ecf1 !important;
+    color: #0c5460 !important;
+}
+
+.modal-body .alert-warning {
+    background-color: #fff3cd !important;
+    color: #856404 !important;
+}
+
+.modal-body .alert-danger {
+    background-color: #f8d7da !important;
+    color: #721c24 !important;
+}
+
+.modal-body .alert-success {
+    background-color: #d4edda !important;
+    color: #155724 !important;
+}

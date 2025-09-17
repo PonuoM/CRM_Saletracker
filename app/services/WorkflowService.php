@@ -16,17 +16,27 @@ class WorkflowService {
     /**
      * ดึงสถิติ Workflow
      */
-    public function getWorkflowStats() {
+    public function getWorkflowStats($companyId = null) {
         try {
+            $companyFilter = "";
+            $params = [];
+            
+            if ($companyId) {
+                $companyFilter = " AND company_id = ?";
+                $params = [$companyId];
+            }
+            
             // ลูกค้าที่ต้อง Recall
             $pendingRecall = $this->db->fetchOne(
                 "SELECT COUNT(*) as count FROM customers 
-                 WHERE (basket_type = 'assigned' AND assigned_at < DATE_SUB(NOW(), INTERVAL 30 DAY))
+                 WHERE ((basket_type = 'assigned' AND assigned_at < DATE_SUB(NOW(), INTERVAL 30 DAY))
                  OR (basket_type = 'assigned' AND customer_id IN (
                      SELECT customer_id FROM orders 
+                     WHERE " . ($companyId ? "company_id = ?" : "1=1") . "
                      GROUP BY customer_id 
                      HAVING MAX(order_date) < DATE_SUB(NOW(), INTERVAL 90 DAY)
-                 ))"
+                 )))" . $companyFilter,
+                $companyId ? [$companyId, $companyId] : []
             );
             
             // ลูกค้าใหม่เกิน 30 วัน
@@ -36,12 +46,13 @@ class WorkflowService {
                  AND assigned_at < DATE_SUB(NOW(), INTERVAL 30 DAY)
                  AND customer_id NOT IN (
                      SELECT DISTINCT customer_id FROM orders 
-                     WHERE created_at > assigned_at
+                     WHERE created_at > assigned_at" . ($companyId ? " AND company_id = ?" : "") . "
                  )
                  AND customer_id NOT IN (
                      SELECT DISTINCT customer_id FROM appointments 
-                     WHERE created_at > assigned_at
-                 )"
+                     WHERE created_at > assigned_at" . ($companyId ? " AND company_id = ?" : "") . "
+                 )" . $companyFilter,
+                $companyId ? [$companyId, $companyId, $companyId] : []
             );
             
             // ลูกค้าเก่าเกิน 90 วัน
@@ -50,20 +61,23 @@ class WorkflowService {
                  WHERE basket_type = 'assigned'
                  AND customer_id IN (
                      SELECT customer_id FROM orders 
+                     WHERE " . ($companyId ? "company_id = ?" : "1=1") . "
                      GROUP BY customer_id 
                      HAVING MAX(order_date) < DATE_SUB(NOW(), INTERVAL 90 DAY)
-                 )"
+                 )" . $companyFilter,
+                $companyId ? [$companyId, $companyId] : []
             );
             
             // ลูกค้า Active วันนี้
             $activeToday = $this->db->fetchOne(
                 "SELECT COUNT(DISTINCT customer_id) as count FROM (
-                     SELECT customer_id FROM orders WHERE DATE(created_at) = CURDATE()
+                     SELECT customer_id FROM orders WHERE DATE(created_at) = CURDATE()" . ($companyId ? " AND company_id = ?" : "") . "
                      UNION
-                     SELECT customer_id FROM appointments WHERE DATE(created_at) = CURDATE()
+                     SELECT customer_id FROM appointments WHERE DATE(created_at) = CURDATE()" . ($companyId ? " AND company_id = ?" : "") . "
                      UNION
-                     SELECT customer_id FROM call_logs WHERE DATE(created_at) = CURDATE()
-                 ) as active_customers"
+                     SELECT customer_id FROM call_logs WHERE DATE(created_at) = CURDATE()" . ($companyId ? " AND company_id = ?" : "") . "
+                 ) as active_customers",
+                $companyId ? [$companyId, $companyId, $companyId] : []
             );
             
             return [

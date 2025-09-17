@@ -86,10 +86,11 @@ if (!isset($customer)) {
                         <select class="form-select" id="callStatus" name="call_status" required>
                             <option value="">เลือกสถานะการโทร</option>
                             <option value="answered">รับสาย</option>
+                            <option value="got_talk">ได้คุย</option>
                             <option value="no_answer">ไม่รับสาย</option>
                             <option value="busy">สายไม่ว่าง</option>
-                            <option value="invalid">เบอร์ผิด</option>
                             <option value="hang_up">ตัดสายทิ้ง</option>
+                            <option value="no_signal">ไม่มีสัญญาณ</option>
                         </select>
                     </div>
                     
@@ -98,12 +99,7 @@ if (!isset($customer)) {
                         <label for="callResult" class="form-label">ผลการโทร</label>
                         <select class="form-select" id="callResult" name="call_result">
                             <option value="">เลือกผลการโทร</option>
-                            <option value="สนใจ">สนใจ</option>
-                            <option value="ไม่สนใจ">ไม่สนใจ</option>
-                            <option value="ลังเล">ลังเล</option>
-                            <option value="เบอร์ผิด">เบอร์ผิด</option>
-                            <option value="ได้คุย">ได้คุย</option>
-                            <option value="ตัดสายทิ้ง">ตัดสายทิ้ง</option>
+                            <!-- ตัวเลือกจะถูกอัปเดตตามสถานะการโทร -->
                         </select>
                     </div>
                     
@@ -123,6 +119,17 @@ if (!isset($customer)) {
                     <div class="col-12">
                         <label for="notes" class="form-label">หมายเหตุ</label>
                         <textarea class="form-control" id="notes" name="notes" rows="3" placeholder="บันทึกรายละเอียดการสนทนา..."></textarea>
+                    </div>
+                    
+                    <!-- ข้อมูลพืชพันธุ์และขนาดสวน -->
+                    <div class="col-md-6">
+                        <label for="plantVariety" class="form-label">พืชพันธุ์</label>
+                        <input type="text" class="form-control" id="plantVariety" name="plant_variety" placeholder="เช่น มะม่วง, ทุเรียน, ลำใย">
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <label for="gardenSize" class="form-label">ขนาดสวน</label>
+                        <input type="text" class="form-control" id="gardenSize" name="garden_size" placeholder="เช่น 5 ไร่, 2,000 ตารางวา">
                     </div>
                     
                     <!-- เพิ่ม Tag -->
@@ -168,13 +175,17 @@ function setupCallStatusAutoFill() {
     
     if (callStatus && callResult) {
         callStatus.addEventListener('change', function() {
+            // อัปเดตตัวเลือกผลการโทรตามสถานะการโทร
+            updateCallResultOptions(this.value);
+            
             // ถ้าเลือกสถานะที่ไม่ใช่ "รับสาย" ให้ auto-fill ผลการโทร
             if (this.value && this.value !== 'answered') {
                 const statusValueMap = {
+                    'got_talk': 'ได้คุย',
                     'no_answer': 'ไม่รับสาย',
                     'busy': 'สายไม่ว่าง',
-                    'invalid': 'เบอร์ผิด',
-                    'hang_up': 'ตัดสายทิ้ง'
+                    'hang_up': 'ตัดสายทิ้ง',
+                    'no_signal': 'ไม่มีสัญญาณ'
                 };
                 const autoFillValue = statusValueMap[this.value];
                 if (autoFillValue) {
@@ -234,16 +245,18 @@ function renderCallHistory(calls) {
             <div class="d-flex justify-content-between align-items-start">
                 <div>
                     <span class="badge bg-${getCallResultColor(call.call_result)}">
-                        ${getCallResultText(call.call_result)}
+                        ${call.call_result_display || call.call_result}
                     </span>
                     <span class="badge bg-${getCallStatusColor(call.call_status)} ms-1">
-                        ${getCallStatusText(call.call_status)}
+                        ${call.call_status_display || getCallStatusText(call.call_status)}
                     </span>
                 </div>
                 <small class="text-muted">${formatDate(call.created_at)}</small>
             </div>
             ${call.notes ? `<div class="mt-1 small text-muted">${escapeHtml(call.notes)}</div>` : ''}
             ${call.duration_minutes > 0 ? `<div class="mt-1 small text-muted">ใช้เวลา ${call.duration_minutes} นาที</div>` : ''}
+            ${call.plant_variety ? `<div class="mt-1 small"><span class="badge bg-info me-1">พืชพันธุ์:</span> ${escapeHtml(call.plant_variety)}</div>` : ''}
+            ${call.garden_size ? `<div class="mt-1 small"><span class="badge bg-success me-1">ขนาดสวน:</span> ${escapeHtml(call.garden_size)}</div>` : ''}
         </div>
     `).join('');
 }
@@ -280,26 +293,42 @@ function updateCallResultOptions(callStatus) {
     if (callStatus === 'answered') {
         // ถ้ารับสาย สามารถมีผลการโทรได้ทุกประเภท
         callResult.innerHTML += `
-            <option value="interested">สนใจ</option>
-            <option value="not_interested">ไม่สนใจ</option>
-            <option value="callback">ขอโทรกลับ</option>
-            <option value="order">สั่งซื้อ</option>
-            <option value="complaint">ร้องเรียน</option>
+            <option value="สินค้ายังไม่หมด">สินค้ายังไม่หมด</option>
+            <option value="ใช้แล้วไม่เห็นผล">ใช้แล้วไม่เห็นผล</option>
+            <option value="ยังไม่ได้ลองใช้">ยังไม่ได้ลองใช้</option>
+            <option value="ยังไม่ถึงรอบใช้งาน">ยังไม่ถึงรอบใช้งาน</option>
+            <option value="สั่งช่องทางอื่นแล้ว">สั่งช่องทางอื่นแล้ว</option>
+            <option value="ไม่สะดวกคุย">ไม่สะดวกคุย</option>
+            <option value="ฝากสั่งไม่ได้ใช้เอง">ฝากสั่งไม่ได้ใช้เอง</option>
+            <option value="คนอื่นรับสายแทน">คนอื่นรับสายแทน</option>
+            <option value="เลิกทำสวน">เลิกทำสวน</option>
+            <option value="ไม่สนใจ">ไม่สนใจ</option>
+            <option value="ห้ามติดต่อ">ห้ามติดต่อ</option>
+        `;
+    } else if (callStatus === 'got_talk') {
+        // ถ้าได้คุย - auto-fill เป็น "ได้คุย"
+        callResult.innerHTML += `
+            <option value="ได้คุย">ได้คุย</option>
         `;
     } else if (callStatus === 'no_answer') {
-        // ถ้าไม่รับสาย
+        // ถ้าไม่รับสาย - auto-fill เป็น "ไม่รับสาย"
         callResult.innerHTML += `
-            <option value="callback">ขอโทรกลับ</option>
+            <option value="ไม่รับสาย">ไม่รับสาย</option>
         `;
     } else if (callStatus === 'busy') {
-        // ถ้าสายไม่ว่าง
+        // ถ้าสายไม่ว่าง - auto-fill เป็น "สายไม่ว่าง"
         callResult.innerHTML += `
-            <option value="callback">ขอโทรกลับ</option>
+            <option value="สายไม่ว่าง">สายไม่ว่าง</option>
         `;
-    } else if (callStatus === 'invalid') {
-        // ถ้าเบอร์ไม่ถูกต้อง
+    } else if (callStatus === 'hang_up') {
+        // ถ้าตัดสายทิ้ง - auto-fill เป็น "ตัดสายทิ้ง"
         callResult.innerHTML += `
-            <option value="not_interested">ไม่สนใจ</option>
+            <option value="ตัดสายทิ้ง">ตัดสายทิ้ง</option>
+        `;
+    } else if (callStatus === 'no_signal') {
+        // ถ้าไม่มีสัญญาณ - auto-fill เป็น "ไม่มีสัญญาณ"
+        callResult.innerHTML += `
+            <option value="ไม่มีสัญญาณ">ไม่มีสัญญาณ</option>
         `;
     }
     
@@ -338,9 +367,25 @@ function submitCallLog() {
     submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> กำลังบันทึก...';
     submitBtn.disabled = true;
     
+    // แปลง FormData เป็น JSON เพื่อส่งข้อมูลฟิลด์ใหม่
+    const data = {
+        customer_id: formData.get('customer_id'),
+        call_type: 'outbound',
+        call_status: formData.get('call_status'),
+        call_result: formData.get('call_result'),
+        duration_minutes: formData.get('duration_minutes') || 0,
+        notes: formData.get('notes'),
+        next_followup_at: formData.get('next_followup_at'),
+        plant_variety: formData.get('plant_variety'),
+        garden_size: formData.get('garden_size')
+    };
+    
     fetch('api/calls.php?action=log_call', {
         method: 'POST',
-        body: formData
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(data)
     })
     .then(response => response.json())
     .then(data => {
@@ -388,16 +433,32 @@ function formatDate(dateString) {
 
 function getCallResultColor(result) {
     const colors = {
-        'interested': 'success',
-        'not_interested': 'secondary',
-        'callback': 'warning',
-        'order': 'primary',
-        'complaint': 'danger'
+        'สินค้ายังไม่หมด': 'info',
+        'ใช้แล้วไม่เห็นผล': 'warning',
+        'ยังไม่ได้ลองใช้': 'primary',
+        'ยังไม่ถึงรอบใช้งาน': 'info',
+        'สั่งช่องทางอื่นแล้ว': 'success',
+        'ไม่สะดวกคุย': 'secondary',
+        'ตัดสายทิ้ง': 'danger',
+        'ฝากสั่งไม่ได้ใช้เอง': 'warning',
+        'คนอื่นรับสายแทน': 'info',
+        'เลิกทำสวน': 'secondary',
+        'ไม่สนใจ': 'secondary',
+        'ห้ามติดต่อ': 'danger',
+        'ได้คุย': 'success',
+        'ไม่รับสาย': 'warning',
+        'สายไม่ว่าง': 'info',
+        'ไม่มีสัญญาณ': 'secondary'
     };
     return colors[result] || 'secondary';
 }
 
 function getCallResultText(result) {
+    // ถ้าเป็นข้อความภาษาไทยแล้ว ให้คืนค่าเดิม
+    if (result && /[\u0E00-\u0E7F]/.test(result)) {
+        return result;
+    }
+    
     const texts = {
         'interested': 'สนใจ',
         'not_interested': 'ไม่สนใจ',
@@ -411,10 +472,12 @@ function getCallResultText(result) {
 function getCallStatusColor(status) {
     const colors = {
         'answered': 'success',
+        'got_talk': 'success',
         'no_answer': 'warning',
         'busy': 'info',
         'invalid': 'danger',
-        'hang_up': 'secondary'
+        'hang_up': 'secondary',
+        'no_signal': 'secondary'
     };
     return colors[status] || 'secondary';
 }
@@ -422,10 +485,12 @@ function getCallStatusColor(status) {
 function getCallStatusText(status) {
     const texts = {
         'answered': 'รับสาย',
+        'got_talk': 'ได้คุย',
         'no_answer': 'ไม่รับสาย',
         'busy': 'สายไม่ว่าง',
         'invalid': 'เบอร์ไม่ถูกต้อง',
-        'hang_up': 'ตัดสายทิ้ง'
+        'hang_up': 'ตัดสายทิ้ง',
+        'no_signal': 'ไม่มีสัญญาณ'
     };
     return texts[status] || status;
 }
@@ -461,4 +526,43 @@ function showAlert(type, message) {
         }
     }, 5000);
 }
+</script>
+<script>
+// Override selects to use Thai labels consistently and mirror results for non-answered statuses
+document.addEventListener('DOMContentLoaded', function() {
+    try {
+        const statusSel = document.getElementById('callStatus');
+        const resultSel = document.getElementById('callResult');
+        if (!statusSel || !resultSel) return;
+
+        const statuses = ['รับสาย','ได้คุย','ไม่รับสาย','สายไม่ว่าง','ตัดสายทิ้ง','ไม่มีสัญญาณ'];
+        statusSel.innerHTML = '<option value="">เลือกสถานะการโทร</option>' + statuses.map(s=>`<option value="${s}">${s}</option>`).join('');
+
+        const RESULT_ANSWERED = [
+            'สินค้ายังไม่หมด',
+            'ใช้แล้วไม่เห็นผล',
+            'ยังไม่ได้ลองใช้',
+            'ยังไม่ถึงรอบใช้งาน',
+            'สั่งช่องทางอื่นแล้ว',
+            'ไม่สะดวกคุย',
+            'ตัดสายทิ้ง',
+            'ฝากสั่งไม่ได้ใช้เอง',
+            'คนอื่นรับสายแทน',
+            'เลิกทำสวน',
+            'ไม่สนใจ',
+            'ห้ามติดต่อ',
+            'ได้คุย',
+            'ขายได้'
+        ];
+        function updateResultByStatus(){
+            const s = (statusSel.value||'').trim();
+            let opts = [];
+            if (s === 'รับสาย') opts = RESULT_ANSWERED;
+            else if (s) opts = [s];
+            resultSel.innerHTML = '<option value="">เลือกผลการโทร</option>' + opts.map(t=>`<option value="${t}">${t}</option>`).join('');
+        }
+        statusSel.addEventListener('change', updateResultByStatus);
+        updateResultByStatus();
+    } catch(_) {}
+});
 </script>

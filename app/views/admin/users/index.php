@@ -11,15 +11,18 @@
         จัดการผู้ใช้
     </h1>
     <div class="btn-toolbar mb-2 mb-md-0">
-        <a href="admin.php" class="btn btn-secondary me-2">
-            <i class="fas fa-arrow-left me-2"></i>ย้อนกลับ
-        </a>
         <a href="admin.php?action=users&subaction=create" class="btn btn-primary me-2">
             <i class="fas fa-user-plus me-2"></i>เพิ่มผู้ใช้ใหม่
         </a>
+        <?php 
+        // Hide company management button for role_id 6 (company_admin)
+        $currentRoleId = $_SESSION['role_id'] ?? 0;
+        if ($currentRoleId != 6): 
+        ?>
         <a href="admin.php?action=companies" class="btn btn-info">
             <i class="fas fa-building me-2"></i>จัดการบริษัท
         </a>
+        <?php endif; ?>
     </div>
 </div>
 

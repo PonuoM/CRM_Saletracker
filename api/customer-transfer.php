@@ -369,14 +369,13 @@ function transferCustomers($transferService) {
             return;
         }
         
-        // Perform transfer
-        $result = $transferService->transferCustomers(
+        // Perform transfer with new logic
+        $result = performCustomerTransfer(
             $sourceTelesalesId,
             $targetTelesalesId,
             $customerIds,
             $reason,
-            $_SESSION['user_id'],
-            $_SESSION['username'] ?? 'Unknown'
+            $_SESSION['user_id']
         );
         
         echo json_encode([
@@ -427,5 +426,162 @@ function logTransferActivity($action, $details) {
     ];
     
     error_log("Customer Transfer Log: " . json_encode($logData));
+}
+
+/**
+ * Perform customer transfer with correct status logic
+ */
+function performCustomerTransfer($sourceTelesalesId, $targetTelesalesId, $customerIds, $reason, $transferredBy) {
+    $database = new Database();
+    $db = $database->getConnection();
+    
+    try {
+        $database->beginTransaction();
+        
+        $transferredCount = 0;
+        $errors = [];
+        
+        foreach ($customerIds as $customerId) {
+            try {
+                // ตรวจสอบว่าลูกค้าอยู่กับ source telesales จริงหรือไม่
+                $customer = $database->fetchOne(
+                    "SELECT customer_id, assigned_to, customer_status, first_name, last_name 
+                     FROM customers 
+                     WHERE customer_id = ? AND assigned_to = ?",
+                    [$customerId, $sourceTelesalesId]
+                );
+                
+                if (!$customer) {
+                    $errors[] = "ลูกค้า ID {$customerId} ไม่ได้อยู่กับพนักงานขายต้นทาง";
+                    continue;
+                }
+                
+                // ตรวจสอบว่าพนักงานปลายทางเคยขายให้ลูกค้านี้หรือไม่
+                $hasRecentSales = checkRecentSales($database, $customerId, $targetTelesalesId);
+                
+                // กำหนดสถานะลูกค้าใหม่
+                $newStatus = determineNewCustomerStatus($database, $customerId, $targetTelesalesId, $hasRecentSales);
+                
+                // อัปเดตข้อมูลลูกค้า
+                $database->execute(
+                    "UPDATE customers 
+                     SET assigned_to = ?, 
+                         assigned_at = NOW(), 
+                         customer_status = ?,
+                         updated_at = NOW()
+                     WHERE customer_id = ?",
+                    [$targetTelesalesId, $newStatus, $customerId]
+                );
+                
+                // บันทึกประวัติการโอนย้าย (ถ้าตารางมีอยู่)
+                logTransfer($database, $customerId, $sourceTelesalesId, $targetTelesalesId, $reason, $transferredBy, $newStatus);
+                
+                $transferredCount++;
+                
+                error_log("Customer Transfer - Customer {$customerId}: {$customer['customer_status']} → {$newStatus} (hasRecentSales: " . ($hasRecentSales ? 'true' : 'false') . ")");
+                
+            } catch (Exception $e) {
+                $errors[] = "เกิดข้อผิดพลาดในการโอนลูกค้า ID {$customerId}: " . $e->getMessage();
+                error_log("Customer Transfer Error - Customer {$customerId}: " . $e->getMessage());
+            }
+        }
+        
+        $database->commit();
+        
+        return [
+            'success' => true,
+            'transferred_count' => $transferredCount,
+            'errors' => $errors,
+            'message' => "โอนย้ายลูกค้า {$transferredCount} คนสำเร็จ"
+        ];
+        
+    } catch (Exception $e) {
+        $database->rollback();
+        throw $e;
+    }
+}
+
+/**
+ * ตรวจสอบว่าพนักงานเคยขายให้ลูกค้าในช่วง 3 เดือนล่าสุดหรือไม่
+ */
+function checkRecentSales($database, $customerId, $telesalesId) {
+    try {
+        $result = $database->fetchOne(
+            "SELECT COUNT(*) as sales_count
+             FROM orders 
+             WHERE customer_id = ? 
+               AND created_by = ? 
+               AND payment_status IN ('paid', 'partial')
+               AND order_date >= DATE_SUB(NOW(), INTERVAL 90 DAY)",
+            [$customerId, $telesalesId]
+        );
+        
+        return ($result['sales_count'] ?? 0) > 0;
+        
+    } catch (Exception $e) {
+        error_log("Error checking recent sales: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * กำหนดสถานะลูกค้าใหม่ตามหลักการที่ถูกต้อง
+ */
+function determineNewCustomerStatus($database, $customerId, $telesalesId, $hasRecentSales) {
+    try {
+        // ถ้าพนักงานเคยขายให้ลูกค้าในช่วง 3 เดือนล่าสุด = existing_3m
+        if ($hasRecentSales) {
+            return 'existing_3m';
+        }
+        
+        // ถ้าไม่เคยขาย = ตรวจสอบว่าลูกค้ามีประวัติการขายหรือไม่
+        $hasAnySales = $database->fetchOne(
+            "SELECT COUNT(*) as sales_count
+             FROM orders 
+             WHERE customer_id = ? 
+               AND payment_status IN ('paid', 'partial')
+               AND order_date >= DATE_SUB(NOW(), INTERVAL 90 DAY)",
+            [$customerId]
+        );
+        
+        if (($hasAnySales['sales_count'] ?? 0) > 0) {
+            // มีการขายในช่วง 3 เดือน แต่ไม่ใช่พนักงานคนนี้ = existing
+            return 'existing';
+        } else {
+            // ไม่มีการขายในช่วง 3 เดือน = new
+            return 'new';
+        }
+        
+    } catch (Exception $e) {
+        error_log("Error determining customer status: " . $e->getMessage());
+        return 'new'; // default to new if error
+    }
+}
+
+/**
+ * บันทึกประวัติการโอนย้าย (ถ้าตารางมีอยู่)
+ */
+function logTransfer($database, $customerId, $sourceTelesalesId, $targetTelesalesId, $reason, $transferredBy, $newStatus) {
+    try {
+        // ตรวจสอบว่าตาราง customer_transfers มีอยู่หรือไม่
+        $tableExists = $database->fetchOne("SHOW TABLES LIKE 'customer_transfers'");
+        
+        if ($tableExists) {
+            $database->execute(
+                "INSERT INTO customer_transfers (
+                    customer_id, 
+                    source_telesales_id, 
+                    target_telesales_id, 
+                    reason, 
+                    transferred_by, 
+                    new_status,
+                    transferred_at
+                ) VALUES (?, ?, ?, ?, ?, ?, NOW())",
+                [$customerId, $sourceTelesalesId, $targetTelesalesId, $reason, $transferredBy, $newStatus]
+            );
+        }
+    } catch (Exception $e) {
+        error_log("Error logging transfer: " . $e->getMessage());
+    }
 }
 ?>

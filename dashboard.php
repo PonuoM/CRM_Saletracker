@@ -26,12 +26,21 @@ if ($roleName === 'supervisor') {
     exit;
 }
 
-// For admin and super_admin, use reports-style dashboard
-if (in_array($roleName, ['admin', 'super_admin'])) {
+// For admin, company_admin and super_admin, use reports-style dashboard
+if (in_array($roleName, ['admin', 'company_admin', 'super_admin'])) {
     // Load required services for reports
     require_once __DIR__ . '/app/core/Database.php';
+    require_once __DIR__ . '/app/services/CompanyContext.php';
 
     $db = new Database();
+    
+    // อนุญาตให้ override เฉพาะ super_admin เท่านั้น
+    if ($roleName === 'super_admin' && isset($_REQUEST['company_override_id'])) {
+        $id = (int)$_REQUEST['company_override_id'];
+        if ($id > 0) { $_SESSION['override_company_id'] = $id; } else { unset($_SESSION['override_company_id']); }
+    }
+    
+    $companyId = CompanyContext::getCompanyId($db);
 
     // Handle AJAX requests for month filtering
     if (isset($_GET['ajax']) && $_GET['ajax'] === '1') {
@@ -47,23 +56,25 @@ if (in_array($roleName, ['admin', 'super_admin'])) {
         try {
             if ($selectedMonth) {
                 // ข้อมูลตามเดือนที่เลือก
-                $sql = "SELECT COUNT(*) as count, SUM(total_amount) as total FROM orders WHERE DATE_FORMAT(created_at, '%Y-%m') = ?";
-                $result = $db->fetchOne($sql, [$selectedMonth]);
+                $sql = "SELECT COUNT(*) as count, SUM(total_amount) as total FROM orders WHERE DATE_FORMAT(created_at, '%Y-%m') = ?" . ($companyId ? " AND company_id = ?" : "");
+                $params = [$selectedMonth];
+                if ($companyId) { $params[] = $companyId; }
+                $result = $db->fetchOne($sql, $params);
                 $monthStats['total_orders'] = $result['count'];
                 $monthStats['total_revenue'] = $result['total'] ?? 0;
 
                 // ลูกค้าทั้งหมด (ไม่เปลี่ยนตามเดือน)
-                $sql = "SELECT COUNT(*) as count FROM customers";
-                $result = $db->fetchOne($sql);
+                $sql = "SELECT COUNT(*) as count FROM customers" . ($companyId ? " WHERE company_id = ?" : "");
+                $result = $db->fetchOne($sql, $companyId ? [$companyId] : []);
                 $monthStats['total_customers'] = $result['count'];
             } else {
                 // ข้อมูลทั้งหมด
-                $sql = "SELECT COUNT(*) as count FROM customers";
-                $result = $db->fetchOne($sql);
+                $sql = "SELECT COUNT(*) as count FROM customers" . ($companyId ? " WHERE company_id = ?" : "");
+                $result = $db->fetchOne($sql, $companyId ? [$companyId] : []);
                 $monthStats['total_customers'] = $result['count'];
 
-                $sql = "SELECT COUNT(*) as count, SUM(total_amount) as total FROM orders";
-                $result = $db->fetchOne($sql);
+                $sql = "SELECT COUNT(*) as count, SUM(total_amount) as total FROM orders" . ($companyId ? " WHERE company_id = ?" : "");
+                $result = $db->fetchOne($sql, $companyId ? [$companyId] : []);
                 $monthStats['total_orders'] = $result['count'];
                 $monthStats['total_revenue'] = $result['total'] ?? 0;
             }
@@ -88,31 +99,31 @@ if (in_array($roleName, ['admin', 'super_admin'])) {
 
     try {
         // สถิติลูกค้า
-        $sql = "SELECT COUNT(*) as count FROM customers";
-        $result = $db->fetchOne($sql);
+        $sql = "SELECT COUNT(*) as count FROM customers" . ($companyId ? " WHERE company_id = ?" : "");
+        $result = $db->fetchOne($sql, $companyId ? [$companyId] : []);
         $stats['total_customers'] = $result['count'];
 
         // สถิติคำสั่งซื้อ
-        $sql = "SELECT COUNT(*) as count, SUM(total_amount) as total FROM orders";
-        $result = $db->fetchOne($sql);
+        $sql = "SELECT COUNT(*) as count, SUM(total_amount) as total FROM orders" . ($companyId ? " WHERE company_id = ?" : "");
+        $result = $db->fetchOne($sql, $companyId ? [$companyId] : []);
         $stats['total_orders'] = $result['count'];
         $stats['total_revenue'] = $result['total'] ?? 0;
 
         // คำสั่งซื้อรายเดือน
         $sql = "SELECT DATE_FORMAT(created_at, '%Y-%m') as month, COUNT(*) as count, SUM(total_amount) as total
                 FROM orders
-                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)
+                WHERE created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)" . ($companyId ? " AND company_id = ?" : "") . "
                 GROUP BY month
                 ORDER BY month DESC";
-        $stats['monthly_orders'] = $db->fetchAll($sql);
+        $stats['monthly_orders'] = $db->fetchAll($sql, $companyId ? [$companyId] : []);
 
         // เกรดลูกค้า
-        $sql = "SELECT customer_grade AS grade, COUNT(*) as count FROM customers GROUP BY customer_grade ORDER BY customer_grade";
-        $stats['customer_grades'] = $db->fetchAll($sql);
+        $sql = "SELECT customer_grade AS grade, COUNT(*) as count FROM customers" . ($companyId ? " WHERE company_id = ?" : "") . " GROUP BY customer_grade ORDER BY customer_grade";
+        $stats['customer_grades'] = $db->fetchAll($sql, $companyId ? [$companyId] : []);
 
         // สถานะคำสั่งซื้อ
-        $sql = "SELECT delivery_status, COUNT(*) as count FROM orders GROUP BY delivery_status";
-        $stats['order_statuses'] = $db->fetchAll($sql);
+        $sql = "SELECT delivery_status, COUNT(*) as count FROM orders" . ($companyId ? " WHERE company_id = ?" : "") . " GROUP BY delivery_status";
+        $stats['order_statuses'] = $db->fetchAll($sql, $companyId ? [$companyId] : []);
 
     } catch (Exception $e) {
         $error = $e->getMessage();
@@ -133,6 +144,8 @@ if (in_array($roleName, ['admin', 'super_admin'])) {
 
     // Capture reports content for admin dashboard
     ob_start();
+    // ส่งตัวแปร $stats ไปยัง view
+    $dashboardData = $stats; // ใช้ชื่อตัวแปรที่ view คาดหวัง
     include __DIR__ . '/app/views/reports/index.php';
     $content = ob_get_clean();
 

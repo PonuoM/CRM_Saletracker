@@ -26,8 +26,8 @@ class TagService {
      */
     public function addTagToCustomer($customerId, $userId, $tagName, $tagColor = '#007bff') {
         try {
-            // ตรวจสอบว่ามี tag นี้แล้วหรือไม่
-            $existingTag = $this->getCustomerTag($customerId, $userId, $tagName);
+            // ตรวจสอบว่ามี tag นี้แล้วหรือไม่ (ระดับลูกค้า ไม่ผูกกับ user เพื่อให้คงอยู่ตลอด)
+            $existingTag = $this->getCustomerTagGlobal($customerId, $tagName);
             if ($existingTag) {
                 return ['success' => false, 'message' => 'Tag นี้มีอยู่แล้ว'];
             }
@@ -62,13 +62,14 @@ class TagService {
     /**
      * ดึง tags ทั้งหมดของลูกค้า (สำหรับ user คนนั้น)
      */
-    public function getCustomerTags($customerId, $userId) {
+    public function getCustomerTags($customerId, $userId = null) {
         try {
+            // คืน tags ทั้งหมดของลูกค้าคนนี้ (ไม่ผูกกับ user) เพื่อให้แสดงคงอยู่เสมอ
             $sql = "SELECT tag_name, tag_color, created_at 
                     FROM customer_tags 
-                    WHERE customer_id = ? AND user_id = ? 
+                    WHERE customer_id = ? 
                     ORDER BY created_at DESC";
-            return $this->db->fetchAll($sql, [$customerId, $userId]);
+            return $this->db->fetchAll($sql, [$customerId]);
         } catch (Exception $e) {
             error_log('TagService::getCustomerTags Error: ' . $e->getMessage());
             return [];
@@ -90,10 +91,25 @@ class TagService {
     }
 
     /**
+     * ตรวจสอบ tag ระดับลูกค้า (ไม่ผูก user)
+     */
+    public function getCustomerTagGlobal($customerId, $tagName) {
+        try {
+            $sql = "SELECT * FROM customer_tags 
+                    WHERE customer_id = ? AND tag_name = ? LIMIT 1";
+            return $this->db->fetchOne($sql, [$customerId, $tagName]);
+        } catch (Exception $e) {
+            error_log('TagService::getCustomerTagGlobal Error: ' . $e->getMessage());
+            return null;
+        }
+    }
+
+    /**
      * ดึง tags ทั้งหมดที่ user คนนี้เคยใช้
      */
     public function getUserTags($userId) {
         try {
+            // นับการใช้งานจากทั้งระบบของผู้ใช้คนนี้เป็นหลัก แต่ไม่จำกัดการแสดงผลของลูกค้า
             $sql = "SELECT DISTINCT tag_name, tag_color, COUNT(*) as usage_count
                     FROM customer_tags 
                     WHERE user_id = ? 
@@ -115,17 +131,16 @@ class TagService {
                            GROUP_CONCAT(ct.tag_name) as customer_tags,
                            GROUP_CONCAT(ct.tag_color) as tag_colors
                     FROM customers c 
-                    LEFT JOIN customer_tags ct ON c.customer_id = ct.customer_id AND ct.user_id = ?";
+                    LEFT JOIN customer_tags ct ON c.customer_id = ct.customer_id";
             
-            $params = [$userId];
+            $params = [];
             $whereConditions = [];
 
             // Filter by tags
             if (!empty($tagNames)) {
                 $tagPlaceholders = str_repeat('?,', count($tagNames) - 1) . '?';
                 $sql .= " INNER JOIN customer_tags ct2 ON c.customer_id = ct2.customer_id 
-                         AND ct2.user_id = ? AND ct2.tag_name IN ($tagPlaceholders)";
-                $params[] = $userId;
+                         AND ct2.tag_name IN ($tagPlaceholders)";
                 $params = array_merge($params, $tagNames);
             }
 
@@ -157,6 +172,15 @@ class TagService {
                 $params[] = '%' . $additionalFilters['phone'] . '%';
             }
 
+            // Restrict results to current company for non super_admin users
+            if (session_status() === PHP_SESSION_NONE) { @session_start(); }
+            $roleName = $_SESSION['role_name'] ?? '';
+            $companyId = $_SESSION['company_id'] ?? null;
+            if ($roleName !== 'super_admin' && $companyId) {
+                $whereConditions[] = "c.company_id = ?";
+                $params[] = $companyId;
+            }
+
             // Apply where conditions
             if (!empty($whereConditions)) {
                 $sql .= " WHERE " . implode(' AND ', $whereConditions);
@@ -167,6 +191,66 @@ class TagService {
             return $this->db->fetchAll($sql, $params);
         } catch (Exception $e) {
             error_log('TagService::getCustomersByTags Error: ' . $e->getMessage());
+            return [];
+        }
+    }
+
+    /**
+     * ---------- Customer Info Tags (โปรไฟล์ลูกค้า) ----------
+     */
+    private function ensureInfoTagsTable() {
+        $sql = "CREATE TABLE IF NOT EXISTS customer_info_tags (
+                    id INT AUTO_INCREMENT PRIMARY KEY,
+                    customer_id INT NOT NULL,
+                    tag_name VARCHAR(100) NOT NULL,
+                    tag_color VARCHAR(7) DEFAULT '#6c757d',
+                    created_by INT NULL,
+                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE KEY uniq_customer_info_tag (customer_id, tag_name),
+                    INDEX idx_customer_info_tags_customer_id (customer_id)
+                ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4";
+        $this->db->execute($sql);
+    }
+
+    public function addCustomerInfoTag($customerId, $userId, $tagName, $tagColor = '#6c757d') {
+        try {
+            $this->ensureInfoTagsTable();
+            // Prevent duplicates
+            $exists = $this->db->fetchOne("SELECT id FROM customer_info_tags WHERE customer_id = ? AND tag_name = ?", [$customerId, $tagName]);
+            if ($exists) {
+                return ['success' => false, 'message' => 'Tag นี้มีอยู่แล้ว'];
+            }
+            $this->db->execute(
+                "INSERT INTO customer_info_tags (customer_id, tag_name, tag_color, created_by) VALUES (?, ?, ?, ?)",
+                [$customerId, $tagName, $tagColor, $userId]
+            );
+            return ['success' => true, 'message' => 'เพิ่ม Tag ข้อมูลลูกค้าสำเร็จ'];
+        } catch (Exception $e) {
+            error_log('TagService::addCustomerInfoTag Error: ' . $e->getMessage());
+            return ['success' => false, 'message' => 'เกิดข้อผิดพลาดในการเพิ่ม Tag ข้อมูลลูกค้า'];
+        }
+    }
+
+    public function removeCustomerInfoTag($customerId, $tagName) {
+        try {
+            $this->ensureInfoTagsTable();
+            $this->db->execute("DELETE FROM customer_info_tags WHERE customer_id = ? AND tag_name = ?", [$customerId, $tagName]);
+            return ['success' => true, 'message' => 'ลบ Tag ข้อมูลลูกค้าสำเร็จ'];
+        } catch (Exception $e) {
+            error_log('TagService::removeCustomerInfoTag Error: ' . $e->getMessage());
+            return ['success' => false, 'message' => 'เกิดข้อผิดพลาดในการลบ Tag ข้อมูลลูกค้า'];
+        }
+    }
+
+    public function getCustomerInfoTags($customerId) {
+        try {
+            $this->ensureInfoTagsTable();
+            return $this->db->fetchAll(
+                "SELECT tag_name, tag_color, created_at FROM customer_info_tags WHERE customer_id = ? ORDER BY created_at DESC",
+                [$customerId]
+            );
+        } catch (Exception $e) {
+            error_log('TagService::getCustomerInfoTags Error: ' . $e->getMessage());
             return [];
         }
     }
